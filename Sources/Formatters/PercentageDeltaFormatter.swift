@@ -25,6 +25,23 @@ public struct PercentageDeltaFormatter: Sendable {
         return "\u{2212}\(absFormatted)%"
     }
 
+    /// Unsigned portfolio-share rendering. Drops the `+`/`−` glyphs because share is
+    /// inherently non-negative. Uses two fraction digits at ≤100%, none above to keep
+    /// the column readable when one position dominates the wallet.
+    public func share(_ percent: Double) -> String {
+        guard percent.isFinite else { return "—" }
+        let abs = Swift.abs(percent)
+        let digits = abs > 100 ? 0 : 2
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = locale
+        formatter.minimumFractionDigits = digits
+        formatter.maximumFractionDigits = digits
+        let body = formatter.string(from: NSNumber(value: abs))
+            ?? String(format: "%.\(digits)f", abs)
+        return "\(body)%"
+    }
+
     /// Maps a delta to a semantic color hint for UI consumers.
     public func color(for delta: Double) -> DeltaColor {
         if delta > 0 { return .up }

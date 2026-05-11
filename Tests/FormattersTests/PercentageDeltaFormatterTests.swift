@@ -51,6 +51,25 @@ final class PercentageDeltaFormatterTests: XCTestCase {
         XCTAssertEqual(f.string(1.23), "+1,23%")
     }
 
+    // MARK: - share(_:)
+
+    func testShareIsUnsignedTwoDigitsByDefault_enUS() {
+        let f = PercentageDeltaFormatter(locale: enUS)
+        XCTAssertEqual(f.share(12.34), "12.34%")
+        XCTAssertEqual(f.share(0), "0.00%")
+        XCTAssertEqual(f.share(99.5), "99.50%")
+    }
+
+    func testShareDropsFractionDigitsAboveOneHundred_enUS() {
+        let f = PercentageDeltaFormatter(locale: enUS)
+        XCTAssertEqual(f.share(150), "150%")
+    }
+
+    func testShareHonorsLocaleDecimalSeparator_deDE() {
+        let f = PercentageDeltaFormatter(locale: deDE)
+        XCTAssertEqual(f.share(12.34), "12,34%")
+    }
+
     // MARK: - color(for:)
 
     func testColorNeutralForZero() {
