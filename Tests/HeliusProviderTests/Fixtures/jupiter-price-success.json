@@ -1,0 +1,20 @@
+{
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": {
+    "usdPrice": 1.0001,
+    "blockId": 300000000,
+    "decimals": 6,
+    "priceChange24h": 0.02
+  },
+  "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": {
+    "usdPrice": 0.999,
+    "blockId": 300000000,
+    "decimals": 6,
+    "priceChange24h": -0.05
+  },
+  "So11111111111111111111111111111111111111112": {
+    "usdPrice": 150.50,
+    "blockId": 300000000,
+    "decimals": 9,
+    "priceChange24h": 3.45
+  }
+}

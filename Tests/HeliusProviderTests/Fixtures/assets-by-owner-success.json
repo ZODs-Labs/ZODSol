@@ -1,0 +1,144 @@
+{
+  "jsonrpc": "2.0",
+  "id": "test-1",
+  "result": {
+    "total": 6,
+    "limit": 1000,
+    "page": 1,
+    "last_indexed_slot": 300000000,
+    "nativeBalance": {
+      "lamports": 5000000000,
+      "price_per_sol": 150.50,
+      "total_price": 752.50
+    },
+    "items": [
+      {
+        "id": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "interface": "FungibleToken",
+        "content": {
+          "json_uri": "https://example.com/usdc.json",
+          "files": [
+            {
+              "uri": "https://example.com/usdc.png",
+              "cdn_uri": "https://cdn.example.com/usdc.png",
+              "mime": "image/png"
+            }
+          ],
+          "links": {
+            "image": "https://example.com/usdc.png"
+          },
+          "metadata": {
+            "name": "USD Coin",
+            "symbol": "USDC",
+            "description": "Stablecoin"
+          }
+        },
+        "ownership": {
+          "owner": "11111111111111111111111111111111",
+          "frozen": false
+        },
+        "token_info": {
+          "balance": 1000000,
+          "decimals": 6,
+          "symbol": "USDC",
+          "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "price_info": {
+            "price_per_token": 1.0,
+            "total_price": 1.0,
+            "currency": "USDC"
+          }
+        },
+        "burnt": false
+      },
+      {
+        "id": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+        "interface": "FungibleToken",
+        "content": {
+          "metadata": {
+            "name": "USDT",
+            "symbol": "USDT"
+          }
+        },
+        "ownership": {
+          "owner": "11111111111111111111111111111111"
+        },
+        "token_info": {
+          "balance": 2000000,
+          "decimals": 6,
+          "symbol": "USDT",
+          "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "price_info": {
+            "price_per_token": 0.999,
+            "total_price": 1.998,
+            "currency": "USDC"
+          }
+        },
+        "burnt": false
+      },
+      {
+        "id": "So11111111111111111111111111111111111111112",
+        "interface": "V1_NFT",
+        "content": {
+          "metadata": {
+            "name": "Test NFT #1",
+            "symbol": "TNFT"
+          },
+          "files": [
+            {
+              "uri": "https://example.com/nft1.png",
+              "cdn_uri": "https://cdn.example.com/nft1.png",
+              "mime": "image/png"
+            }
+          ]
+        },
+        "ownership": {
+          "owner": "11111111111111111111111111111111"
+        },
+        "burnt": false
+      },
+      {
+        "id": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "interface": "ProgrammableNFT",
+        "content": {
+          "metadata": {
+            "name": "Test NFT #2",
+            "symbol": "TNFT2"
+          }
+        },
+        "ownership": {
+          "owner": "11111111111111111111111111111111"
+        },
+        "burnt": false
+      },
+      {
+        "id": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "interface": "MplCoreAsset",
+        "content": {
+          "metadata": {
+            "name": "Test NFT #3"
+          }
+        },
+        "ownership": {
+          "owner": "11111111111111111111111111111111"
+        },
+        "compression": {
+          "compressed": false
+        },
+        "burnt": false
+      },
+      {
+        "id": "Sysvar1111111111111111111111111111111111111",
+        "interface": "Custom",
+        "content": {
+          "metadata": {
+            "name": "Unknown Asset"
+          }
+        },
+        "ownership": {
+          "owner": "11111111111111111111111111111111"
+        },
+        "burnt": false
+      }
+    ]
+  }
+}

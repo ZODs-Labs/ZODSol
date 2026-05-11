@@ -1,0 +1,10 @@
+{
+  "jsonrpc": "2.0",
+  "id": "test-balance",
+  "result": {
+    "context": {
+      "slot": 300000000
+    },
+    "value": 5000000000
+  }
+}

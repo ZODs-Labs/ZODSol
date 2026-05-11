@@ -1,0 +1,8 @@
+{
+  "jsonrpc": "2.0",
+  "id": "test-rate-limit",
+  "error": {
+    "code": -32005,
+    "message": "Node is behind by 42 slots"
+  }
+}

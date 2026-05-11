@@ -1,0 +1,31 @@
+{
+  "jsonrpc": "2.0",
+  "id": "test-token-accounts",
+  "result": {
+    "context": {
+      "slot": 300000000,
+      "apiVersion": "2.0.15"
+    },
+    "value": [
+      {
+        "pubkey": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "account": {
+          "data": {
+            "parsed": {
+              "info": {
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "owner": "11111111111111111111111111111111",
+                "tokenAmount": {
+                  "amount": "1000000",
+                  "decimals": 6,
+                  "uiAmount": 1.0,
+                  "uiAmountString": "1"
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
