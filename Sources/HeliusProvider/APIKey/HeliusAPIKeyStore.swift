@@ -40,7 +40,6 @@ public actor HeliusAPIKeyStore {
         } catch KeychainError.biometricFailed,
                 KeychainError.interactionRequired,
                 KeychainError.userCanceled {
-            try? await store.delete(item)
             cache = .loaded(nil)
             return nil
         }

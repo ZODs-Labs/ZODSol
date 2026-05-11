@@ -107,13 +107,24 @@ public final class WalletOverviewViewModel {
         await credentialsDidChange?()
         await service.invalidateAll()
         self.hasAPIKey = true
+        self.route = .overview
+        guard activeWalletId != nil else {
+            self.state = .idle
+            return
+        }
+        self.state = .loading
+        panelDidAppear()
     }
 
     public func clearAPIKey() async {
+        refreshTask?.cancel()
+        refreshTask = nil
         try? await apiKeyStore.clear()
         await credentialsDidChange?()
         await service.invalidateAll()
         self.hasAPIKey = false
+        self.state = .idle
+        self.route = .overview
     }
 
     public func refresh() async {

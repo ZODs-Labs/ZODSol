@@ -18,10 +18,19 @@ struct ErrorView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Retry") {
-                Task { await viewModel.refresh() }
+            VStack(spacing: 8) {
+                Button("Retry") {
+                    Task { await viewModel.refresh() }
+                }
+                .buttonStyle(.borderedProminent)
+
+                if canChangeAPIKey {
+                    Button("Change API key") {
+                        Task { await viewModel.clearAPIKey() }
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
-            .buttonStyle(.borderedProminent)
             .controlSize(.regular)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -63,6 +72,21 @@ struct ErrorView: View {
             "The previous request was canceled."
         case .unknown(let message):
             message
+        }
+    }
+
+    private var canChangeAPIKey: Bool {
+        switch error {
+        case .needsSetup, .unauthorized:
+            true
+        case .networkUnavailable,
+             .rateLimited,
+             .providerUnavailable,
+             .malformedResponse,
+             .biometricInvalidated,
+             .canceled,
+             .unknown:
+            false
         }
     }
 }

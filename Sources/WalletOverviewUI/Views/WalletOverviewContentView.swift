@@ -75,8 +75,9 @@ struct WalletOverviewContentView: View {
     }
 
     private var subtitle: some View {
-        HStack(spacing: 6) {
-            Text("\(overview.tokens.count) holding\(overview.tokens.count == 1 ? "" : "s")")
+        let holdingsCount = rows.count
+        return HStack(spacing: 6) {
+            Text("\(holdingsCount) holding\(holdingsCount == 1 ? "" : "s")")
                 .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()

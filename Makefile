@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: build check clean format lint package run test
+.PHONY: build check clean format lint package run setup-signing setup-xcode test
 
 build:
 	swift build
@@ -13,6 +13,12 @@ run:
 
 package:
 	./Scripts/package_app.sh
+
+setup-signing:
+	./Scripts/setup_local_signing.sh
+
+setup-xcode:
+	./Scripts/setup_xcode_run.sh
 
 format:
 	@if command -v swiftformat >/dev/null 2>&1; then \

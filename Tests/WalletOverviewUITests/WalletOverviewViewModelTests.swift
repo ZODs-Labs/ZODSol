@@ -98,6 +98,63 @@ final class WalletOverviewViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testClearAPIKeyFromUnauthorizedStateReturnsToEditableSetup() async throws {
+        let apiKeyStore = MockAPIKeyStore(key: "bad-key")
+        let service = MockWalletOverviewService(loadResult: .failed(.unauthorized))
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let viewModel = makeViewModel(
+            service: service,
+            walletStore: walletStore,
+            apiKeyStore: apiKeyStore
+        )
+
+        viewModel.panelDidAppear()
+        await waitUntil { viewModel.activeWalletId == identity.id && viewModel.hasAPIKey }
+        await viewModel.refresh()
+
+        guard case .failed(.unauthorized) = viewModel.state else {
+            return XCTFail("Expected unauthorized failure before recovery")
+        }
+
+        await viewModel.clearAPIKey()
+
+        XCTAssertFalse(viewModel.hasAPIKey)
+        XCTAssertEqual(viewModel.activeWalletId, identity.id)
+        if case .idle = viewModel.state {
+            // expected — the panel can render onboarding/API-key entry again.
+        } else {
+            XCTFail("Expected state to reset to .idle after clearing API key")
+        }
+    }
+
+    @MainActor
+    func testReplacingAPIKeyWithActiveWalletReloadsPortfolio() async throws {
+        let apiKeyStore = MockAPIKeyStore(key: nil)
+        let service = MockWalletOverviewService(loadResult: .failed(.unauthorized))
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let viewModel = makeViewModel(
+            service: service,
+            walletStore: walletStore,
+            apiKeyStore: apiKeyStore
+        )
+
+        viewModel.panelDidAppear()
+        await waitUntil { viewModel.activeWalletId == identity.id }
+
+        try await viewModel.setAPIKey("replacement-key")
+
+        XCTAssertTrue(viewModel.hasAPIKey)
+        XCTAssertEqual(viewModel.activeWalletId, identity.id)
+        let invalidations = await service.invalidateAllCallCount
+        XCTAssertEqual(invalidations, 1)
+        if case .loading = viewModel.state {
+            // expected — stale unauthorized screen is replaced by a fresh load.
+        } else {
+            XCTFail("Expected replacement API key to trigger a loading state")
+        }
+    }
+
+    @MainActor
     func testRefreshWithoutActiveWalletDoesNothing() async {
         let service = MockWalletOverviewService(loadResult: .loading)
         let viewModel = makeViewModel(service: service)
@@ -118,11 +175,12 @@ final class WalletOverviewViewModelTests: XCTestCase {
     @MainActor
     private func makeViewModel(
         service: MockWalletOverviewService? = nil,
+        walletStore: WalletStore? = nil,
         apiKeyStore: MockAPIKeyStore? = nil
     ) -> WalletOverviewViewModel {
         return WalletOverviewViewModel(
             service: service ?? MockWalletOverviewService(),
-            walletStore: TestWalletStoreFactory.makeEmpty(),
+            walletStore: walletStore ?? TestWalletStoreFactory.makeEmpty(),
             apiKeyStore: apiKeyStore ?? MockAPIKeyStore()
         )
     }

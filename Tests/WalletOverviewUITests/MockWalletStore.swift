@@ -1,5 +1,6 @@
 import Foundation
 import KeychainKit
+import SolanaKit
 import WalletOverviewDomain
 
 /// Constructs a real `WalletStore` for unit tests.
@@ -16,5 +17,15 @@ enum TestWalletStoreFactory {
         defaults.removePersistentDomain(forName: suiteName)
         let secureStore = SecureItemStore(service: "zodsol.tests.\(UUID().uuidString)")
         return WalletStore(secureStore: secureStore, defaults: defaults)
+    }
+
+    static func makeWithWallet() async throws -> (WalletStore, WalletIdentity) {
+        let store = makeEmpty()
+        let identity = try await store.add(
+            address: WalletAddress(base58: "11111111111111111111111111111111"),
+            label: "Main"
+        )
+        await store.setSelectedWallet(identity.id)
+        return (store, identity)
     }
 }

@@ -81,7 +81,7 @@ extension HeliusSolanaProvider {
                 amount: tokenInfo?.balance ?? 0,
                 decimals: tokenInfo?.decimals ?? 0
             )
-            symbol = tokenInfo?.symbol
+            symbol = content?.metadata?.symbol
             name = content?.metadata?.name
             pricePerToken = tokenInfo?.price_info?.price_per_token
             if let ppt = pricePerToken {
@@ -103,8 +103,7 @@ extension HeliusSolanaProvider {
             usdValue = nil
         }
 
-        let imageURLString = content?.files?.first?.cdn_uri ?? content?.links?.image
-        let imageURL: URL? = imageURLString.flatMap { URL(string: $0) }
+        let imageURL = pickLogoURL(content?.files)
 
         return AssetSummary(
             id: mint,
@@ -118,6 +117,28 @@ extension HeliusSolanaProvider {
             priceChange24h: nil,
             tokenProgram: tokenInfo?.token_program
         )
+    }
+
+    // Helius's `cdn_uri` wraps the source through Cloudflare image resizing
+    // (`https://cdn.helius-rpc.com/cdn-cgi/image/<opts>/<source>`). The wrapper
+    // frequently 404s or returns the wrong content for IPFS sources, so prefer
+    // the raw `uri` and fall back to the underlying source extracted from the
+    // wrapper only if `uri` is missing.
+    private static func pickLogoURL(_ files: [HeliusAssetsByOwnerResult.HeliusFile]?) -> URL? {
+        guard let first = files?.first else { return nil }
+        if let uri = first.uri, let url = URL(string: uri) { return url }
+        guard let cdn = first.cdn_uri else { return nil }
+        if let underlying = dewrapCDN(cdn), let url = URL(string: underlying) { return url }
+        return URL(string: cdn)
+    }
+
+    private static func dewrapCDN(_ s: String) -> String? {
+        guard let prefixRange = s.range(of: "/cdn-cgi/image/") else { return nil }
+        var rest = String(s[prefixRange.upperBound...])
+        while let first = rest.first, first != "/" { rest.removeFirst() }
+        while rest.hasPrefix("/") { rest.removeFirst() }
+        guard rest.hasPrefix("https://") || rest.hasPrefix("http://") else { return nil }
+        return rest
     }
 
     private static func classifyAsset(_ asset: HeliusAssetsByOwnerResult.HeliusAsset) -> AssetKind {
