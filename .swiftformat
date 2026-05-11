@@ -1,0 +1,47 @@
+# SwiftFormat configuration for ZODSol.
+# Compatible with Swift 6 strict concurrency.
+
+# IMPORTANT: explicit self is required under Swift 6 concurrency.
+--self insert
+--selfrequired
+--importgrouping testable-bottom
+--extensionacl on-declarations
+
+# Indentation
+--indent 4
+--indentcase false
+--ifdef no-indent
+--xcodeindentation enabled
+
+# Line breaks
+--linebreaks lf
+--maxwidth 120
+
+# Whitespace
+--trimwhitespace always
+--emptybraces no-space
+--nospaceoperators ...,..<
+--ranges no-space
+--someAny true
+
+# Wrapping
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen same-line
+
+# Organization
+--organizetypes class,struct,enum,extension
+--marktypes never
+--markextensions never
+
+# Swift version
+--swiftversion 6.2
+
+# Other
+--stripunusedargs closure-only
+--header ignore
+--allman false
+
+# Exclusions
+--exclude .build,.swiftpm,DerivedData,ZODSol.app
