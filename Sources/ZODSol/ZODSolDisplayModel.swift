@@ -1,6 +1,6 @@
 import Foundation
 
-struct ZODSolDisplayModel: Equatable, Sendable {
+struct ZODSolDisplayModel: Equatable {
     let appName: String
     let statusItemTitle: String
     let panelLabel: String

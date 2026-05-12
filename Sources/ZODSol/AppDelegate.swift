@@ -5,6 +5,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        DotEnvLoader.applyToProcessEnvironment()
+        #endif
         NSApp.setActivationPolicy(.accessory)
     }
 

@@ -89,5 +89,7 @@ final class GlassPanelView: NSView {
 /// shapes blend correctly against the glass background.
 @MainActor
 final class VibrantHostingView<Content: View>: NSHostingView<Content> {
-    override var allowsVibrancy: Bool { true }
+    override var allowsVibrancy: Bool {
+        true
+    }
 }

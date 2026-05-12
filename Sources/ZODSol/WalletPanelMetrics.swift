@@ -21,50 +21,50 @@ enum WalletPanelMetrics {
         route: PanelRoute,
         hasAPIKey: Bool,
         walletCount: Int,
-        state: LoadState<WalletOverview>
-    ) -> CGFloat {
+        state: LoadState<WalletOverview>) -> CGFloat
+    {
         if !hasAPIKey { return 240 }
         if walletCount == 0 { return 340 }
-        return heightForRoute(route, walletCount: walletCount, state: state)
+        return self.heightForRoute(route, walletCount: walletCount, state: state)
     }
 
     private static func heightForRoute(
         _ route: PanelRoute,
         walletCount: Int,
-        state: LoadState<WalletOverview>
-    ) -> CGFloat {
+        state: LoadState<WalletOverview>) -> CGFloat
+    {
         switch route {
         case .overview:
-            return overviewHeight(state: state)
+            self.overviewHeight(state: state)
         case .switcher:
-            return clamp(96 + CGFloat(max(1, walletCount)) * 56 + 48, lo: 280, hi: 480)
+            self.clamp(96 + CGFloat(max(1, walletCount)) * 56 + 48, lo: 280, hi: 480)
         case .manage:
-            return clamp(96 + CGFloat(max(1, walletCount)) * 56 + 56, lo: 280, hi: 520)
+            self.clamp(96 + CGFloat(max(1, walletCount)) * 56 + 56, lo: 280, hi: 520)
         case .rename:
-            return 220
+            220
         case .addWallet:
-            return 300
+            300
         case .send:
-            return 440
+            440
         case .assetPicker:
-            return 480
+            480
         case .receive:
-            return 520
+            520
         }
     }
 
     private static func overviewHeight(state: LoadState<WalletOverview>) -> CGFloat {
         switch state {
-        case .idle, .loading: return 360
-        case .failed:         return 320
-        case .loaded, .partial: return 520
+        case .idle, .loading: 360
+        case .failed: 320
+        case .loaded, .partial: 520
         }
     }
 
     static func clampedHeight(ideal: CGFloat, screen: NSScreen?) -> CGFloat {
         let floored = max(ideal, minHeight)
         guard let visible = screen?.visibleFrame else { return floored }
-        let maxAvailable = max(minHeight, visible.height - menuBarGap - bottomSafetyMargin)
+        let maxAvailable = max(minHeight, visible.height - self.menuBarGap - self.bottomSafetyMargin)
         return min(floored, maxAvailable)
     }
 

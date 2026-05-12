@@ -9,5 +9,4 @@ final class ZODSolDisplayModelTests: XCTestCase {
         XCTAssertEqual(model.statusItemTitle, "ZODs")
         XCTAssertEqual(model.panelLabel, "ZODs")
     }
-
 }

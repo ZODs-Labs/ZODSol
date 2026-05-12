@@ -1,11 +1,10 @@
-import XCTest
-@testable import ZODSol
 import SolanaKit
 import WalletOverviewDomain
 import WalletOverviewUI
+import XCTest
+@testable import ZODSol
 
 final class WalletPanelMetricsTests: XCTestCase {
-
     func testTahoeConstants() {
         XCTAssertEqual(WalletPanelMetrics.width, 360)
         XCTAssertEqual(WalletPanelMetrics.cornerRadius, 12)
@@ -17,8 +16,7 @@ final class WalletPanelMetricsTests: XCTestCase {
             route: .overview,
             hasAPIKey: false,
             walletCount: 0,
-            state: .idle
-        )
+            state: .idle)
         XCTAssertEqual(h, 240)
     }
 
@@ -27,20 +25,18 @@ final class WalletPanelMetricsTests: XCTestCase {
             route: .overview,
             hasAPIKey: true,
             walletCount: 0,
-            state: .idle
-        )
+            state: .idle)
         XCTAssertEqual(h, 340)
     }
 
     func testOverviewHeightsByState() throws {
         let common: (LoadState<WalletOverview>) -> CGFloat = { state in
             WalletPanelMetrics.idealHeight(
-                route: .overview, hasAPIKey: true, walletCount: 1, state: state
-            )
+                route: .overview, hasAPIKey: true, walletCount: 1, state: state)
         }
-        let overview = WalletOverview(
+        let overview = try WalletOverview(
             walletId: UUID(),
-            address: try WalletAddress(base58: "So11111111111111111111111111111111111111112"),
+            address: WalletAddress(base58: "So11111111111111111111111111111111111111112"),
             solBalance: Lamports(rawValue: 0),
             solPriceUSD: nil,
             solChange24h: nil,
@@ -49,8 +45,7 @@ final class WalletPanelMetricsTests: XCTestCase {
             totalUSD: nil,
             totalChange24h: nil,
             asOf: Date(timeIntervalSince1970: 0),
-            isPartial: false
-        )
+            isPartial: false)
         XCTAssertEqual(common(.idle), 360)
         XCTAssertEqual(common(.loading), 360)
         XCTAssertEqual(common(.failed(.needsSetup)), 320)
@@ -60,33 +55,27 @@ final class WalletPanelMetricsTests: XCTestCase {
 
     func testRenameAndAddWalletAreShort() {
         let renameH = WalletPanelMetrics.idealHeight(
-            route: .rename(walletId: UUID()), hasAPIKey: true, walletCount: 2, state: .loading
-        )
+            route: .rename(walletId: UUID()), hasAPIKey: true, walletCount: 2, state: .loading)
         let addH = WalletPanelMetrics.idealHeight(
-            route: .addWallet, hasAPIKey: true, walletCount: 2, state: .loading
-        )
+            route: .addWallet, hasAPIKey: true, walletCount: 2, state: .loading)
         XCTAssertEqual(renameH, 220)
         XCTAssertEqual(addH, 300)
     }
 
     func testSwitcherClampsToList() {
         let single = WalletPanelMetrics.idealHeight(
-            route: .switcher, hasAPIKey: true, walletCount: 1, state: .loading
-        )
+            route: .switcher, hasAPIKey: true, walletCount: 1, state: .loading)
         let many = WalletPanelMetrics.idealHeight(
-            route: .switcher, hasAPIKey: true, walletCount: 20, state: .loading
-        )
+            route: .switcher, hasAPIKey: true, walletCount: 20, state: .loading)
         XCTAssertEqual(single, 280, "single-row switcher snaps to the floor")
         XCTAssertEqual(many, 480, "long switcher caps at the popover ceiling")
     }
 
     func testManageClampsToList() {
         let single = WalletPanelMetrics.idealHeight(
-            route: .manage, hasAPIKey: true, walletCount: 1, state: .loading
-        )
+            route: .manage, hasAPIKey: true, walletCount: 1, state: .loading)
         let many = WalletPanelMetrics.idealHeight(
-            route: .manage, hasAPIKey: true, walletCount: 20, state: .loading
-        )
+            route: .manage, hasAPIKey: true, walletCount: 20, state: .loading)
         XCTAssertEqual(single, 280)
         XCTAssertEqual(many, 520)
     }
