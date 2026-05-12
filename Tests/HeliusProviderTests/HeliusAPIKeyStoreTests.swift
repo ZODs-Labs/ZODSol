@@ -1,13 +1,12 @@
-import XCTest
 import KeychainKit
+import XCTest
 @testable import HeliusProvider
 
 final class HeliusAPIKeyStoreTests: XCTestCase {
     private var store: HeliusAPIKeyStore?
     private let testItem = SecureItem(
         service: "dev.zods.zodsol.test",
-        account: "helius.apiKey.test"
-    )
+        account: "helius.apiKey.test")
 
     override func setUp() async throws {
         guard ProcessInfo.processInfo.environment["ZODSOL_KEYCHAIN_TEST"] != nil else {
@@ -21,8 +20,8 @@ final class HeliusAPIKeyStoreTests: XCTestCase {
     }
 
     override func tearDown() async throws {
-        try? await store?.clear()
-        store = nil
+        try? await self.store?.clear()
+        self.store = nil
     }
 
     func test_missingKey_returnsNil() async throws {
@@ -73,11 +72,53 @@ final class HeliusAPIKeyStoreTests: XCTestCase {
         XCTAssertEqual(key, "trimmed-key")
     }
 
+    // MARK: - Environment override (no Keychain dependency)
+
+    func test_environmentOverride_returnsValue_withoutTouchingKeychain() async throws {
+        let store = self.makeEnvOnlyStore(value: "env-key")
+        let key = try await store.currentKey()
+        XCTAssertEqual(key, "env-key")
+    }
+
+    func test_environmentOverride_trimsWhitespace() async throws {
+        let store = self.makeEnvOnlyStore(value: "  spaced-key  \n")
+        let key = try await store.currentKey()
+        XCTAssertEqual(key, "spaced-key")
+    }
+
+    func test_environmentOverride_emptyValue_fallsThrough_andReturnsNil() async throws {
+        // No keychain item exists for the test SecureItem and env is empty,
+        // so the store should fall through to the Keychain path and return nil
+        // (errSecItemNotFound is mapped to .loaded(nil) by the store).
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["ZODSOL_KEYCHAIN_TEST"] != nil,
+            "Fall-through verification touches the real Keychain")
+        let store = HeliusAPIKeyStore(
+            secureStore: SecureItemStore(service: "dev.zods.zodsol.test"),
+            item: testItem,
+            environment: EnvironmentKeySource(
+                variableName: "ZODSOL_HELIUS_API_KEY",
+                environment: { ["ZODSOL_HELIUS_API_KEY": ""] }))
+        try? await store.clear()
+        let key = try await store.currentKey()
+        XCTAssertNil(key)
+    }
+
+    private func makeEnvOnlyStore(value: String) -> HeliusAPIKeyStore {
+        HeliusAPIKeyStore(
+            secureStore: SecureItemStore(service: "dev.zods.zodsol.test.env"),
+            item: SecureItem(
+                service: "dev.zods.zodsol.test.env",
+                account: "unreachable.\(UUID().uuidString)"),
+            environment: EnvironmentKeySource(
+                variableName: "ZODSOL_HELIUS_API_KEY",
+                environment: { ["ZODSOL_HELIUS_API_KEY": value] }))
+    }
+
     private func requireStore() throws -> HeliusAPIKeyStore {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["ZODSOL_KEYCHAIN_TEST"] != nil,
-            "Keychain-backed API key tests require ZODSOL_KEYCHAIN_TEST=1"
-        )
-        return try XCTUnwrap(store)
+            "Keychain-backed API key tests require ZODSOL_KEYCHAIN_TEST=1")
+        return try XCTUnwrap(self.store)
     }
 }

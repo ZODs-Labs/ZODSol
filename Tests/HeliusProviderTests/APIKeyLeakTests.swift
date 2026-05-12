@@ -1,7 +1,6 @@
 import XCTest
 
 final class APIKeyLeakTests: XCTestCase {
-
     func test_apiKey_neverInSourceLogs() throws {
         let thisFile = URL(fileURLWithPath: #filePath)
         let testDir = thisFile.deletingLastPathComponent()
@@ -22,15 +21,15 @@ final class APIKeyLeakTests: XCTestCase {
                 let isLogLine = line.contains("Logger")
                     || line.contains("os_log")
                     || line.contains("print(")
-                if isLogLine && line.contains("apiKey") {
-                    offendingLines.append("\(url.lastPathComponent):\(i + 1): \(line.trimmingCharacters(in: .whitespaces))")
+                if isLogLine, line.contains("apiKey") {
+                    offendingLines
+                        .append("\(url.lastPathComponent):\(i + 1): \(line.trimmingCharacters(in: .whitespaces))")
                 }
             }
         }
 
         XCTAssertTrue(
             offendingLines.isEmpty,
-            "API key referenced in log line(s):\n\(offendingLines.joined(separator: "\n"))"
-        )
+            "API key referenced in log line(s):\n\(offendingLines.joined(separator: "\n"))")
     }
 }
