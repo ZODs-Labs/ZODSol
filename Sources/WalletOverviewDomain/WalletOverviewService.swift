@@ -116,9 +116,9 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
         let solChange = await solChangeTask
 
         let fungibleMints = page.items.compactMap { $0.kind == .fungible ? $0.id : nil }
-        let changes: [Mint: Double] = (try? await provider.priceChange24h(for: fungibleMints)) ?? [:]
+        let quotes: [Mint: PriceQuote] = (try? await provider.prices(for: fungibleMints)) ?? [:]
 
-        return assemble(walletId: walletId, address: address, page: page, solChange: solChange, priceChanges: changes)
+        return assemble(walletId: walletId, address: address, page: page, solChange: solChange, quotes: quotes)
     }
 
     private func safeSolChange() async -> Double? {
@@ -130,15 +130,24 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
         address: WalletAddress,
         page: AssetPage,
         solChange: Double?,
-        priceChanges: [Mint: Double]
+        quotes: [Mint: PriceQuote]
     ) -> WalletOverview {
         let merged: [AssetSummary] = page.items.map { item in
-            guard item.kind == .fungible, let change = priceChanges[item.id] else { return item }
+            guard item.kind == .fungible, let quote = quotes[item.id] else { return item }
+            // Trust Helius DAS pricing when present (its index covers the major
+            // listings consistently). Fall back to Jupiter for the long tail
+            // (pump.fun mints and other tokens Helius does not index).
+            let pricePerToken = item.pricePerToken ?? quote.usdPrice
+            let usdValue: Decimal? = {
+                if let existing = item.usdValue { return existing }
+                guard let price = quote.usdPrice else { return nil }
+                return price * item.amount.uiAmount
+            }()
             return AssetSummary(
                 id: item.id, kind: item.kind, symbol: item.symbol, name: item.name,
                 imageURL: item.imageURL, amount: item.amount,
-                usdValue: item.usdValue, pricePerToken: item.pricePerToken,
-                priceChange24h: change, tokenProgram: item.tokenProgram
+                usdValue: usdValue, pricePerToken: pricePerToken,
+                priceChange24h: quote.change24h, tokenProgram: item.tokenProgram
             )
         }
 
@@ -167,7 +176,7 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
         let totalUSD: Decimal? = solTotalUSD.map { $0 + fungibleTotal }
 
         let allPricesPresent = fungibles.allSatisfy { $0.usdValue != nil }
-        let isPartial = (!fungibles.isEmpty && (priceChanges.isEmpty || !allPricesPresent))
+        let isPartial = (!fungibles.isEmpty && (quotes.isEmpty || !allPricesPresent))
             || (solChange == nil && page.nativeSol != nil)
 
         let totalChange24h: Double? = {

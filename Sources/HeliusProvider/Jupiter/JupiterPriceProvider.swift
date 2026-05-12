@@ -17,17 +17,16 @@ public struct JupiterPriceProvider: PriceProvider, Sendable {
         self.client = JupiterClient()
     }
 
-    public func priceChange24h(for mints: [Mint]) async throws -> [Mint: Double] {
+    public func prices(for mints: [Mint]) async throws -> [Mint: PriceQuote] {
         guard !mints.isEmpty else { return [:] }
-        var out: [Mint: Double] = [:]
+        var out: [Mint: PriceQuote] = [:]
         for chunk in mints.chunked(into: 50) {
             let mintStrings = chunk.map { $0.base58 }
             guard let resp = await client.fetchPrices(mints: mintStrings) else { continue }
             for mint in chunk {
-                if let entry = resp.entries[mint.base58],
-                   let change = entry.priceChange24h {
-                    out[mint] = change
-                }
+                guard let entry = resp.entries[mint.base58] else { continue }
+                guard entry.usdPrice != nil || entry.priceChange24h != nil else { continue }
+                out[mint] = PriceQuote(usdPrice: entry.usdPrice, change24h: entry.priceChange24h)
             }
         }
         return out

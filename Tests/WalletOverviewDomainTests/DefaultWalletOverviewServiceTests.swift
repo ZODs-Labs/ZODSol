@@ -10,20 +10,20 @@ import Caching
 final class MockSolanaProvider: SolanaProvider, @unchecked Sendable {
     var assetsHandler: @Sendable (WalletAddress, SolanaNetwork, AssetQueryOptions) async throws -> AssetPage
     var solChange24hHandler: @Sendable () async throws -> Double?
-    var priceChange24hHandler: @Sendable ([Mint]) async throws -> [Mint: Double]
+    var pricesHandler: @Sendable ([Mint]) async throws -> [Mint: PriceQuote]
     var solBalanceHandler: @Sendable (WalletAddress, SolanaNetwork) async throws -> Lamports
     var tokenAccountsHandler: @Sendable (WalletAddress, SolanaNetwork) async throws -> [ParsedTokenAccount]
 
     private(set) var assetsCalled = 0
     private(set) var solChange24hCalled = 0
-    private(set) var priceChange24hCalled = 0
+    private(set) var pricesCalled = 0
 
     init() {
         assetsHandler = { _, _, _ in
             throw SolanaProviderError.providerUnavailable(message: "not configured")
         }
         solChange24hHandler = { nil }
-        priceChange24hHandler = { _ in [:] }
+        pricesHandler = { _ in [:] }
         solBalanceHandler = { _, _ in 0 }
         tokenAccountsHandler = { _, _ in [] }
     }
@@ -42,9 +42,9 @@ final class MockSolanaProvider: SolanaProvider, @unchecked Sendable {
         return try await solChange24hHandler()
     }
 
-    func priceChange24h(for mints: [Mint]) async throws -> [Mint: Double] {
-        priceChange24hCalled += 1
-        return try await priceChange24hHandler(mints)
+    func prices(for mints: [Mint]) async throws -> [Mint: PriceQuote] {
+        pricesCalled += 1
+        return try await pricesHandler(mints)
     }
 
     func solBalance(for address: WalletAddress, network: SolanaNetwork) async throws -> Lamports {
@@ -128,7 +128,7 @@ struct DefaultWalletOverviewServiceTests {
     let walletId = UUID()
     let address = makeTestAddress()
 
-    @Test("Cold load fetches assets, solChange24h, and priceChange24h then emits .loaded")
+    @Test("Cold load fetches assets, solChange24h, and prices then emits .loaded")
     func coldLoad() async {
         let mint = makeTestMint()
         let mock = MockSolanaProvider()
@@ -136,7 +136,7 @@ struct DefaultWalletOverviewServiceTests {
             makeAssetPage(fungibles: [(mint, Decimal(100), Decimal(1))])
         }
         mock.solChange24hHandler = { 2.5 }
-        mock.priceChange24hHandler = { _ in [mint: 3.0] }
+        mock.pricesHandler = { _ in [mint: PriceQuote(usdPrice: Decimal(1), change24h: 3.0)] }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
         let state = await service.load(for: walletId, forceRevalidate: false)
@@ -154,7 +154,7 @@ struct DefaultWalletOverviewServiceTests {
         #expect(overview.tokens.first?.priceChange24h == 3.0)
         #expect(overview.isPartial == false)
         #expect(mock.assetsCalled == 1)
-        #expect(mock.priceChange24hCalled == 1)
+        #expect(mock.pricesCalled == 1)
     }
 
     @Test("forceRevalidate=false on fresh cache returns cached value without provider calls")
@@ -195,7 +195,7 @@ struct DefaultWalletOverviewServiceTests {
         #expect(mock.assetsCalled == 2)
     }
 
-    @Test("priceChange24h throws results in isPartial overview")
+    @Test("prices throws results in isPartial overview")
     func priceChangeThrowsPartial() async {
         let mint = makeTestMint()
         let mock = MockSolanaProvider()
@@ -203,7 +203,7 @@ struct DefaultWalletOverviewServiceTests {
             makeAssetPage(fungibles: [(mint, Decimal(50), Decimal(0.5))])
         }
         mock.solChange24hHandler = { 1.0 }
-        mock.priceChange24hHandler = { _ in
+        mock.pricesHandler = { _ in
             throw SolanaProviderError.providerUnavailable(message: "price service down")
         }
 
@@ -446,6 +446,38 @@ struct DefaultWalletOverviewServiceTests {
         #expect(received >= 2)
     }
 
+    @Test("Jupiter quote fills usdValue and pricePerToken when Helius has no price; Helius wins when both present")
+    func jupiterFallbackAndHeliusPriority() async {
+        let unpriced = makeTestMint()
+        let helius = makeTestMint()
+        let mock = MockSolanaProvider()
+        mock.assetsHandler = { _, _, _ in
+            makeAssetPage(fungibles: [(unpriced, nil, nil), (helius, Decimal(100), Decimal(1))])
+        }
+        mock.solChange24hHandler = { 0.0 }
+        mock.pricesHandler = { _ in [
+            unpriced: PriceQuote(usdPrice: Decimal(2), change24h: 13.6),
+            helius: PriceQuote(usdPrice: Decimal(99), change24h: 5.0),
+        ] }
+
+        let service = makeService(mock: mock, walletId: walletId, address: address)
+        let state = await service.load(for: walletId, forceRevalidate: false)
+
+        guard case .loaded(let overview, _) = state else {
+            Issue.record("Expected .loaded, got \(state)")
+            return
+        }
+        let byMint = Dictionary(uniqueKeysWithValues: overview.tokens.map { ($0.id, $0) })
+        // makeAssetPage uses amount 1000 / decimals 6, uiAmount 0.001. 0.001 * 2 = 0.002.
+        #expect(byMint[unpriced]?.pricePerToken == Decimal(2))
+        #expect(byMint[unpriced]?.usdValue == Decimal(string: "0.002"))
+        #expect(byMint[unpriced]?.priceChange24h == 13.6)
+        #expect(byMint[helius]?.pricePerToken == Decimal(1))
+        #expect(byMint[helius]?.usdValue == Decimal(100))
+        #expect(byMint[helius]?.priceChange24h == 5.0)
+        #expect(overview.isPartial == false)
+    }
+
     @Test("Zero-balance fungibles are filtered out of the overview tokens")
     func zeroBalanceFungiblesFiltered() async {
         let liveMint = makeTestMint()
@@ -478,7 +510,7 @@ struct DefaultWalletOverviewServiceTests {
             )
         }
         mock.solChange24hHandler = { 0.0 }
-        mock.priceChange24hHandler = { _ in [liveMint: 1.0] }
+        mock.pricesHandler = { _ in [liveMint: PriceQuote(usdPrice: Decimal(1), change24h: 1.0)] }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
         let state = await service.load(for: walletId, forceRevalidate: false)

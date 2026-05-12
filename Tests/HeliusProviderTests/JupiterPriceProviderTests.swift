@@ -19,7 +19,7 @@ final class JupiterPriceProviderTests: XCTestCase {
         return JupiterPriceProvider(client: client)
     }
 
-    // MARK: - priceChange24h
+    // MARK: - prices
 
     func test_emptyMints_returnsEmptyMap_noNetworkCall() async throws {
         MockURLProtocol.requestHandler = { _ in
@@ -28,7 +28,7 @@ final class JupiterPriceProviderTests: XCTestCase {
         }
 
         let provider = makeProvider()
-        let result = try await provider.priceChange24h(for: [])
+        let result = try await provider.prices(for: [])
         XCTAssertTrue(result.isEmpty)
     }
 
@@ -50,12 +50,15 @@ final class JupiterPriceProviderTests: XCTestCase {
             try Mint(base58: "So11111111111111111111111111111111111111112"),
         ]
         let provider = makeProvider()
-        let result = try await provider.priceChange24h(for: mints)
+        let result = try await provider.prices(for: mints)
 
         XCTAssertEqual(result.count, 3)
-        XCTAssertEqual(result[mints[0]], 0.02)
-        XCTAssertEqual(result[mints[1]], -0.05)
-        XCTAssertEqual(result[mints[2]], 3.45)
+        XCTAssertEqual(result[mints[0]]?.change24h, 0.02)
+        XCTAssertEqual(result[mints[0]]?.usdPrice, Decimal(string: "1.0001"))
+        XCTAssertEqual(result[mints[1]]?.change24h, -0.05)
+        XCTAssertEqual(result[mints[1]]?.usdPrice, Decimal(string: "0.999"))
+        XCTAssertEqual(result[mints[2]]?.change24h, 3.45)
+        XCTAssertEqual(result[mints[2]]?.usdPrice, Decimal(string: "150.50"))
     }
 
     func test_http429_returnsEmptyMap_noThrow() async throws {
@@ -71,7 +74,7 @@ final class JupiterPriceProviderTests: XCTestCase {
 
         let mint = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
         let provider = makeProvider()
-        let result = try await provider.priceChange24h(for: [mint])
+        let result = try await provider.prices(for: [mint])
         XCTAssertTrue(result.isEmpty)
     }
 
@@ -82,7 +85,7 @@ final class JupiterPriceProviderTests: XCTestCase {
 
         let mint = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
         let provider = makeProvider()
-        let result = try await provider.priceChange24h(for: [mint])
+        let result = try await provider.prices(for: [mint])
         XCTAssertTrue(result.isEmpty)
     }
 
@@ -101,7 +104,7 @@ final class JupiterPriceProviderTests: XCTestCase {
         let baseMint = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
         let mints = Array(repeating: baseMint, count: 51)
         let provider = makeProvider()
-        _ = try await provider.priceChange24h(for: mints)
+        _ = try await provider.prices(for: mints)
 
         XCTAssertEqual(MockURLProtocol.requestLog.count, 2)
     }

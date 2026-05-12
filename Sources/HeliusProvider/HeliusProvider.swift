@@ -104,8 +104,8 @@ public struct HeliusSolanaProvider: SolanaProvider {
         }
     }
 
-    public func priceChange24h(for mints: [Mint]) async throws -> [Mint: Double] {
-        try await pricer.priceChange24h(for: mints)
+    public func prices(for mints: [Mint]) async throws -> [Mint: PriceQuote] {
+        try await pricer.prices(for: mints)
     }
 
     public func solChange24h() async throws -> Double? {
