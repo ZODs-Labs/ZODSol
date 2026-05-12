@@ -130,7 +130,12 @@ public actor WalletStore {
             var buffer = try await secureStore.read(item, prompt: prompt)
             defer { buffer.resetBytes(in: 0 ..< buffer.count) }
             return try await body(&buffer)
-        } catch let error as KeychainError where error == .itemNotFound {
+        } catch let error as KeychainError where
+            error == .itemNotFound ||
+            error == .biometricFailed ||
+            error == .interactionRequired ||
+            error == .userCanceled {
+            try? await secureStore.delete(item)
             throw WalletOverviewError.biometricInvalidated
         }
     }
