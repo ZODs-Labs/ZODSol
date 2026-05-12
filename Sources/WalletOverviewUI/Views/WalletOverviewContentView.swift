@@ -130,7 +130,7 @@ struct WalletOverviewContentView: View {
     // MARK: - Hero
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(self.currencyFormatter.displayValue(usd: self.overview.totalUSD ?? 0))
                 .font(.system(size: 30, weight: .bold))
                 .tracking(-0.6)
@@ -139,9 +139,13 @@ struct WalletOverviewContentView: View {
                 .contentTransition(.numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                .padding(.bottom, 8)
             self.subtitle
-            AddressView(address: self.overview.address, size: .prominent, caption: "Address")
-                .padding(.top, 4)
+            HStack(spacing: 0) {
+                AddressView(address: self.overview.address, size: .metadata)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 4)
         }
     }
 

@@ -6,7 +6,7 @@ struct AddressView: View {
     enum Size: Sendable, Equatable {
         case compact
         case standard
-        case prominent
+        case metadata
     }
 
     let address: WalletAddress
@@ -74,30 +74,27 @@ struct AddressView: View {
             .background(self.background)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(self.borderOverlay(cornerRadius: 8))
-        case .prominent:
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    if let caption = self.caption {
-                        Text(caption).font(.caption).foregroundStyle(.secondary)
-                    }
-                    Text(self.address.base58)
-                        .font(.system(.callout, design: .monospaced))
-                        .foregroundStyle(self.foregroundColor)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                }
-                Spacer(minLength: 0)
-                self.iconView(size: 14)
-                    .padding(6)
-                    .background(
-                        Circle()
-                            .fill(self.copied ? Color.green.opacity(0.15) : Color.clear))
+        case .metadata:
+            HStack(spacing: 4) {
+                Text(self.address.shortened())
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Image(systemName: self.copied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(self.copied ? Color.green : Color.secondary)
+                    .contentTransition(.symbolEffect(.replace.byLayer))
+                    .symbolEffect(.bounce, value: self.copied)
+                    .opacity(self.copied || self.hovered ? 1.0 : 0.0)
+                    .animation(self.reduceMotion ? nil : .easeInOut(duration: 0.15), value: self.hovered)
             }
-            .padding(10)
-            .background(self.background)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(self.borderOverlay(cornerRadius: 10))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(self.metadataBackground))
         }
     }
 
@@ -128,6 +125,16 @@ struct AddressView: View {
         }
     }
 
+    private var metadataBackground: Color {
+        if self.copied {
+            Color.green.opacity(0.10)
+        } else if self.hovered {
+            Color(nsColor: .quaternaryLabelColor).opacity(0.6)
+        } else {
+            Color.clear
+        }
+    }
+
     private func borderOverlay(cornerRadius: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
@@ -137,8 +144,9 @@ struct AddressView: View {
         WalletPasteboard.copy(self.address.base58)
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         self.copied = true
+        let hold: Duration = self.size == .metadata ? .milliseconds(600) : .seconds(1.6)
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.6))
+            try? await Task.sleep(for: hold)
             self.copied = false
         }
     }
@@ -163,13 +171,15 @@ struct AddressView: View {
         .frame(width: 320)
 }
 
-#Preview("AddressView - prominent") {
-    AddressView(
-        address: try! WalletAddress(base58: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq"),
-        size: .prominent,
-        caption: "Address")
-        .padding(16)
-        .frame(width: 380)
+#Preview("AddressView - metadata") {
+    VStack(alignment: .leading, spacing: 6) {
+        Text("Wallet 1").font(.subheadline.weight(.semibold))
+        AddressView(
+            address: try! WalletAddress(base58: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq"),
+            size: .metadata)
+    }
+    .padding(16)
+    .frame(width: 380, alignment: .leading)
 }
 
 #endif
