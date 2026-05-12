@@ -41,6 +41,15 @@ public struct WalletPanelView: View {
                 case .addWallet:
                     AddWalletView(viewModel: viewModel)
                         .transition(.push)
+                case let .send(intent):
+                    SendNavigator(viewModel: makeSendViewModel(intent: intent))
+                        .transition(.push)
+                case let .assetPicker(intent):
+                    AssetPickerView(intent: intent, viewModel: viewModel)
+                        .transition(.push)
+                case let .receive(intent):
+                    ReceiveNavigator(viewModel: makeReceiveViewModel(intent: intent))
+                        .transition(.push)
                 }
             }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: viewModel.route)
@@ -65,6 +74,23 @@ public struct WalletPanelView: View {
         case .failed(let error):
             ErrorView(error: error, viewModel: viewModel)
         }
+    }
+
+    private func makeSendViewModel(intent: SendIntent) -> SendViewModel {
+        let sendVM = SendViewModel(
+            intent: intent,
+            cluster: viewModel.network,
+            service: viewModel.sendService,
+            onDismiss: { [viewModel] in viewModel.route = .overview }
+        )
+        // Clear the pending handoff so a route bounce does not re-trigger it.
+        // Wave 3G wires this signature into a real preloadConfirming(_:) call.
+        viewModel.preloadConfirmingSignature = nil
+        return sendVM
+    }
+
+    private func makeReceiveViewModel(intent: ReceiveIntent) -> ReceiveViewModel {
+        ReceiveViewModel(intent: intent, cluster: viewModel.network)
     }
 
     private var transitionForOverview: AnyTransition {

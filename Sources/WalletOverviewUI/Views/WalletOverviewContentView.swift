@@ -1,11 +1,13 @@
+import AppKit
 import SwiftUI
 import SolanaKit
 import Formatters
 
 /// Wallet portfolio surface laid out like a system menu-bar popover (battery,
 /// volume, control center): a title row, a hero, hairline-separated sections
-/// labelled with semibold subheadlines, and content that uses SF dynamic-type
-/// sizes so it tracks the user's text-size preference.
+/// labelled with semibold subheadlines, and a footer link that goes to
+/// Solscan - the same affordance "Battery Settings..." gives in the system
+/// battery panel.
 struct WalletOverviewContentView: View {
     let viewModel: WalletOverviewViewModel
     let overview: WalletOverview
@@ -22,6 +24,14 @@ struct WalletOverviewContentView: View {
                 headerRow
                     .padding(.bottom, 12)
 
+                if let banner = viewModel.pendingSendBanner {
+                    PendingSendBanner(
+                        info: banner,
+                        onTap: { viewModel.acknowledgePendingSend(banner) }
+                    )
+                    .padding(.bottom, 10)
+                }
+
                 hero
 
                 Divider()
@@ -31,9 +41,11 @@ struct WalletOverviewContentView: View {
                     .padding(.bottom, 4)
                 AssetListSection(
                     rows: pricedRows,
+                    wallet: overview.address,
                     hiddenCount: hiddenCount,
                     totalUSD: overview.totalUSD,
-                    displayCap: displayCap
+                    displayCap: displayCap,
+                    onSend: handleSend
                 )
 
                 if !overview.nfts.isEmpty {
@@ -43,6 +55,11 @@ struct WalletOverviewContentView: View {
                         .padding(.bottom, 8)
                     NFTSummaryCard(summary: overview.nfts)
                 }
+
+                Divider()
+                    .padding(.vertical, 14)
+
+                footerLink
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -55,8 +72,42 @@ struct WalletOverviewContentView: View {
         HStack(spacing: 8) {
             WalletSwitcherChip(viewModel: viewModel)
             Spacer(minLength: 0)
+            sendButton
+            receiveButton
             refreshButton
         }
+    }
+
+    private var sendButton: some View {
+        Button {
+            viewModel.handleHeaderSend()
+        } label: {
+            Image(systemName: "paperplane.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("s", modifiers: .command)
+        .help("Send (⌘S)")
+        .accessibilityLabel("Send")
+    }
+
+    private var receiveButton: some View {
+        Button {
+            viewModel.handleHeaderReceive()
+        } label: {
+            Image(systemName: "qrcode")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("r", modifiers: [.command, .shift])
+        .help("Receive (⌘⇧R)")
+        .accessibilityLabel("Receive")
     }
 
     private var refreshButton: some View {
@@ -70,6 +121,8 @@ struct WalletOverviewContentView: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .keyboardShortcut("r", modifiers: .command)
+        .help("Refresh (⌘R)")
         .accessibilityLabel("Refresh")
     }
 
@@ -134,11 +187,14 @@ struct WalletOverviewContentView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
             Spacer()
-            Text("\(overview.nfts.count)")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+            NFTCountLink(count: overview.nfts.count, address: overview.address)
         }
+    }
+
+    // MARK: - Footer
+
+    private var footerLink: some View {
+        SolscanFooterLink(address: overview.address)
     }
 
     // MARK: - Rows
@@ -184,6 +240,104 @@ struct WalletOverviewContentView: View {
         case .up: .green
         case .down: .red
         case .neutral: .secondary
+        }
+    }
+
+    // MARK: - Send
+
+    private func handleSend(_ row: PortfolioRow) {
+        guard let walletId = viewModel.activeWalletId else { return }
+        let asset: SendAssetKind
+        if row.isNative {
+            asset = .sol
+        } else {
+            guard let mint = try? Mint(base58: row.id) else { return }
+            asset = .splToken(
+                mint: mint,
+                decimals: row.amount.decimals,
+                symbol: row.symbol,
+                name: row.name
+            )
+        }
+        viewModel.route = .send(SendIntent(
+            walletId: walletId,
+            from: overview.address,
+            asset: asset
+        ))
+    }
+}
+
+// MARK: - Solscan affordances
+
+/// Right-aligned NFT count rendered as a quiet link to the wallet's
+/// collectibles tab on Solscan. Hover lifts the count to primary so the
+/// click affordance is obvious without the section getting visually noisy.
+private struct NFTCountLink: View {
+    let count: Int
+    let address: WalletAddress
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            Solscan.open(Solscan.nfts(address: address.base58))
+        } label: {
+            HStack(spacing: 4) {
+                Text("\(count)")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(isHovered ? .primary : .secondary)
+                    .monospacedDigit()
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(isHovered ? .secondary : .tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help("View collectibles on Solscan")
+        .accessibilityLabel("\(count) collectibles, opens Solscan")
+    }
+}
+
+/// Footer-style external link, modelled on "Battery Settings…" in the
+/// macOS Battery popover: subtle when at rest, hover-lifted background,
+/// trailing arrow indicating the action leaves the app.
+private struct SolscanFooterLink: View {
+    let address: WalletAddress
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            Solscan.open(Solscan.account(address: address.base58))
+        } label: {
+            HStack(spacing: 6) {
+                Text("View Account on Solscan")
+                    .font(.callout)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.primary.opacity(isHovered ? 0.05 : 0))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help("Open this wallet on Solscan")
+        .contextMenu {
+            Button("Copy Wallet Address") {
+                WalletPasteboard.copy(address.base58)
+            }
+            Button("Copy Solscan URL") {
+                WalletPasteboard.copy(Solscan.account(address: address.base58).absoluteString)
+            }
         }
     }
 }

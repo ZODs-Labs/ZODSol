@@ -25,13 +25,17 @@ enum WalletPanelMetrics {
     ) -> CGFloat {
         if !hasAPIKey { return 240 }
         if walletCount == 0 { return 340 }
+        return heightForRoute(route, walletCount: walletCount, state: state)
+    }
+
+    private static func heightForRoute(
+        _ route: PanelRoute,
+        walletCount: Int,
+        state: LoadState<WalletOverview>
+    ) -> CGFloat {
         switch route {
         case .overview:
-            switch state {
-            case .idle, .loading: return 360
-            case .failed:         return 320
-            case .loaded, .partial: return 520
-            }
+            return overviewHeight(state: state)
         case .switcher:
             return clamp(96 + CGFloat(max(1, walletCount)) * 56 + 48, lo: 280, hi: 480)
         case .manage:
@@ -40,6 +44,20 @@ enum WalletPanelMetrics {
             return 220
         case .addWallet:
             return 300
+        case .send:
+            return 440
+        case .assetPicker:
+            return 480
+        case .receive:
+            return 520
+        }
+    }
+
+    private static func overviewHeight(state: LoadState<WalletOverview>) -> CGFloat {
+        switch state {
+        case .idle, .loading: return 360
+        case .failed:         return 320
+        case .loaded, .partial: return 520
         }
     }
 

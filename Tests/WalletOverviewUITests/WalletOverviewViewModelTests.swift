@@ -170,18 +170,174 @@ final class WalletOverviewViewModelTests: XCTestCase {
         }
     }
 
+    // MARK: - Routing (Wave 2)
+
+    @MainActor
+    func testHandleHeaderSendSetsRouteToAssetPickerSend() async throws {
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let apiKeyStore = MockAPIKeyStore(key: "key")
+        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+
+        viewModel.panelDidAppear()
+        await waitUntil { viewModel.activeWalletId == identity.id }
+
+        viewModel.handleHeaderSend()
+
+        guard case let .assetPicker(intent) = viewModel.route else {
+            return XCTFail("Expected route to be .assetPicker after handleHeaderSend")
+        }
+        XCTAssertEqual(intent.walletId, identity.id)
+        XCTAssertEqual(intent.from, identity.address)
+        XCTAssertEqual(intent.mode, .send)
+    }
+
+    @MainActor
+    func testHandleHeaderReceiveSetsRouteToReceive() async throws {
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let apiKeyStore = MockAPIKeyStore(key: "key")
+        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+
+        viewModel.panelDidAppear()
+        await waitUntil { viewModel.activeWalletId == identity.id }
+
+        viewModel.handleHeaderReceive()
+
+        guard case let .receive(intent) = viewModel.route else {
+            return XCTFail("Expected route to be .receive after handleHeaderReceive")
+        }
+        XCTAssertEqual(intent.walletId, identity.id)
+        XCTAssertEqual(intent.address, identity.address)
+        XCTAssertEqual(intent.network, .mainnet)
+    }
+
+    @MainActor
+    func testHandleAssetPickedSendSetsRouteToSend() async throws {
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let apiKeyStore = MockAPIKeyStore(key: "key")
+        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+
+        viewModel.panelDidAppear()
+        await waitUntil { viewModel.activeWalletId == identity.id }
+
+        viewModel.handleHeaderSend()
+        let solRow = PortfolioRow.sol(
+            balance: Lamports(rawValue: 1_000_000_000), price: nil, change: nil
+        )
+        viewModel.handleAssetPicked(solRow)
+
+        guard case let .send(intent) = viewModel.route else {
+            return XCTFail("Expected route to be .send after handleAssetPicked")
+        }
+        XCTAssertEqual(intent.walletId, identity.id)
+        XCTAssertEqual(intent.from, identity.address)
+        if case .sol = intent.asset {
+            // expected
+        } else {
+            XCTFail("Expected asset to be .sol")
+        }
+    }
+
+    @MainActor
+    func testHandleAssetPickedReceiveSetsRouteToReceiveAndStashesAsset() async throws {
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let apiKeyStore = MockAPIKeyStore(key: "key")
+        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+
+        viewModel.panelDidAppear()
+        await waitUntil { viewModel.activeWalletId == identity.id }
+
+        let receiveIntent = ReceiveIntent(
+            walletId: identity.id, address: identity.address, network: .mainnet
+        )
+        viewModel.route = .assetPicker(AssetPickerIntent(
+            walletId: identity.id,
+            from: identity.address,
+            mode: .receive(receiveIntent)
+        ))
+        let solRow = PortfolioRow.sol(
+            balance: Lamports(rawValue: 2_000_000_000), price: nil, change: nil
+        )
+        viewModel.handleAssetPicked(solRow)
+
+        guard case let .receive(intent) = viewModel.route else {
+            return XCTFail("Expected route to be .receive after handleAssetPicked")
+        }
+        XCTAssertEqual(intent, receiveIntent)
+        XCTAssertEqual(viewModel.pendingReceiveAsset, solRow)
+    }
+
+    @MainActor
+    func testHandleAssetPickedOutsideAssetPickerRouteIsNoOp() async throws {
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let apiKeyStore = MockAPIKeyStore(key: "key")
+        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+
+        viewModel.panelDidAppear()
+        await waitUntil { viewModel.activeWalletId == identity.id }
+
+        XCTAssertEqual(viewModel.route, .overview)
+        let solRow = PortfolioRow.sol(
+            balance: Lamports(rawValue: 1), price: nil, change: nil
+        )
+        viewModel.handleAssetPicked(solRow)
+
+        XCTAssertEqual(viewModel.route, .overview)
+        XCTAssertNil(viewModel.pendingReceiveAsset)
+    }
+
+    @MainActor
+    func testPanelDidAppearSetsPendingSendBannerWhenResyncReturnsTerminalOutcome() async throws {
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let apiKeyStore = MockAPIKeyStore(key: "key")
+        let sendService = MockSendAssetsService()
+        let signatureBytes = Data(repeating: 7, count: 64)
+        let signature = try Signature(bytes: signatureBytes)
+        await sendService.setResyncResults([signature: .confirmed(signature, slot: 100)])
+
+        let viewModel = makeViewModel(
+            walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService
+        )
+
+        viewModel.panelDidAppear()
+        await waitUntil { viewModel.pendingSendBanner != nil }
+
+        XCTAssertEqual(viewModel.activeWalletId, identity.id)
+        XCTAssertEqual(viewModel.pendingSendBanner?.signature, signature)
+    }
+
+    @MainActor
+    func testPanelDidAppearClearsPendingSendBannerWhenResyncReturnsNothing() async throws {
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let apiKeyStore = MockAPIKeyStore(key: "key")
+        let sendService = MockSendAssetsService()
+        await sendService.setResyncResults([:])
+
+        let viewModel = makeViewModel(
+            walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService
+        )
+
+        viewModel.panelDidAppear()
+        await waitUntil { viewModel.activeWalletId == identity.id }
+        try? await Task.sleep(for: .milliseconds(20))
+
+        XCTAssertNil(viewModel.pendingSendBanner)
+    }
+
     // MARK: - Helpers
 
     @MainActor
     private func makeViewModel(
         service: MockWalletOverviewService? = nil,
         walletStore: WalletStore? = nil,
-        apiKeyStore: MockAPIKeyStore? = nil
+        apiKeyStore: MockAPIKeyStore? = nil,
+        sendService: MockSendAssetsService? = nil
     ) -> WalletOverviewViewModel {
         return WalletOverviewViewModel(
             service: service ?? MockWalletOverviewService(),
             walletStore: walletStore ?? TestWalletStoreFactory.makeEmpty(),
-            apiKeyStore: apiKeyStore ?? MockAPIKeyStore()
+            apiKeyStore: apiKeyStore ?? MockAPIKeyStore(),
+            sendService: sendService ?? MockSendAssetsService(),
+            network: .mainnet
         )
     }
 
