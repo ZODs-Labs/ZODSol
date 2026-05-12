@@ -1,13 +1,14 @@
 import AppKit
-import SwiftUI
-import Observation
-import OSLog
+import Caching
 import HeliusProvider
 import KeychainKit
+import Observation
+import OSLog
+import SolanaKit
+import SolanaRPC
+import SwiftUI
 import WalletOverviewDomain
 import WalletOverviewUI
-import SolanaKit
-import Caching
 
 @MainActor
 final class StatusItemController: NSObject {
@@ -32,16 +33,27 @@ final class StatusItemController: NSObject {
             provider: providerHolder,
             walletStore: walletStore,
             network: .mainnet,
-            overviewCache: overviewCache
-        )
+            overviewCache: overviewCache)
+        let lazyTransport = LazyRPCTransport(apiKeyStore: apiKeyStore, network: .mainnet)
+        let pendingSendStore = PendingSendStore()
+        let sendService = DefaultSendAssetsService(
+            transport: lazyTransport,
+            walletLookup: walletStore,
+            signer: walletStore,
+            pendingStore: pendingSendStore,
+            network: .mainnet)
+        let recentRecipientsStore = RecentRecipientsStore()
         self.viewModel = WalletOverviewViewModel(
             service: service,
             walletStore: walletStore,
             apiKeyStore: apiKeyStore,
+            sendService: sendService,
+            network: .mainnet,
+            recentRecipientsStore: recentRecipientsStore,
             credentialsDidChange: {
                 await providerHolder.reset()
-            }
-        )
+                await lazyTransport.reset()
+            })
 
         super.init()
         self.statusItem.behavior = .removalAllowed
@@ -73,10 +85,8 @@ final class StatusItemController: NSObject {
                 route: self.viewModel.route,
                 hasAPIKey: self.viewModel.hasAPIKey,
                 walletCount: self.viewModel.wallets.count,
-                state: self.viewModel.state
-            ),
-            screen: NSScreen.main
-        )
+                state: self.viewModel.state),
+            screen: NSScreen.main)
         let contentSize = NSSize(width: WalletPanelMetrics.width, height: initialHeight)
         let panel = WalletPanel(
             contentRect: NSRect(origin: .zero, size: contentSize),
@@ -184,8 +194,7 @@ final class StatusItemController: NSObject {
             route: self.viewModel.route,
             hasAPIKey: self.viewModel.hasAPIKey,
             walletCount: self.viewModel.wallets.count,
-            state: self.viewModel.state
-        )
+            state: self.viewModel.state)
         let target = WalletPanelMetrics.clampedHeight(ideal: ideal, screen: panel.screen ?? NSScreen.main)
         let current = panel.frame
         if abs(current.height - target) < 0.5 { return }
@@ -217,24 +226,26 @@ final class StatusItemController: NSObject {
         guard self.localEventMonitor == nil, self.globalEventMonitor == nil else { return }
         let statusItemWindow = self.statusItem.button?.window
         self.localEventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-                Task { @MainActor in
-                    guard let self else { return }
-                    // Walk the event window's parent chain so clicks on any
-                    // child window (autocomplete popup from a SecureField, a
-                    // contextual menu, an attached alert, etc.) are still
-                    // recognized as inside our panel.
-                    if self.isEventInOurUI(event, statusItemWindow: statusItemWindow) { return }
-                    self.closePanel()
-                }
-                return event
+            matching: [.leftMouseDown, .rightMouseDown])
+        { [weak self] event in
+            Task { @MainActor in
+                guard let self else { return }
+                // Walk the event window's parent chain so clicks on any
+                // child window (autocomplete popup from a SecureField, a
+                // contextual menu, an attached alert, etc.) are still
+                // recognized as inside our panel.
+                if self.isEventInOurUI(event, statusItemWindow: statusItemWindow) { return }
+                self.closePanel()
             }
+            return event
+        }
         self.globalEventMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-                Task { @MainActor in
-                    self?.closePanel()
-                }
+            matching: [.leftMouseDown, .rightMouseDown])
+        { [weak self] _ in
+            Task { @MainActor in
+                self?.closePanel()
             }
+        }
     }
 
     private func isEventInOurUI(_ event: NSEvent, statusItemWindow: NSWindow?) -> Bool {
@@ -269,8 +280,13 @@ final class StatusItemController: NSObject {
 /// key here does not steal focus from the user's active app.
 @MainActor
 final class WalletPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool {
+        true
+    }
+
+    override var canBecomeMain: Bool {
+        false
+    }
 }
 
 // MARK: - HeliusAPIKeyStore conformance to APIKeyStore
@@ -279,7 +295,7 @@ extension HeliusAPIKeyStore: APIKeyStore {}
 
 // MARK: - LazyProvider
 
-fileprivate actor LazyProvider: SolanaProvider {
+private actor LazyProvider: SolanaProvider {
     private let apiKeyStore: HeliusAPIKeyStore
     private var concrete: HeliusSolanaProvider?
 
@@ -302,22 +318,76 @@ fileprivate actor LazyProvider: SolanaProvider {
     }
 
     func solBalance(for address: WalletAddress, network: SolanaNetwork) async throws -> Lamports {
-        try await resolved().solBalance(for: address, network: network)
+        try await self.resolved().solBalance(for: address, network: network)
     }
 
     func tokenAccounts(for address: WalletAddress, network: SolanaNetwork) async throws -> [ParsedTokenAccount] {
-        try await resolved().tokenAccounts(for: address, network: network)
+        try await self.resolved().tokenAccounts(for: address, network: network)
     }
 
-    func assets(for address: WalletAddress, network: SolanaNetwork, options: AssetQueryOptions) async throws -> AssetPage {
-        try await resolved().assets(for: address, network: network, options: options)
+    func assets(
+        for address: WalletAddress,
+        network: SolanaNetwork,
+        options: AssetQueryOptions) async throws -> AssetPage
+    {
+        try await self.resolved().assets(for: address, network: network, options: options)
     }
 
     func prices(for mints: [Mint]) async throws -> [Mint: PriceQuote] {
-        try await resolved().prices(for: mints)
+        try await self.resolved().prices(for: mints)
     }
 
     func solChange24h() async throws -> Double? {
-        try await resolved().solChange24h()
+        try await self.resolved().solChange24h()
+    }
+}
+
+// MARK: - LazyRPCTransport
+
+/// Same lazy-resolution pattern as `LazyProvider`, but for the raw RPC
+/// transport used by the send pipeline. Defers building `URLSessionRPCTransport`
+/// until the user has configured an API key, so onboarding does not crash.
+private actor LazyRPCTransport: RPCTransport {
+    private let apiKeyStore: HeliusAPIKeyStore
+    private let network: SolanaNetwork
+    private var concrete: URLSessionRPCTransport?
+
+    init(apiKeyStore: HeliusAPIKeyStore, network: SolanaNetwork) {
+        self.apiKeyStore = apiKeyStore
+        self.network = network
+    }
+
+    func reset() {
+        self.concrete = nil
+    }
+
+    private func resolved() async throws -> URLSessionRPCTransport {
+        if let concrete { return concrete }
+        guard let key = try await apiKeyStore.currentKey(), !key.isEmpty else {
+            throw RPCError.http(status: 401, retryAfter: nil)
+        }
+        let endpoint = HeliusEndpoint(network: network, apiKey: key)
+        var components = URLComponents(url: endpoint.rpcURL, resolvingAgainstBaseURL: false)!
+        components.queryItems = nil
+        let baseURL = components.url!
+        let made = URLSessionRPCTransport(
+            endpoint: baseURL,
+            queryItems: [URLQueryItem(name: "api-key", value: key)])
+        self.concrete = made
+        return made
+    }
+
+    func send<R: Decodable & Sendable>(
+        _ request: JSONRPCRequest<some Encodable & Sendable>,
+        responseType: R.Type) async throws -> R
+    {
+        try await self.resolved().send(request, responseType: responseType)
+    }
+
+    func sendOnce<R: Decodable & Sendable>(
+        _ request: JSONRPCRequest<some Encodable & Sendable>,
+        responseType: R.Type) async throws -> R
+    {
+        try await self.resolved().sendOnce(request, responseType: responseType)
     }
 }

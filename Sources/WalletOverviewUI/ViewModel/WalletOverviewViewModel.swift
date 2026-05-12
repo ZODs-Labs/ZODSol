@@ -1,7 +1,7 @@
 import Foundation
 import Observation
-import WalletOverviewDomain
 import SolanaKit
+import WalletOverviewDomain
 
 public enum PanelRoute: Sendable, Equatable {
     case overview
@@ -69,6 +69,7 @@ public final class WalletOverviewViewModel {
     public let apiKeyStore: any APIKeyStore
     public let sendService: any SendAssetsService
     public let network: SolanaNetwork
+    public let recentRecipientsStore: RecentRecipientsStore
     private let credentialsDidChange: (@Sendable () async -> Void)?
     private var refreshTask: Task<Void, Never>?
 
@@ -78,19 +79,21 @@ public final class WalletOverviewViewModel {
         apiKeyStore: any APIKeyStore,
         sendService: any SendAssetsService,
         network: SolanaNetwork,
-        credentialsDidChange: (@Sendable () async -> Void)? = nil
-    ) {
+        recentRecipientsStore: RecentRecipientsStore = RecentRecipientsStore(),
+        credentialsDidChange: (@Sendable () async -> Void)? = nil)
+    {
         self.service = service
         self.walletStore = walletStore
         self.apiKeyStore = apiKeyStore
         self.sendService = sendService
         self.network = network
+        self.recentRecipientsStore = recentRecipientsStore
         self.credentialsDidChange = credentialsDidChange
     }
 
     public func panelDidAppear() {
-        refreshTask?.cancel()
-        refreshTask = Task { [weak self] in
+        self.refreshTask?.cancel()
+        self.refreshTask = Task { [weak self] in
             guard let self else { return }
             await self.loadInitialState()
             guard !Task.isCancelled else { return }
@@ -105,75 +108,75 @@ public final class WalletOverviewViewModel {
     }
 
     public func panelDidDisappear() {
-        refreshTask?.cancel()
-        refreshTask = nil
+        self.refreshTask?.cancel()
+        self.refreshTask = nil
         // Reset to the default screen so the next panel open starts on the
         // overview, not on a stale switcher/manage screen.
         self.route = .overview
     }
 
     public func selectWallet(_ id: UUID) async {
-        guard id != activeWalletId else {
+        guard id != self.activeWalletId else {
             self.route = .overview
             return
         }
         self.activeWalletId = id
-        await walletStore.setSelectedWallet(id)
+        await self.walletStore.setSelectedWallet(id)
         self.state = .loading
         self.route = .overview
-        panelDidAppear()
+        self.panelDidAppear()
     }
 
     public func addWallet(privateKeyText: String, label: String) async throws {
         let parsed = try ImportedPrivateKey.parse(privateKeyText)
         let identity = try await walletStore.add(privateKey: parsed, label: label)
-        self.wallets = await walletStore.wallets()
+        self.wallets = await self.walletStore.wallets()
         self.activeWalletId = identity.id
-        await walletStore.setSelectedWallet(identity.id)
+        await self.walletStore.setSelectedWallet(identity.id)
         self.state = .loading
-        panelDidAppear()
+        self.panelDidAppear()
     }
 
     public func removeWallet(_ id: UUID) async {
-        try? await walletStore.remove(walletId: id)
-        self.wallets = await walletStore.wallets()
-        if activeWalletId == id {
-            activeWalletId = self.wallets.first?.id
-            await walletStore.setSelectedWallet(activeWalletId)
-            if activeWalletId == nil {
-                state = .idle
-                refreshTask?.cancel()
+        try? await self.walletStore.remove(walletId: id)
+        self.wallets = await self.walletStore.wallets()
+        if self.activeWalletId == id {
+            self.activeWalletId = self.wallets.first?.id
+            await self.walletStore.setSelectedWallet(self.activeWalletId)
+            if self.activeWalletId == nil {
+                self.state = .idle
+                self.refreshTask?.cancel()
             } else {
-                panelDidAppear()
+                self.panelDidAppear()
             }
         }
     }
 
     public func renameWallet(_ id: UUID, to newLabel: String) async {
-        try? await walletStore.rename(walletId: id, to: newLabel)
-        self.wallets = await walletStore.wallets()
+        try? await self.walletStore.rename(walletId: id, to: newLabel)
+        self.wallets = await self.walletStore.wallets()
     }
 
     public func setAPIKey(_ key: String) async throws {
-        try await apiKeyStore.save(key)
-        await credentialsDidChange?()
-        await service.invalidateAll()
+        try await self.apiKeyStore.save(key)
+        await self.credentialsDidChange?()
+        await self.service.invalidateAll()
         self.hasAPIKey = true
         self.route = .overview
-        guard activeWalletId != nil else {
+        guard self.activeWalletId != nil else {
             self.state = .idle
             return
         }
         self.state = .loading
-        panelDidAppear()
+        self.panelDidAppear()
     }
 
     public func clearAPIKey() async {
-        refreshTask?.cancel()
-        refreshTask = nil
-        try? await apiKeyStore.clear()
-        await credentialsDidChange?()
-        await service.invalidateAll()
+        self.refreshTask?.cancel()
+        self.refreshTask = nil
+        try? await self.apiKeyStore.clear()
+        await self.credentialsDidChange?()
+        await self.service.invalidateAll()
         self.hasAPIKey = false
         self.state = .idle
         self.route = .overview
@@ -186,9 +189,9 @@ public final class WalletOverviewViewModel {
     }
 
     private func loadInitialState() async {
-        self.hasAPIKey = (try? await apiKeyStore.currentKey()) != nil
-        self.wallets = await walletStore.wallets()
-        self.activeWalletId = await walletStore.selectedWalletId() ?? self.wallets.first?.id
+        self.hasAPIKey = await (try? self.apiKeyStore.currentKey()) != nil
+        self.wallets = await self.walletStore.wallets()
+        self.activeWalletId = await self.walletStore.selectedWalletId() ?? self.wallets.first?.id
         if !self.hasAPIKey || self.wallets.isEmpty {
             self.state = .idle
         } else {
@@ -260,7 +263,7 @@ public final class WalletOverviewViewModel {
     private static func isNonTerminalOutcome(_ outcome: SendOutcome) -> Bool {
         switch outcome {
         case .confirmed, .expired, .failed:
-            return false
+            false
         }
     }
 }
@@ -277,7 +280,6 @@ extension PortfolioRow {
             mint: mint,
             decimals: self.amount.decimals,
             symbol: self.symbol,
-            name: self.name
-        )
+            name: self.name)
     }
 }

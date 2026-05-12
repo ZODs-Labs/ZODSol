@@ -1,3 +1,4 @@
+import SolanaKit
 import SwiftUI
 import WalletOverviewDomain
 
@@ -10,69 +11,67 @@ public struct WalletPanelView: View {
     }
 
     public var body: some View {
-        content
+        self.content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onAppear { viewModel.panelDidAppear() }
-            .onDisappear { viewModel.panelDidDisappear() }
+            .onAppear { self.viewModel.panelDidAppear() }
+            .onDisappear { self.viewModel.panelDidDisappear() }
     }
 
     @ViewBuilder
     private var content: some View {
-        if !viewModel.hasAPIKey || viewModel.wallets.isEmpty {
-            OnboardingView(viewModel: viewModel)
+        if !self.viewModel.hasAPIKey || self.viewModel.wallets.isEmpty {
+            OnboardingView(viewModel: self.viewModel)
         } else {
             // Inline routes — the panel is the navigation surface. No
             // sheets, no popovers; every screen is rendered into the same
             // panel window.
             ZStack {
-                switch viewModel.route {
+                switch self.viewModel.route {
                 case .overview:
-                    overviewBody
-                        .transition(transitionForOverview)
+                    self.overviewBody
+                        .transition(self.transitionForOverview)
                 case .switcher:
-                    WalletSwitcherView(viewModel: viewModel)
+                    WalletSwitcherView(viewModel: self.viewModel)
                         .transition(.push)
                 case .manage:
-                    ManageWalletsView(viewModel: viewModel)
+                    ManageWalletsView(viewModel: self.viewModel)
                         .transition(.push)
-                case .rename(let walletId):
-                    RenameWalletView(viewModel: viewModel, walletId: walletId)
+                case let .rename(walletId):
+                    RenameWalletView(viewModel: self.viewModel, walletId: walletId)
                         .transition(.push)
                 case .addWallet:
-                    AddWalletView(viewModel: viewModel)
+                    AddWalletView(viewModel: self.viewModel)
                         .transition(.push)
                 case let .send(intent):
-                    SendNavigator(viewModel: makeSendViewModel(intent: intent))
+                    SendNavigator(viewModel: self.makeSendViewModel(intent: intent))
                         .transition(.push)
                 case let .assetPicker(intent):
-                    AssetPickerView(intent: intent, viewModel: viewModel)
+                    AssetPickerView(intent: intent, viewModel: self.viewModel)
                         .transition(.push)
                 case let .receive(intent):
-                    ReceiveNavigator(viewModel: makeReceiveViewModel(intent: intent), parent: viewModel)
+                    ReceiveNavigator(viewModel: self.makeReceiveViewModel(intent: intent), parent: self.viewModel)
                         .transition(.push)
                 }
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: viewModel.route)
+            .animation(self.reduceMotion ? nil : .easeInOut(duration: 0.22), value: self.viewModel.route)
         }
     }
 
     @ViewBuilder
     private var overviewBody: some View {
-        switch viewModel.state {
+        switch self.viewModel.state {
         case .idle, .loading:
             LoadingView()
-        case .loaded(let overview, _):
+        case let .loaded(overview, _):
             WalletOverviewContentView(
-                viewModel: viewModel,
-                overview: overview
-            )
-        case .partial(let overview, _):
+                viewModel: self.viewModel,
+                overview: overview)
+        case let .partial(overview, _):
             WalletOverviewContentView(
-                viewModel: viewModel,
-                overview: overview
-            )
-        case .failed(let error):
-            ErrorView(error: error, viewModel: viewModel)
+                viewModel: self.viewModel,
+                overview: overview)
+        case let .failed(error):
+            ErrorView(error: error, viewModel: self.viewModel)
         }
     }
 
@@ -80,17 +79,47 @@ public struct WalletPanelView: View {
         let sendVM = SendViewModel(
             intent: intent,
             cluster: viewModel.network,
-            service: viewModel.sendService,
-            onDismiss: { [viewModel] in viewModel.route = .overview }
-        )
-        // Clear the pending handoff so a route bounce does not re-trigger it.
-        // Wave 3G wires this signature into a real preloadConfirming(_:) call.
-        viewModel.preloadConfirmingSignature = nil
+            service: self.viewModel.sendService,
+            onDismiss: { [viewModel] in viewModel.route = .overview },
+            recentRecipientsStore: self.viewModel.recentRecipientsStore)
+        if let row = findPortfolioRow(for: intent.asset) {
+            sendVM.assetBalanceBaseUnits = row.amount.amount
+            sendVM.assetPriceUSD = row.pricePerToken
+        }
+        if let signature = viewModel.preloadConfirmingSignature {
+            sendVM.preloadConfirming(signature: signature)
+            self.viewModel.preloadConfirmingSignature = nil
+        }
         return sendVM
     }
 
+    private func findPortfolioRow(for asset: SendAssetKind) -> PortfolioRow? {
+        let overview: WalletOverview
+        switch self.viewModel.state {
+        case let .loaded(value, _):
+            overview = value
+        case let .partial(value, _):
+            overview = value
+        default:
+            return nil
+        }
+        switch asset {
+        case .sol:
+            return .sol(
+                balance: overview.solBalance,
+                price: overview.solPriceUSD,
+                change: overview.solChange24h)
+        case let .splToken(mint, _, _, _):
+            let mintBase58 = mint.base58
+            guard let match = overview.tokens.first(where: { $0.id.base58 == mintBase58 }) else {
+                return nil
+            }
+            return PortfolioRow.from(match)
+        }
+    }
+
     private func makeReceiveViewModel(intent: ReceiveIntent) -> ReceiveViewModel {
-        ReceiveViewModel(intent: intent, cluster: viewModel.network)
+        ReceiveViewModel(intent: intent, cluster: self.viewModel.network)
     }
 
     private var transitionForOverview: AnyTransition {
@@ -98,17 +127,15 @@ public struct WalletPanelView: View {
         // leading edge to match native macOS navigation feel.
         .asymmetric(
             insertion: .move(edge: .leading).combined(with: .opacity),
-            removal: .move(edge: .leading).combined(with: .opacity)
-        )
+            removal: .move(edge: .leading).combined(with: .opacity))
     }
 }
 
-private extension AnyTransition {
+extension AnyTransition {
     /// Pushed-onto-stack style for deeper routes — slides from trailing edge.
-    static var push: AnyTransition {
+    fileprivate static var push: AnyTransition {
         .asymmetric(
             insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .trailing).combined(with: .opacity)
-        )
+            removal: .move(edge: .trailing).combined(with: .opacity))
     }
 }

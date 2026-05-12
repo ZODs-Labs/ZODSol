@@ -1,7 +1,7 @@
 import AppKit
-import SwiftUI
-import SolanaKit
 import Formatters
+import SolanaKit
+import SwiftUI
 
 /// Wallet portfolio surface laid out like a system menu-bar popover (battery,
 /// volume, control center): a title row, a hero, hairline-separated sections
@@ -21,45 +21,42 @@ struct WalletOverviewContentView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                headerRow
+                self.headerRow
                     .padding(.bottom, 12)
 
                 if let banner = viewModel.pendingSendBanner {
                     PendingSendBanner(
                         info: banner,
-                        onTap: { viewModel.acknowledgePendingSend(banner) }
-                    )
-                    .padding(.bottom, 10)
+                        onTap: { self.viewModel.acknowledgePendingSend(banner) })
+                        .padding(.bottom, 10)
                 }
 
-                hero
+                self.hero
 
                 Divider()
                     .padding(.vertical, 14)
 
-                holdingsHeader
+                self.holdingsHeader
                     .padding(.bottom, 4)
                 AssetListSection(
-                    rows: pricedRows,
-                    wallet: overview.address,
-                    hiddenCount: hiddenCount,
-                    totalUSD: overview.totalUSD,
-                    displayCap: displayCap,
-                    onSend: handleSend
-                )
+                    rows: self.pricedRows,
+                    wallet: self.overview.address,
+                    hiddenCount: self.hiddenCount,
+                    totalUSD: self.overview.totalUSD,
+                    displayCap: self.displayCap)
 
-                if !overview.nfts.isEmpty {
+                if !self.overview.nfts.isEmpty {
                     Divider()
                         .padding(.vertical, 14)
-                    nftsHeader
+                    self.nftsHeader
                         .padding(.bottom, 8)
-                    NFTSummaryCard(summary: overview.nfts)
+                    NFTSummaryCard(summary: self.overview.nfts)
                 }
 
                 Divider()
                     .padding(.vertical, 14)
 
-                footerLink
+                self.footerLink
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -70,17 +67,17 @@ struct WalletOverviewContentView: View {
 
     private var headerRow: some View {
         HStack(spacing: 8) {
-            WalletSwitcherChip(viewModel: viewModel)
+            WalletSwitcherChip(viewModel: self.viewModel)
             Spacer(minLength: 0)
-            sendButton
-            receiveButton
-            refreshButton
+            self.sendButton
+            self.receiveButton
+            self.refreshButton
         }
     }
 
     private var sendButton: some View {
         Button {
-            viewModel.handleHeaderSend()
+            self.viewModel.handleHeaderSend()
         } label: {
             Image(systemName: "paperplane.fill")
                 .font(.system(size: 12, weight: .semibold))
@@ -96,7 +93,7 @@ struct WalletOverviewContentView: View {
 
     private var receiveButton: some View {
         Button {
-            viewModel.handleHeaderReceive()
+            self.viewModel.handleHeaderReceive()
         } label: {
             Image(systemName: "qrcode")
                 .font(.system(size: 12, weight: .semibold))
@@ -112,7 +109,7 @@ struct WalletOverviewContentView: View {
 
     private var refreshButton: some View {
         Button {
-            Task { await viewModel.refresh() }
+            Task { await self.viewModel.refresh() }
         } label: {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: 12, weight: .semibold))
@@ -130,7 +127,7 @@ struct WalletOverviewContentView: View {
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(currencyFormatter.displayValue(usd: overview.totalUSD ?? 0))
+            Text(self.currencyFormatter.displayValue(usd: self.overview.totalUSD ?? 0))
                 .font(.system(size: 30, weight: .bold))
                 .tracking(-0.6)
                 .monospacedDigit()
@@ -138,29 +135,29 @@ struct WalletOverviewContentView: View {
                 .contentTransition(.numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            subtitle
+            self.subtitle
         }
     }
 
     private var subtitle: some View {
-        let holdingsCount = rows.count
+        let holdingsCount = self.rows.count
         return HStack(spacing: 6) {
             Text("\(holdingsCount) holding\(holdingsCount == 1 ? "" : "s")")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
-            if overview.solBalance.rawValue > 0 {
-                separator
-                Text("~\(solLabel) SOL")
+            if self.overview.solBalance.rawValue > 0 {
+                self.separator
+                Text("~\(self.solLabel) SOL")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
             if let change = overview.totalChange24h {
-                separator
-                Text("\(deltaFormatter.string(change)) 24h")
+                self.separator
+                Text("\(self.deltaFormatter.string(change)) 24h")
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(deltaColor(change))
+                    .foregroundStyle(self.deltaColor(change))
                     .monospacedDigit()
                     .contentTransition(.numericText())
             }
@@ -187,28 +184,27 @@ struct WalletOverviewContentView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
             Spacer()
-            NFTCountLink(count: overview.nfts.count, address: overview.address)
+            NFTCountLink(count: self.overview.nfts.count, address: self.overview.address)
         }
     }
 
     // MARK: - Footer
 
     private var footerLink: some View {
-        SolscanFooterLink(address: overview.address)
+        SolscanFooterLink(address: self.overview.address)
     }
 
     // MARK: - Rows
 
     private var rows: [PortfolioRow] {
         var out: [PortfolioRow] = []
-        if overview.solBalance.rawValue > 0 {
+        if self.overview.solBalance.rawValue > 0 {
             out.append(.sol(
-                balance: overview.solBalance,
-                price: overview.solPriceUSD,
-                change: overview.solChange24h
-            ))
+                balance: self.overview.solBalance,
+                price: self.overview.solPriceUSD,
+                change: self.overview.solChange24h))
         }
-        out.append(contentsOf: overview.tokens.map(PortfolioRow.from))
+        out.append(contentsOf: self.overview.tokens.map(PortfolioRow.from))
         return out.sortedByValue()
     }
 
@@ -217,7 +213,7 @@ struct WalletOverviewContentView: View {
     /// without contributing to portfolio value. Native SOL is always shown
     /// when present, even if the price feed is momentarily missing.
     private var pricedRows: [PortfolioRow] {
-        rows.filter { row in
+        self.rows.filter { row in
             if row.isNative { return true }
             guard let usd = row.usdValue else { return false }
             return usd > 0
@@ -225,45 +221,22 @@ struct WalletOverviewContentView: View {
     }
 
     private var hiddenCount: Int {
-        rows.count - pricedRows.count
+        self.rows.count - self.pricedRows.count
     }
 
     // MARK: - Helpers
 
     private var solLabel: String {
         let sol = Decimal(overview.solBalance.rawValue) / pow(Decimal(10), 9)
-        return amountFormatter.largeNumber(sol)
+        return self.amountFormatter.largeNumber(sol)
     }
 
     private func deltaColor(_ delta: Double) -> Color {
-        switch deltaFormatter.color(for: delta) {
+        switch self.deltaFormatter.color(for: delta) {
         case .up: .green
         case .down: .red
         case .neutral: .secondary
         }
-    }
-
-    // MARK: - Send
-
-    private func handleSend(_ row: PortfolioRow) {
-        guard let walletId = viewModel.activeWalletId else { return }
-        let asset: SendAssetKind
-        if row.isNative {
-            asset = .sol
-        } else {
-            guard let mint = try? Mint(base58: row.id) else { return }
-            asset = .splToken(
-                mint: mint,
-                decimals: row.amount.decimals,
-                symbol: row.symbol,
-                name: row.name
-            )
-        }
-        viewModel.route = .send(SendIntent(
-            walletId: walletId,
-            from: overview.address,
-            asset: asset
-        ))
     }
 }
 
@@ -279,23 +252,23 @@ private struct NFTCountLink: View {
 
     var body: some View {
         Button {
-            Solscan.open(Solscan.nfts(address: address.base58))
+            Solscan.open(Solscan.nfts(address: self.address.base58))
         } label: {
             HStack(spacing: 4) {
-                Text("\(count)")
+                Text("\(self.count)")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(isHovered ? .primary : .secondary)
+                    .foregroundStyle(self.isHovered ? .primary : .secondary)
                     .monospacedDigit()
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(isHovered ? .secondary : .tertiary)
+                    .foregroundStyle(self.isHovered ? .secondary : .tertiary)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
+        .onHover { self.isHovered = $0 }
         .help("View collectibles on Solscan")
-        .accessibilityLabel("\(count) collectibles, opens Solscan")
+        .accessibilityLabel("\(self.count) collectibles, opens Solscan")
     }
 }
 
@@ -308,7 +281,7 @@ private struct SolscanFooterLink: View {
 
     var body: some View {
         Button {
-            Solscan.open(Solscan.account(address: address.base58))
+            Solscan.open(Solscan.account(address: self.address.base58))
         } label: {
             HStack(spacing: 6) {
                 Text("View Account on Solscan")
@@ -324,19 +297,18 @@ private struct SolscanFooterLink: View {
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.primary.opacity(isHovered ? 0.05 : 0))
-            )
+                    .fill(Color.primary.opacity(self.isHovered ? 0.05 : 0)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
+        .onHover { self.isHovered = $0 }
         .help("Open this wallet on Solscan")
         .contextMenu {
             Button("Copy Wallet Address") {
-                WalletPasteboard.copy(address.base58)
+                WalletPasteboard.copy(self.address.base58)
             }
             Button("Copy Solscan URL") {
-                WalletPasteboard.copy(Solscan.account(address: address.base58).absoluteString)
+                WalletPasteboard.copy(Solscan.account(address: self.address.base58).absoluteString)
             }
         }
     }

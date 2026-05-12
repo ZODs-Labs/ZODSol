@@ -1,14 +1,13 @@
 import Foundation
-import XCTest
 import SolanaKit
 import WalletOverviewDomain
+import XCTest
 @testable import WalletOverviewUI
 
 final class WalletOverviewViewModelTests: XCTestCase {
-
     @MainActor
     func testInitialStateIsIdle() {
-        let viewModel = makeViewModel()
+        let viewModel = self.makeViewModel()
 
         if case .idle = viewModel.state {
             // expected
@@ -23,10 +22,10 @@ final class WalletOverviewViewModelTests: XCTestCase {
     @MainActor
     func testPanelDidAppearWithNoAPIKeyLeavesStateIdle() async {
         let apiKeyStore = MockAPIKeyStore(key: nil)
-        let viewModel = makeViewModel(apiKeyStore: apiKeyStore)
+        let viewModel = self.makeViewModel(apiKeyStore: apiKeyStore)
 
         viewModel.panelDidAppear()
-        await waitUntil { !viewModel.hasAPIKey && viewModel.wallets.isEmpty }
+        await self.waitUntil { !viewModel.hasAPIKey && viewModel.wallets.isEmpty }
         viewModel.panelDidDisappear()
 
         XCTAssertFalse(viewModel.hasAPIKey)
@@ -41,10 +40,10 @@ final class WalletOverviewViewModelTests: XCTestCase {
     @MainActor
     func testPanelDidAppearWithAPIKeyButNoWalletsKeepsStateIdle() async {
         let apiKeyStore = MockAPIKeyStore(key: "helius-test-key")
-        let viewModel = makeViewModel(apiKeyStore: apiKeyStore)
+        let viewModel = self.makeViewModel(apiKeyStore: apiKeyStore)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.hasAPIKey }
+        await self.waitUntil { viewModel.hasAPIKey }
         viewModel.panelDidDisappear()
 
         XCTAssertTrue(viewModel.hasAPIKey)
@@ -58,8 +57,8 @@ final class WalletOverviewViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testPanelDidDisappearIsSafeToCallRepeatedly() async {
-        let viewModel = makeViewModel()
+    func testPanelDidDisappearIsSafeToCallRepeatedly() {
+        let viewModel = self.makeViewModel()
 
         viewModel.panelDidAppear()
         viewModel.panelDidDisappear()
@@ -72,7 +71,7 @@ final class WalletOverviewViewModelTests: XCTestCase {
     @MainActor
     func testSetAPIKeyMarksHasAPIKey() async throws {
         let apiKeyStore = MockAPIKeyStore(key: nil)
-        let viewModel = makeViewModel(apiKeyStore: apiKeyStore)
+        let viewModel = self.makeViewModel(apiKeyStore: apiKeyStore)
 
         XCTAssertFalse(viewModel.hasAPIKey)
         try await viewModel.setAPIKey("new-helius-key")
@@ -85,7 +84,7 @@ final class WalletOverviewViewModelTests: XCTestCase {
     @MainActor
     func testClearAPIKeyResetsHasAPIKey() async throws {
         let apiKeyStore = MockAPIKeyStore(key: "existing-key")
-        let viewModel = makeViewModel(apiKeyStore: apiKeyStore)
+        let viewModel = self.makeViewModel(apiKeyStore: apiKeyStore)
 
         try await viewModel.setAPIKey("existing-key")
         XCTAssertTrue(viewModel.hasAPIKey)
@@ -102,14 +101,13 @@ final class WalletOverviewViewModelTests: XCTestCase {
         let apiKeyStore = MockAPIKeyStore(key: "bad-key")
         let service = MockWalletOverviewService(loadResult: .failed(.unauthorized))
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
-        let viewModel = makeViewModel(
+        let viewModel = self.makeViewModel(
             service: service,
             walletStore: walletStore,
-            apiKeyStore: apiKeyStore
-        )
+            apiKeyStore: apiKeyStore)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.activeWalletId == identity.id && viewModel.hasAPIKey }
+        await self.waitUntil { viewModel.activeWalletId == identity.id && viewModel.hasAPIKey }
         await viewModel.refresh()
 
         guard case .failed(.unauthorized) = viewModel.state else {
@@ -132,14 +130,13 @@ final class WalletOverviewViewModelTests: XCTestCase {
         let apiKeyStore = MockAPIKeyStore(key: nil)
         let service = MockWalletOverviewService(loadResult: .failed(.unauthorized))
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
-        let viewModel = makeViewModel(
+        let viewModel = self.makeViewModel(
             service: service,
             walletStore: walletStore,
-            apiKeyStore: apiKeyStore
-        )
+            apiKeyStore: apiKeyStore)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.activeWalletId == identity.id }
+        await self.waitUntil { viewModel.activeWalletId == identity.id }
 
         try await viewModel.setAPIKey("replacement-key")
 
@@ -157,7 +154,7 @@ final class WalletOverviewViewModelTests: XCTestCase {
     @MainActor
     func testRefreshWithoutActiveWalletDoesNothing() async {
         let service = MockWalletOverviewService(loadResult: .loading)
-        let viewModel = makeViewModel(service: service)
+        let viewModel = self.makeViewModel(service: service)
 
         await viewModel.refresh()
 
@@ -176,10 +173,10 @@ final class WalletOverviewViewModelTests: XCTestCase {
     func testHandleHeaderSendSetsRouteToAssetPickerSend() async throws {
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
         let apiKeyStore = MockAPIKeyStore(key: "key")
-        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+        let viewModel = self.makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.activeWalletId == identity.id }
+        await self.waitUntil { viewModel.activeWalletId == identity.id }
 
         viewModel.handleHeaderSend()
 
@@ -195,10 +192,10 @@ final class WalletOverviewViewModelTests: XCTestCase {
     func testHandleHeaderReceiveSetsRouteToReceive() async throws {
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
         let apiKeyStore = MockAPIKeyStore(key: "key")
-        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+        let viewModel = self.makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.activeWalletId == identity.id }
+        await self.waitUntil { viewModel.activeWalletId == identity.id }
 
         viewModel.handleHeaderReceive()
 
@@ -214,15 +211,14 @@ final class WalletOverviewViewModelTests: XCTestCase {
     func testHandleAssetPickedSendSetsRouteToSend() async throws {
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
         let apiKeyStore = MockAPIKeyStore(key: "key")
-        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+        let viewModel = self.makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.activeWalletId == identity.id }
+        await self.waitUntil { viewModel.activeWalletId == identity.id }
 
         viewModel.handleHeaderSend()
         let solRow = PortfolioRow.sol(
-            balance: Lamports(rawValue: 1_000_000_000), price: nil, change: nil
-        )
+            balance: Lamports(rawValue: 1_000_000_000), price: nil, change: nil)
         viewModel.handleAssetPicked(solRow)
 
         guard case let .send(intent) = viewModel.route else {
@@ -241,22 +237,19 @@ final class WalletOverviewViewModelTests: XCTestCase {
     func testHandleAssetPickedReceiveSetsRouteToReceiveAndStashesAsset() async throws {
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
         let apiKeyStore = MockAPIKeyStore(key: "key")
-        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+        let viewModel = self.makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.activeWalletId == identity.id }
+        await self.waitUntil { viewModel.activeWalletId == identity.id }
 
         let receiveIntent = ReceiveIntent(
-            walletId: identity.id, address: identity.address, network: .mainnet
-        )
+            walletId: identity.id, address: identity.address, network: .mainnet)
         viewModel.route = .assetPicker(AssetPickerIntent(
             walletId: identity.id,
             from: identity.address,
-            mode: .receive(receiveIntent)
-        ))
+            mode: .receive(receiveIntent)))
         let solRow = PortfolioRow.sol(
-            balance: Lamports(rawValue: 2_000_000_000), price: nil, change: nil
-        )
+            balance: Lamports(rawValue: 2_000_000_000), price: nil, change: nil)
         viewModel.handleAssetPicked(solRow)
 
         guard case let .receive(intent) = viewModel.route else {
@@ -270,15 +263,14 @@ final class WalletOverviewViewModelTests: XCTestCase {
     func testHandleAssetPickedOutsideAssetPickerRouteIsNoOp() async throws {
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
         let apiKeyStore = MockAPIKeyStore(key: "key")
-        let viewModel = makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
+        let viewModel = self.makeViewModel(walletStore: walletStore, apiKeyStore: apiKeyStore)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.activeWalletId == identity.id }
+        await self.waitUntil { viewModel.activeWalletId == identity.id }
 
         XCTAssertEqual(viewModel.route, .overview)
         let solRow = PortfolioRow.sol(
-            balance: Lamports(rawValue: 1), price: nil, change: nil
-        )
+            balance: Lamports(rawValue: 1), price: nil, change: nil)
         viewModel.handleAssetPicked(solRow)
 
         XCTAssertEqual(viewModel.route, .overview)
@@ -294,12 +286,11 @@ final class WalletOverviewViewModelTests: XCTestCase {
         let signature = try Signature(bytes: signatureBytes)
         await sendService.setResyncResults([signature: .confirmed(signature, slot: 100)])
 
-        let viewModel = makeViewModel(
-            walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService
-        )
+        let viewModel = self.makeViewModel(
+            walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.pendingSendBanner != nil }
+        await self.waitUntil { viewModel.pendingSendBanner != nil }
 
         XCTAssertEqual(viewModel.activeWalletId, identity.id)
         XCTAssertEqual(viewModel.pendingSendBanner?.signature, signature)
@@ -312,12 +303,11 @@ final class WalletOverviewViewModelTests: XCTestCase {
         let sendService = MockSendAssetsService()
         await sendService.setResyncResults([:])
 
-        let viewModel = makeViewModel(
-            walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService
-        )
+        let viewModel = self.makeViewModel(
+            walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService)
 
         viewModel.panelDidAppear()
-        await waitUntil { viewModel.activeWalletId == identity.id }
+        await self.waitUntil { viewModel.activeWalletId == identity.id }
         try? await Task.sleep(for: .milliseconds(20))
 
         XCTAssertNil(viewModel.pendingSendBanner)
@@ -330,24 +320,23 @@ final class WalletOverviewViewModelTests: XCTestCase {
         service: MockWalletOverviewService? = nil,
         walletStore: WalletStore? = nil,
         apiKeyStore: MockAPIKeyStore? = nil,
-        sendService: MockSendAssetsService? = nil
-    ) -> WalletOverviewViewModel {
-        return WalletOverviewViewModel(
+        sendService: MockSendAssetsService? = nil) -> WalletOverviewViewModel
+    {
+        WalletOverviewViewModel(
             service: service ?? MockWalletOverviewService(),
             walletStore: walletStore ?? TestWalletStoreFactory.makeEmpty(),
             apiKeyStore: apiKeyStore ?? MockAPIKeyStore(),
             sendService: sendService ?? MockSendAssetsService(),
-            network: .mainnet
-        )
+            network: .mainnet)
     }
 
     @MainActor
     private func waitUntil(
         timeout: TimeInterval = 2.0,
-        _ condition: @MainActor () -> Bool
-    ) async {
+        _ condition: @MainActor () -> Bool) async
+    {
         let deadline = Date().addingTimeInterval(timeout)
-        while !condition() && Date() < deadline {
+        while !condition(), Date() < deadline {
             try? await Task.sleep(for: .milliseconds(10))
         }
     }
