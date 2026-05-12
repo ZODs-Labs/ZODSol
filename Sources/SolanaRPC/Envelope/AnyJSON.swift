@@ -40,12 +40,12 @@ public enum AnyJSON: Codable, Sendable, Equatable {
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
-        case .string(let s): try container.encode(s)
-        case .number(let d): try container.encode(d)
-        case .bool(let b): try container.encode(b)
+        case let .string(s): try container.encode(s)
+        case let .number(d): try container.encode(d)
+        case let .bool(b): try container.encode(b)
         case .null: try container.encodeNil()
-        case .array(let a): try container.encode(a)
-        case .object(let o): try container.encode(o)
+        case let .array(a): try container.encode(a)
+        case let .object(o): try container.encode(o)
         }
     }
 }

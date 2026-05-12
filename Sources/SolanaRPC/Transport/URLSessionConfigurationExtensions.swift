@@ -1,7 +1,7 @@
 import Foundation
 
-public extension URLSessionConfiguration {
-    static func makeDefault() -> URLSessionConfiguration {
+extension URLSessionConfiguration {
+    public static func makeDefault() -> URLSessionConfiguration {
         let c = URLSessionConfiguration.ephemeral
         c.timeoutIntervalForRequest = 20
         c.timeoutIntervalForResource = 30
