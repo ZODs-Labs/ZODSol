@@ -1,6 +1,6 @@
+import Caching
 import Foundation
 import SolanaKit
-import Caching
 
 public protocol WalletOverviewService: Sendable {
     func load(for walletId: UUID, forceRevalidate: Bool) async -> LoadState<WalletOverview>
@@ -19,20 +19,20 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
         provider: any SolanaProvider,
         walletStore: WalletStore,
         network: SolanaNetwork = .mainnet,
-        overviewCache: TimedCache<UUID, WalletOverview>
-    ) {
+        overviewCache: TimedCache<UUID, WalletOverview>)
+    {
         self.provider = provider
         self.addressLookup = { id in try await walletStore.address(for: id) }
         self.network = network
         self.overviewCache = overviewCache
     }
 
-    internal init(
+    init(
         provider: any SolanaProvider,
         addressLookup: @Sendable @escaping (UUID) async throws -> WalletAddress,
         network: SolanaNetwork = .mainnet,
-        overviewCache: TimedCache<UUID, WalletOverview>
-    ) {
+        overviewCache: TimedCache<UUID, WalletOverview>)
+    {
         self.provider = provider
         self.addressLookup = addressLookup
         self.network = network
@@ -41,11 +41,11 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
 
     public func load(for walletId: UUID, forceRevalidate: Bool) async -> LoadState<WalletOverview> {
         let address: WalletAddress
-        do { address = try await addressLookup(walletId) } catch { return .idle }
+        do { address = try await self.addressLookup(walletId) } catch { return .idle }
 
         if !forceRevalidate {
-            switch await overviewCache.read(walletId) {
-            case .fresh(let v): return .loaded(v, lastRefreshed: Date())
+            switch await self.overviewCache.read(walletId) {
+            case let .fresh(v): return .loaded(v, lastRefreshed: Date())
             case .stale, .miss: break
             }
         }
@@ -58,13 +58,13 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
             }
             return .loaded(overview, lastRefreshed: Date())
         } catch let e as WalletOverviewError {
-            if case .stale(let cached) = await overviewCache.read(walletId) {
+            if case let .stale(cached) = await overviewCache.read(walletId) {
                 return .partial(cached, error: e)
             }
             return .failed(e)
         } catch let e as SolanaProviderError {
             let mapped = mapProviderError(e)
-            if case .stale(let cached) = await overviewCache.read(walletId) {
+            if case let .stale(cached) = await overviewCache.read(walletId) {
                 return .partial(cached, error: mapped)
             }
             return .failed(mapped)
@@ -91,18 +91,18 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
     }
 
     public func invalidate(walletId: UUID) async {
-        await overviewCache.invalidate(walletId)
+        await self.overviewCache.invalidate(walletId)
     }
 
     public func invalidateAll() async {
-        await overviewCache.invalidateAll()
+        await self.overviewCache.invalidateAll()
     }
 
     // MARK: - Private
 
     private func fetchOverview(walletId: UUID, address: WalletAddress) async throws -> WalletOverview {
-        async let assetsTask = provider.assets(for: address, network: network, options: .default)
-        async let solChangeTask = safeSolChange()
+        async let assetsTask = self.provider.assets(for: address, network: self.network, options: .default)
+        async let solChangeTask = self.safeSolChange()
 
         let page: AssetPage
         do {
@@ -116,13 +116,13 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
         let solChange = await solChangeTask
 
         let fungibleMints = page.items.compactMap { $0.kind == .fungible ? $0.id : nil }
-        let quotes: [Mint: PriceQuote] = (try? await provider.prices(for: fungibleMints)) ?? [:]
+        let quotes: [Mint: PriceQuote] = await (try? self.provider.prices(for: fungibleMints)) ?? [:]
 
-        return assemble(walletId: walletId, address: address, page: page, solChange: solChange, quotes: quotes)
+        return self.assemble(walletId: walletId, address: address, page: page, solChange: solChange, quotes: quotes)
     }
 
     private func safeSolChange() async -> Double? {
-        try? await provider.solChange24h()
+        try? await self.provider.solChange24h()
     }
 
     private func assemble(
@@ -130,8 +130,8 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
         address: WalletAddress,
         page: AssetPage,
         solChange: Double?,
-        quotes: [Mint: PriceQuote]
-    ) -> WalletOverview {
+        quotes: [Mint: PriceQuote]) -> WalletOverview
+    {
         let merged: [AssetSummary] = page.items.map { item in
             guard item.kind == .fungible, let quote = quotes[item.id] else { return item }
             // Trust Helius DAS pricing when present (its index covers the major
@@ -147,26 +147,24 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
                 id: item.id, kind: item.kind, symbol: item.symbol, name: item.name,
                 imageURL: item.imageURL, amount: item.amount,
                 usdValue: usdValue, pricePerToken: pricePerToken,
-                priceChange24h: quote.change24h, tokenProgram: item.tokenProgram
-            )
+                priceChange24h: quote.change24h, tokenProgram: item.tokenProgram)
         }
 
         let fungibles = merged
             .filter { $0.kind == .fungible && $0.amount.amount > 0 }
             .sorted { a, b in
                 switch (a.usdValue, b.usdValue) {
-                case let (l?, r?): return l > r
-                case (nil, _): return false
-                case (_, nil): return true
-                default: return false
+                case let (l?, r?): l > r
+                case (nil, _): false
+                case (_, nil): true
+                default: false
                 }
             }
 
         let nfts = merged.filter { $0.kind == .nft || $0.kind == .compressedNft }
         let nftSummary = NFTSummary(
             count: nfts.count,
-            collectionPreviews: Array(nfts.compactMap(\.imageURL).prefix(6))
-        )
+            collectionPreviews: Array(nfts.compactMap(\.imageURL).prefix(6)))
 
         let solBalance: Lamports = page.nativeSol?.lamports ?? Lamports(rawValue: 0)
         let solPriceUSD: Decimal? = page.nativeSol?.pricePerSol
@@ -202,19 +200,18 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
             tokens: fungibles,
             nfts: nftSummary,
             totalUSD: totalUSD, totalChange24h: totalChange24h,
-            asOf: Date(), isPartial: isPartial
-        )
+            asOf: Date(), isPartial: isPartial)
     }
 
     private nonisolated func mapProviderError(_ e: SolanaProviderError) -> WalletOverviewError {
         switch e {
-        case .networkUnavailable: return .networkUnavailable
-        case .rateLimited(let r): return .rateLimited(retryAfter: r)
-        case .unauthorized: return .unauthorized
-        case .providerUnavailable(message: let m): return .providerUnavailable(m)
-        case .malformedResponse(let m): return .malformedResponse(m)
-        case .invalidInput(let m): return .malformedResponse(m)
-        case .canceled: return .canceled
+        case .networkUnavailable: .networkUnavailable
+        case let .rateLimited(r): .rateLimited(retryAfter: r)
+        case .unauthorized: .unauthorized
+        case let .providerUnavailable(message: m): .providerUnavailable(m)
+        case let .malformedResponse(m): .malformedResponse(m)
+        case let .invalidInput(m): .malformedResponse(m)
+        case .canceled: .canceled
         }
     }
 }

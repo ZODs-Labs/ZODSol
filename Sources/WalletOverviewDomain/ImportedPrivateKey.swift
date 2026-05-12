@@ -4,12 +4,7 @@ import SolanaKit
 
 public struct ImportedPrivateKey: Sendable {
     public let publicAddress: WalletAddress
-    internal let secretKey64: Data
-
-    internal init(publicAddress: WalletAddress, secretKey64: Data) {
-        self.publicAddress = publicAddress
-        self.secretKey64 = secretKey64
-    }
+    let secretKey64: Data
 
     public static func parse(_ text: String) throws -> ImportedPrivateKey {
         let raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -25,35 +20,34 @@ public struct ImportedPrivateKey: Sendable {
         do {
             privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
         } catch {
-            secretKey64.resetBytes(in: 0 ..< secretKey64.count)
+            secretKey64.resetBytes(in: 0..<secretKey64.count)
             throw WalletOverviewError.malformedResponse("Invalid private-key seed.")
         }
 
         let derivedPubKey = privateKey.publicKey.rawRepresentation
         guard derivedPubKey == Data(providedPubKey) else {
-            secretKey64.resetBytes(in: 0 ..< secretKey64.count)
+            secretKey64.resetBytes(in: 0..<secretKey64.count)
             throw WalletOverviewError.malformedResponse(
-                "Private key does not match its public key. Re-export from your wallet and paste the 64-byte secret."
-            )
+                "Private key does not match its public key. Re-export from your wallet and paste the 64-byte secret.")
         }
 
         do {
             let address = try WalletAddress(base58: Base58.encode(derivedPubKey))
             return ImportedPrivateKey(publicAddress: address, secretKey64: secretKey64)
         } catch {
-            secretKey64.resetBytes(in: 0 ..< secretKey64.count)
+            secretKey64.resetBytes(in: 0..<secretKey64.count)
             throw WalletOverviewError.malformedResponse("Derived public key is not a valid Solana address.")
         }
     }
 
     private static func decodeBytes(from text: String) throws -> Data {
-        if looksLikeByteArray(text) {
-            return try decodeByteArray(text)
+        if self.looksLikeByteArray(text) {
+            return try self.decodeByteArray(text)
         }
-        if looksLikeHex(text) {
-            return try decodeHex(text)
+        if self.looksLikeHex(text) {
+            return try self.decodeHex(text)
         }
-        return try decodeBase58(text)
+        return try self.decodeBase58(text)
     }
 
     private static func looksLikeByteArray(_ text: String) -> Bool {
@@ -75,13 +69,11 @@ public struct ImportedPrivateKey: Sendable {
 
         guard !tokens.isEmpty else {
             throw WalletOverviewError.malformedResponse(
-                "The byte array is empty. Expected 64 numbers between 0 and 255."
-            )
+                "The byte array is empty. Expected 64 numbers between 0 and 255.")
         }
         guard tokens.count == 64 else {
             throw WalletOverviewError.malformedResponse(
-                "Expected 64 bytes; got \(tokens.count). A Solana private key is exactly 64 numbers."
-            )
+                "Expected 64 bytes; got \(tokens.count). A Solana private key is exactly 64 numbers.")
         }
 
         var bytes: [UInt8] = []
@@ -90,7 +82,7 @@ public struct ImportedPrivateKey: Sendable {
             guard let value = Int(token) else {
                 throw WalletOverviewError.malformedResponse("Byte \(offset + 1) (\"\(token)\") is not a number.")
             }
-            guard (0 ... 255).contains(value) else {
+            guard (0...255).contains(value) else {
                 throw WalletOverviewError.malformedResponse("Byte \(offset + 1) (\(value)) must be between 0 and 255.")
             }
             bytes.append(UInt8(value))
@@ -120,7 +112,7 @@ public struct ImportedPrivateKey: Sendable {
         var index = normalized.startIndex
         while index < normalized.endIndex {
             let next = normalized.index(index, offsetBy: 2)
-            let pair = String(normalized[index ..< next])
+            let pair = String(normalized[index..<next])
             guard let value = UInt8(pair, radix: 16) else {
                 throw WalletOverviewError.malformedResponse("Invalid hex byte \"\(pair)\".")
             }
@@ -136,13 +128,11 @@ public struct ImportedPrivateKey: Sendable {
             decoded = try Base58.decode(text)
         } catch {
             throw WalletOverviewError.malformedResponse(
-                "Could not read the private key. Paste a 64-byte secret as a base58 string, JSON byte array, or hex."
-            )
+                "Could not read the private key. Paste a 64-byte secret as a base58 string, JSON byte array, or hex.")
         }
         guard decoded.count == 64 else {
             throw WalletOverviewError.malformedResponse(
-                "Decoded base58 was \(decoded.count) bytes; a Solana private key is exactly 64."
-            )
+                "Decoded base58 was \(decoded.count) bytes; a Solana private key is exactly 64.")
         }
         return decoded
     }

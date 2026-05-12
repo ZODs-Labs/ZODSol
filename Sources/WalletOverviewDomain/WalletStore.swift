@@ -21,16 +21,15 @@ public actor WalletStore {
             secureStore: secureStore,
             defaults: defaults,
             service: "dev.zods.zodsol",
-            selectedWalletKey: "dev.zods.zodsol.selectedWalletId"
-        )
+            selectedWalletKey: "dev.zods.zodsol.selectedWalletId")
     }
 
-    internal init(
+    init(
         secureStore: SecureItemStore,
         defaults: UserDefaults,
         service: String,
-        selectedWalletKey: String
-    ) {
+        selectedWalletKey: String)
+    {
         self.defaults = defaults
         self.secureStore = secureStore
         self.service = service
@@ -41,47 +40,45 @@ public actor WalletStore {
 
     public func wallets() async -> [WalletIdentity] {
         if let cache = indexCache { return cache }
-        return await ensureLoaded()
+        return await self.ensureLoaded()
     }
 
     public func add(privateKey: ImportedPrivateKey, label: String) async throws -> WalletIdentity {
-        if indexCache == nil { _ = await ensureLoaded() }
+        if self.indexCache == nil { _ = await self.ensureLoaded() }
         if let existing = indexCache?.first(where: { $0.address == privateKey.publicAddress }) {
             return existing
         }
 
         let walletId = UUID()
         var key64 = privateKey.secretKey64
-        defer { key64.resetBytes(in: 0 ..< key64.count) }
+        defer { key64.resetBytes(in: 0..<key64.count) }
 
         let privateKeyItem = SecureItem(service: service, account: "wallet.\(walletId).privateKey")
         try await secureStore.write(
             key64,
             to: privateKeyItem,
             accessibility: .whenUnlockedThisDeviceOnly,
-            gate: .userPresence(prompt: "Save your Solana signing key")
-        )
+            gate: .userPresence(prompt: "Save your Solana signing key"))
 
-        return try await addStoredWallet(
+        return try await self.addStoredWallet(
             address: privateKey.publicAddress,
             label: label,
             walletId: walletId,
-            createdAt: Date()
-        )
+            createdAt: Date())
     }
 
     public func add(address: WalletAddress, label: String) async throws -> WalletIdentity {
-        try await addStoredWallet(address: address, label: label, walletId: UUID(), createdAt: Date())
+        try await self.addStoredWallet(address: address, label: label, walletId: UUID(), createdAt: Date())
     }
 
     private func addStoredWallet(
         address: WalletAddress,
         label: String,
         walletId: UUID,
-        createdAt: Date
-    ) async throws -> WalletIdentity {
-        if indexCache == nil { _ = await ensureLoaded() }
-        var updated = indexCache ?? []
+        createdAt: Date) async throws -> WalletIdentity
+    {
+        if self.indexCache == nil { _ = await self.ensureLoaded() }
+        var updated = self.indexCache ?? []
 
         if let existing = updated.first(where: { $0.address == address }) {
             return existing
@@ -89,77 +86,78 @@ public actor WalletStore {
 
         let identity = WalletIdentity(id: walletId, address: address, label: label, createdAt: createdAt)
         updated.append(identity)
-        indexCache = updated
-        addressCache[walletId] = address
-        try await persistIndex(updated)
+        self.indexCache = updated
+        self.addressCache[walletId] = address
+        try await self.persistIndex(updated)
         return identity
     }
 
     public func address(for walletId: UUID) async throws -> WalletAddress {
         if let cached = addressCache[walletId] { return cached }
-        if indexCache == nil { _ = await ensureLoaded() }
+        if self.indexCache == nil { _ = await self.ensureLoaded() }
         guard let identity = indexCache?.first(where: { $0.id == walletId }) else {
             throw WalletOverviewError.needsSetup
         }
-        addressCache[walletId] = identity.address
+        self.addressCache[walletId] = identity.address
         return identity.address
     }
 
     public func remove(walletId: UUID) async throws {
-        await deleteKeychainItems(walletId: walletId)
-        addressCache.removeValue(forKey: walletId)
+        await self.deleteKeychainItems(walletId: walletId)
+        self.addressCache.removeValue(forKey: walletId)
 
-        if indexCache == nil { _ = await ensureLoaded() }
-        var updated = indexCache ?? []
+        if self.indexCache == nil { _ = await self.ensureLoaded() }
+        var updated = self.indexCache ?? []
         updated.removeAll { $0.id == walletId }
-        indexCache = updated
-        try await persistIndex(updated)
+        self.indexCache = updated
+        try await self.persistIndex(updated)
 
-        if selectedWalletId() == walletId {
-            setSelectedWallet(nil)
+        if self.selectedWalletId() == walletId {
+            self.setSelectedWallet(nil)
         }
     }
 
     public func withPrivateKey<R: Sendable>(
         walletId: UUID,
         prompt: String,
-        _ body: @Sendable (inout Data) async throws -> R
-    ) async throws -> R {
+        _ body: @Sendable (inout Data) async throws -> R) async throws -> R
+    {
         let item = SecureItem(service: service, account: "wallet.\(walletId).privateKey")
         do {
             var buffer = try await secureStore.read(item, prompt: prompt)
-            defer { buffer.resetBytes(in: 0 ..< buffer.count) }
+            defer { buffer.resetBytes(in: 0..<buffer.count) }
             return try await body(&buffer)
         } catch let error as KeychainError where
             error == .itemNotFound ||
             error == .biometricFailed ||
             error == .interactionRequired ||
-            error == .userCanceled {
-            try? await secureStore.delete(item)
+            error == .userCanceled
+        {
+            try? await self.secureStore.delete(item)
             throw WalletOverviewError.biometricInvalidated
         }
     }
 
     public func rename(walletId: UUID, to newLabel: String) async throws {
-        if indexCache == nil { _ = await ensureLoaded() }
-        var updated = indexCache ?? []
+        if self.indexCache == nil { _ = await self.ensureLoaded() }
+        var updated = self.indexCache ?? []
         guard let idx = updated.firstIndex(where: { $0.id == walletId }) else {
             throw WalletOverviewError.needsSetup
         }
         updated[idx].label = newLabel
-        indexCache = updated
-        try await persistIndex(updated)
+        self.indexCache = updated
+        try await self.persistIndex(updated)
     }
 
     public func selectedWalletId() -> UUID? {
-        defaults.string(forKey: selectedWalletKey).flatMap(UUID.init(uuidString:))
+        self.defaults.string(forKey: self.selectedWalletKey).flatMap(UUID.init(uuidString:))
     }
 
     public func setSelectedWallet(_ id: UUID?) {
         if let id {
-            defaults.set(id.uuidString, forKey: selectedWalletKey)
+            self.defaults.set(id.uuidString, forKey: self.selectedWalletKey)
         } else {
-            defaults.removeObject(forKey: selectedWalletKey)
+            self.defaults.removeObject(forKey: self.selectedWalletKey)
         }
     }
 
@@ -169,17 +167,17 @@ public actor WalletStore {
         if let cache = indexCache { return cache }
         if let task = loadInFlight {
             let result = await task.value
-            if indexCache == nil { indexCache = result }
-            return indexCache ?? result
+            if self.indexCache == nil { self.indexCache = result }
+            return self.indexCache ?? result
         }
         let task = Task<[WalletIdentity], Never> { [weak self] in
             guard let self else { return [] }
             return await self.readIndexOrEmpty()
         }
-        loadInFlight = task
+        self.loadInFlight = task
         let result = await task.value
-        if indexCache == nil { indexCache = result }
-        return indexCache ?? result
+        if self.indexCache == nil { self.indexCache = result }
+        return self.indexCache ?? result
     }
 
     private func readIndexOrEmpty() async -> [WalletIdentity] {
@@ -187,7 +185,7 @@ public actor WalletStore {
             if let decoded = try? JSONDecoder().decode([WalletIdentity].self, from: data) {
                 return decoded
             }
-            logger.warning("wallet index corrupted, treating as empty")
+            self.logger.warning("wallet index corrupted, treating as empty")
             return []
         }
 
@@ -195,11 +193,11 @@ public actor WalletStore {
         // UserDefaults. After the flag is set we never read the keychain
         // again for the index, so dev rebuilds with unstable ad-hoc signing
         // identities stop re-prompting on panel open.
-        if !defaults.bool(forKey: walletsIndexMigrationKey) {
-            defaults.set(true, forKey: walletsIndexMigrationKey)
+        if !self.defaults.bool(forKey: self.walletsIndexMigrationKey) {
+            self.defaults.set(true, forKey: self.walletsIndexMigrationKey)
             if let migrated = await readLegacyIndex() {
-                try? writeIndex(migrated)
-                try? await secureStore.delete(legacyIndexItem)
+                try? self.writeIndex(migrated)
+                try? await self.secureStore.delete(self.legacyIndexItem)
                 return migrated
             }
         }
@@ -207,22 +205,22 @@ public actor WalletStore {
     }
 
     private func persistIndex(_ snapshot: [WalletIdentity]) async throws {
-        try writeIndex(snapshot)
+        try self.writeIndex(snapshot)
     }
 
     private func writeIndex(_ wallets: [WalletIdentity]) throws {
         let data = try JSONEncoder().encode(wallets)
-        defaults.set(data, forKey: walletsIndexKey)
-        defaults.set(true, forKey: walletsIndexMigrationKey)
+        self.defaults.set(data, forKey: self.walletsIndexKey)
+        self.defaults.set(true, forKey: self.walletsIndexMigrationKey)
     }
 
     private var legacyIndexItem: SecureItem {
-        SecureItem(service: service, account: "wallets.index")
+        SecureItem(service: self.service, account: "wallets.index")
     }
 
     private func readLegacyIndex() async -> [WalletIdentity]? {
         do {
-            let data = try await secureStore.read(legacyIndexItem)
+            let data = try await secureStore.read(self.legacyIndexItem)
             return try? JSONDecoder().decode([WalletIdentity].self, from: data)
         } catch {
             return nil
@@ -233,6 +231,6 @@ public actor WalletStore {
         let privateKeyItem = SecureItem(service: service, account: "wallet.\(walletId).privateKey")
         let addressItem = SecureItem(service: service, account: "wallet.\(walletId).address")
         try? await secureStore.delete(privateKeyItem)
-        try? await secureStore.delete(addressItem)
+        try? await self.secureStore.delete(addressItem)
     }
 }

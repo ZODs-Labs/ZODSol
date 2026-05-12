@@ -21,9 +21,9 @@ public enum PriorityTier: String, Sendable, Codable, CaseIterable, Equatable {
 
     public var percentile: Double {
         switch self {
-        case .standard: return 0.50
-        case .fast:     return 0.75
-        case .turbo:    return 0.95
+        case .standard: 0.50
+        case .fast: 0.75
+        case .turbo: 0.95
         }
     }
 }
@@ -85,6 +85,34 @@ public struct SendQuote: Sendable, Equatable {
 
     /// Blockhash + last valid block height used to bound this transaction.
     public let lifetime: Lifetime
+
+    public init(
+        request: SendRequest,
+        networkFeeLamports: Lamports,
+        priorityFeeMicroLamports: UInt64,
+        computeUnitLimit: UInt32,
+        recipientAtaWillBeCreated: Bool,
+        rentForRecipientAta: Lamports,
+        token2022Notice: Token2022Notice?,
+        recipientReceives: SendAsset,
+        cluster: SolanaNetwork,
+        simulationLogs: [String],
+        signableMessage: Data,
+        lifetime: Lifetime)
+    {
+        self.request = request
+        self.networkFeeLamports = networkFeeLamports
+        self.priorityFeeMicroLamports = priorityFeeMicroLamports
+        self.computeUnitLimit = computeUnitLimit
+        self.recipientAtaWillBeCreated = recipientAtaWillBeCreated
+        self.rentForRecipientAta = rentForRecipientAta
+        self.token2022Notice = token2022Notice
+        self.recipientReceives = recipientReceives
+        self.cluster = cluster
+        self.simulationLogs = simulationLogs
+        self.signableMessage = signableMessage
+        self.lifetime = lifetime
+    }
 }
 
 /// UI-facing summary of the Token-2022 quirks of a mint we are about to send.

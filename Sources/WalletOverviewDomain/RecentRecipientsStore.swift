@@ -8,7 +8,9 @@ public struct RecentRecipient: Codable, Sendable, Equatable, Identifiable {
     public let address: WalletAddress
     public var lastSentAt: Date
 
-    public var id: String { "\(self.walletId.uuidString)/\(self.address.base58)" }
+    public var id: String {
+        "\(self.walletId.uuidString)/\(self.address.base58)"
+    }
 
     public init(walletId: UUID, address: WalletAddress, lastSentAt: Date) {
         self.walletId = walletId

@@ -21,10 +21,10 @@ public protocol SendAssetsService: Sendable {
     func resync(walletId: UUID) async -> [Signature: SendOutcome]
 }
 
-public extension SendAssetsService {
+extension SendAssetsService {
     /// Convenience overload preserving the historical default behavior
     /// (75th percentile priority fee).
-    func quote(_ request: SendRequest) async throws -> SendQuote {
+    public func quote(_ request: SendRequest) async throws -> SendQuote {
         try await self.quote(request, tier: .fast)
     }
 }
@@ -54,15 +54,14 @@ public struct SendAssetsServiceConfig: Sendable {
         ataRentLamports: Lamports(rawValue: 2_039_280),
         confirmationTimeoutSeconds: 90,
         pollInterval: .milliseconds(1500),
-        priorityFeeFloorMicroLamports: 1_000
-    )
+        priorityFeeFloorMicroLamports: 1000)
 
     public init(
         ataRentLamports: Lamports,
         confirmationTimeoutSeconds: Int,
         pollInterval: Duration,
-        priorityFeeFloorMicroLamports: UInt64
-    ) {
+        priorityFeeFloorMicroLamports: UInt64)
+    {
         self.ataRentLamports = ataRentLamports
         self.confirmationTimeoutSeconds = confirmationTimeoutSeconds
         self.pollInterval = pollInterval
@@ -73,7 +72,6 @@ public struct SendAssetsServiceConfig: Sendable {
 // MARK: - Default implementation
 
 public actor DefaultSendAssetsService: SendAssetsService {
-
     private let transport: any RPCTransport
     private let walletLookup: any SendWalletLookup
     private let signer: any SendSignerAccess
@@ -94,8 +92,8 @@ public actor DefaultSendAssetsService: SendAssetsService {
         pendingStore: PendingSendStore,
         network: SolanaNetwork,
         config: SendAssetsServiceConfig = .default,
-        clock: any Clock<Duration> = ContinuousClock()
-    ) {
+        clock: any Clock<Duration> = ContinuousClock())
+    {
         self.transport = transport
         self.walletLookup = walletLookup
         self.signer = signer
@@ -111,7 +109,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
         // 1. Validate the wallet -> from address pairing.
         let expectedFrom: WalletAddress
         do {
-            expectedFrom = try await walletLookup.address(for: request.walletId)
+            expectedFrom = try await self.walletLookup.address(for: request.walletId)
         } catch {
             throw SendError.walletAddressMismatch
         }
@@ -124,15 +122,13 @@ public actor DefaultSendAssetsService: SendAssetsService {
 
         // 3. For SPL: resolve token program from the mint, parse extensions,
         // decide compatibility.
-        let tokenContext: TokenSendContext?
-        switch request.asset {
+        let tokenContext: TokenSendContext? = switch request.asset {
         case .sol:
-            tokenContext = nil
+            nil
         case let .splToken(mint, amount, decimals):
-            tokenContext = try await resolveTokenContext(
+            try await resolveTokenContext(
                 mint: mint, amount: amount, decimals: decimals,
-                sender: request.from, recipient: request.recipient
-            )
+                sender: request.from, recipient: request.recipient)
         }
 
         // 4. Fetch latest blockhash.
@@ -149,13 +145,12 @@ public actor DefaultSendAssetsService: SendAssetsService {
             tokenContext: tokenContext,
             computeUnitLimit: 1_400_000,
             computeUnitPrice: priorityFee,
-            lifetime: lifetime
-        )
+            lifetime: lifetime)
         let probeCompiled = try MessageCompiler.compile(probeMessage)
         let unitsConsumed = try await simulateForCompute(probeCompiled)
 
         // 7. Apply 1.1× margin, floor at 5_000.
-        let estimatedLimit = max(5_000, UInt32(min(UInt64(UInt32.max), unitsConsumed * 11 / 10 + 1)))
+        let estimatedLimit = max(5000, UInt32(min(UInt64(UInt32.max), unitsConsumed * 11 / 10 + 1)))
 
         // 8. Rebuild with real CU, re-simulate as a safety check.
         let finalMessage = try buildMessage(
@@ -163,8 +158,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
             tokenContext: tokenContext,
             computeUnitLimit: estimatedLimit,
             computeUnitPrice: priorityFee,
-            lifetime: lifetime
-        )
+            lifetime: lifetime)
         let finalCompiled = try MessageCompiler.compile(finalMessage)
         let finalSim = try await simulateForSafety(finalCompiled)
         if let errString = finalSim.errorString {
@@ -175,8 +169,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
         let networkFee = computeNetworkFee(
             numSignatures: finalCompiled.signerAddresses.count,
             computeUnitLimit: estimatedLimit,
-            computeUnitPriceMicroLamports: priorityFee
-        )
+            computeUnitPriceMicroLamports: priorityFee)
 
         // 10. Sender SOL balance must cover (network fee + ATA rent if creating
         //     + amount in lamports if sending SOL).
@@ -185,8 +178,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
             request: request,
             senderLamports: senderLamports,
             networkFee: networkFee,
-            ataRentNeeded: tokenContext?.recipientAtaWillBeCreated == true ? config.ataRentLamports : nil
-        )
+            ataRentNeeded: tokenContext?.recipientAtaWillBeCreated == true ? self.config.ataRentLamports : nil)
 
         // 11. Compute "recipient receives" (only differs for Token-2022 fees).
         let recipientReceives = computeRecipientReceives(asset: request.asset, context: tokenContext)
@@ -203,34 +195,33 @@ public actor DefaultSendAssetsService: SendAssetsService {
             priorityFeeMicroLamports: priorityFee,
             computeUnitLimit: estimatedLimit,
             recipientAtaWillBeCreated: tokenContext?.recipientAtaWillBeCreated ?? false,
-            rentForRecipientAta: tokenContext?.recipientAtaWillBeCreated == true ? config.ataRentLamports : Lamports(rawValue: 0),
+            rentForRecipientAta: tokenContext?.recipientAtaWillBeCreated == true ? self.config
+                .ataRentLamports : Lamports(rawValue: 0),
             token2022Notice: tokenContext?.notice,
             recipientReceives: recipientReceives,
-            cluster: network,
+            cluster: self.network,
             simulationLogs: finalSim.logs,
             signableMessage: finalCompiled.messageBytes,
-            lifetime: lifetime
-        )
+            lifetime: lifetime)
     }
 
     // MARK: - send
 
     public func send(quote: SendQuote) async throws -> SendOutcome {
         let walletId = quote.request.walletId
-        guard !inFlight.contains(walletId) else {
+        guard !self.inFlight.contains(walletId) else {
             throw SendError.sendAlreadyInFlight
         }
-        inFlight.insert(walletId)
+        self.inFlight.insert(walletId)
         defer { inFlight.remove(walletId) }
 
         // 1. Sign — seed never leaves the closure.
         let signature: Signature
         do {
-            signature = try await signer.signMessage(
+            signature = try await self.signer.signMessage(
                 walletId: walletId,
                 message: quote.signableMessage,
-                prompt: "Sign Solana transfer"
-            )
+                prompt: "Sign Solana transfer")
         } catch is CancellationError {
             throw SendError.canceled
         }
@@ -239,8 +230,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
         let recompiled = CompiledMessage(
             messageBytes: quote.signableMessage,
             signerAddresses: [quote.request.from],
-            accountKeys: []
-        )
+            accountKeys: [])
         let signed = try CompiledTransaction(message: recompiled, signatures: [signature])
         let base64Wire = signed.wireBytes.base64EncodedString()
 
@@ -248,13 +238,12 @@ public actor DefaultSendAssetsService: SendAssetsService {
         //    leaves a recoverable record.
         let (blockhash, lastValidBlockHeight) = unwrap(lifetime: quote.lifetime)
         _ = blockhash
-        await pendingStore.add(PendingSend(
+        await self.pendingStore.add(PendingSend(
             walletId: walletId,
             signatureBase58: signature.base58,
             lastValidBlockHeight: lastValidBlockHeight,
-            network: network,
-            createdAt: Date()
-        ))
+            network: self.network,
+            createdAt: Date()))
 
         // 4. Broadcast in a detached task so panel-close mid-broadcast doesn't
         //    cancel it. We still await the result so we can surface immediate
@@ -263,8 +252,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
         let broadcastTask: Task<Void, any Error> = Task.detached(priority: .userInitiated) {
             let req = SendTransactionRPC.request(base64Transaction: base64Wire)
             let resp: JSONRPCResponse<String> = try await transport.sendOnce(
-                req, responseType: JSONRPCResponse<String>.self
-            )
+                req, responseType: JSONRPCResponse<String>.self)
             _ = try resp.unwrap()
         }
 
@@ -276,7 +264,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
             await pendingStore.remove(signatureBase58: signature.base58)
             throw SendError.rpc(Self.mapRPCError(rpcError))
         } catch {
-            await pendingStore.remove(signatureBase58: signature.base58)
+            await self.pendingStore.remove(signatureBase58: signature.base58)
             throw SendError.broadcastFailed(reason: String(describing: error))
         }
 
@@ -291,53 +279,51 @@ public actor DefaultSendAssetsService: SendAssetsService {
         return try await pollForConfirmation(
             signature: signature,
             lastValidBlockHeight: lastValidBlockHeight,
-            walletId: walletId
-        )
+            walletId: walletId)
     }
 
     // MARK: - resync
 
     public func resync(walletId: UUID) async -> [Signature: SendOutcome] {
-        await pendingStore.prune(olderThan: 600)
+        await self.pendingStore.prune(olderThan: 600)
         let pending = await pendingStore.list(for: walletId)
         var outcomes: [Signature: SendOutcome] = [:]
 
         for entry in pending {
             guard let signature = try? Signature(base58: entry.signatureBase58) else {
-                await pendingStore.remove(signatureBase58: entry.signatureBase58)
+                await self.pendingStore.remove(signatureBase58: entry.signatureBase58)
                 continue
             }
 
             // First check if it has rolled out of the recent-status window.
             let now = Date()
             let age = now.timeIntervalSince(entry.createdAt)
-            if age > Double(config.confirmationTimeoutSeconds) + 60 {
-                await pendingStore.remove(signatureBase58: entry.signatureBase58)
+            if age > Double(self.config.confirmationTimeoutSeconds) + 60 {
+                await self.pendingStore.remove(signatureBase58: entry.signatureBase58)
                 outcomes[signature] = .expired(signature)
                 continue
             }
 
             do {
                 let req = SignatureStatusesRPC.request(
-                    signatures: [entry.signatureBase58], searchTransactionHistory: true
-                )
+                    signatures: [entry.signatureBase58], searchTransactionHistory: true)
                 let resp: JSONRPCResponse<SignatureStatusesRPC.Result> = try await transport.send(
-                    req, responseType: JSONRPCResponse<SignatureStatusesRPC.Result>.self
-                )
+                    req, responseType: JSONRPCResponse<SignatureStatusesRPC.Result>.self)
                 let result = try resp.unwrap()
                 if let status = result.value.first ?? nil {
                     if status.err != nil {
-                        await pendingStore.remove(signatureBase58: entry.signatureBase58)
+                        await self.pendingStore.remove(signatureBase58: entry.signatureBase58)
                         outcomes[signature] = .failed(signature, error: Self.stringify(status.err))
                     } else if Self.isFinalEnough(status.confirmationStatus) {
-                        await pendingStore.remove(signatureBase58: entry.signatureBase58)
+                        await self.pendingStore.remove(signatureBase58: entry.signatureBase58)
                         outcomes[signature] = .confirmed(signature, slot: status.slot)
                     }
                     // else: still in-flight; leave in store, no outcome yet
                 }
             } catch {
                 // Transient error during resync — leave entry for next try.
-                logger.debug("resync failed for \(entry.signatureBase58, privacy: .public): \(String(describing: error))")
+                self.logger
+                    .debug("resync failed for \(entry.signatureBase58, privacy: .public): \(String(describing: error))")
             }
         }
         return outcomes
@@ -345,7 +331,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
 
     // MARK: - Private: SPL token context (definitions used by extension)
 
-    internal struct TokenSendContext {
+    struct TokenSendContext {
         let mint: WalletAddress
         let amount: UInt64
         let decimals: UInt8
@@ -357,7 +343,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
         let notice: Token2022Notice?
     }
 
-    internal struct SimulationOutcome {
+    struct SimulationOutcome {
         let logs: [String]
         let unitsConsumed: UInt64?
         let errorString: String?
@@ -367,7 +353,6 @@ public actor DefaultSendAssetsService: SendAssetsService {
 // MARK: - Helpers (split out so the main actor body fits the type-body lint cap)
 
 extension DefaultSendAssetsService {
-
     static func validateRecipient(_ recipient: WalletAddress, asset: SendAsset) throws {
         let knownPrograms: [WalletAddress] = [
             ProgramAddresses.system,
@@ -389,8 +374,8 @@ extension DefaultSendAssetsService {
         amount: UInt64,
         decimals: UInt8,
         sender: WalletAddress,
-        recipient: WalletAddress
-    ) async throws -> TokenSendContext {
+        recipient: WalletAddress) async throws -> TokenSendContext
+    {
         // 1. Read mint to learn its owning program + extensions.
         guard let mintAccount = try await fetchAccount(address: mint) else {
             throw SendError.mintNotFound
@@ -406,8 +391,7 @@ extension DefaultSendAssetsService {
                 compatibility: .ok,
                 decimals: decimals,
                 transferFee: nil,
-                permanentDelegate: false
-            )
+                permanentDelegate: false)
         case ProgramAddresses.token2022.base58:
             tokenProgram = ProgramAddresses.token2022
             guard let data = mintAccount.base64Data, let raw = Data(base64Encoded: data) else {
@@ -425,15 +409,13 @@ extension DefaultSendAssetsService {
 
         // 2. Derive sender + recipient ATA against the discovered token program.
         let senderAta = try AssociatedTokenProgram.findAssociatedTokenAddress(
-            owner: sender, mint: mint, tokenProgram: tokenProgram
-        )
+            owner: sender, mint: mint, tokenProgram: tokenProgram)
         let recipientAta = try AssociatedTokenProgram.findAssociatedTokenAddress(
-            owner: recipient, mint: mint, tokenProgram: tokenProgram
-        )
+            owner: recipient, mint: mint, tokenProgram: tokenProgram)
 
         // 3. Check recipient ATA existence (sender ATA must exist; if not we
         //    can't hold this token and the simulate would fail loudly).
-        let recipientAtaExists = (try await fetchAccount(address: recipientAta)) != nil
+        let recipientAtaExists = try await (fetchAccount(address: recipientAta)) != nil
 
         // 4. UI notice for Token-2022 quirks.
         let notice: Token2022Notice?
@@ -442,8 +424,7 @@ extension DefaultSendAssetsService {
             notice = Token2022Notice(
                 transferFeeAmount: feeAmount,
                 transferFeeBasisPoints: mintProfile.transferFee?.basisPoints,
-                permanentDelegate: mintProfile.permanentDelegate
-            )
+                permanentDelegate: mintProfile.permanentDelegate)
         } else {
             notice = nil
         }
@@ -457,8 +438,7 @@ extension DefaultSendAssetsService {
             recipientAta: recipientAta,
             recipientAtaWillBeCreated: !recipientAtaExists,
             transferFee: mintProfile.transferFee,
-            notice: notice
-        )
+            notice: notice)
     }
 
     // MARK: - Private: message building
@@ -468,8 +448,8 @@ extension DefaultSendAssetsService {
         tokenContext: TokenSendContext?,
         computeUnitLimit: UInt32,
         computeUnitPrice: UInt64,
-        lifetime: Lifetime
-    ) throws -> TransactionMessage {
+        lifetime: Lifetime) throws -> TransactionMessage
+    {
         var instructions: [Instruction] = [
             ComputeBudgetProgram.setComputeUnitLimit(units: computeUnitLimit),
             ComputeBudgetProgram.setComputeUnitPrice(microLamports: computeUnitPrice),
@@ -477,8 +457,7 @@ extension DefaultSendAssetsService {
         switch request.asset {
         case let .sol(amount):
             instructions.append(SystemProgram.transferSol(
-                from: request.from, to: request.recipient, lamports: amount
-            ))
+                from: request.from, to: request.recipient, lamports: amount))
         case .splToken:
             guard let ctx = tokenContext else {
                 throw SendError.simulationFailed(logs: [], error: "missing token context")
@@ -489,24 +468,20 @@ extension DefaultSendAssetsService {
                     owner: request.recipient,
                     mint: ctx.mint,
                     associatedToken: ctx.recipientAta,
-                    tokenProgram: ctx.tokenProgram
-                ))
+                    tokenProgram: ctx.tokenProgram))
             }
             if ctx.tokenProgram == ProgramAddresses.token2022, let fee = ctx.transferFee {
                 instructions.append(Token2022Program.transferCheckedWithFee(
                     source: ctx.senderAta, mint: ctx.mint, destination: ctx.recipientAta, owner: request.from,
-                    amount: ctx.amount, decimals: ctx.decimals, fee: fee.fee(for: ctx.amount)
-                ))
+                    amount: ctx.amount, decimals: ctx.decimals, fee: fee.fee(for: ctx.amount)))
             } else if ctx.tokenProgram == ProgramAddresses.token2022 {
                 instructions.append(Token2022Program.transferChecked(
                     source: ctx.senderAta, mint: ctx.mint, destination: ctx.recipientAta, owner: request.from,
-                    amount: ctx.amount, decimals: ctx.decimals
-                ))
+                    amount: ctx.amount, decimals: ctx.decimals))
             } else {
                 instructions.append(TokenProgram.transferChecked(
                     source: ctx.senderAta, mint: ctx.mint, destination: ctx.recipientAta, owner: request.from,
-                    amount: ctx.amount, decimals: ctx.decimals
-                ))
+                    amount: ctx.amount, decimals: ctx.decimals))
             }
         }
         return TransactionMessage(feePayer: request.from, instructions: instructions, lifetime: lifetime)
@@ -514,8 +489,8 @@ extension DefaultSendAssetsService {
 
     private func computeWritableAccounts(
         request: SendRequest,
-        tokenContext: TokenSendContext?
-    ) -> [String] {
+        tokenContext: TokenSendContext?) -> [String]
+    {
         switch request.asset {
         case .sol:
             return [request.from.base58, request.recipient.base58]
@@ -530,9 +505,9 @@ extension DefaultSendAssetsService {
     private func computeNetworkFee(
         numSignatures: Int,
         computeUnitLimit: UInt32,
-        computeUnitPriceMicroLamports: UInt64
-    ) -> Lamports {
-        let baseFee = UInt64(numSignatures) * 5_000
+        computeUnitPriceMicroLamports: UInt64) -> Lamports
+    {
+        let baseFee = UInt64(numSignatures) * 5000
         // ceil(cuLimit * cuPrice / 1_000_000)
         let product = UInt64(computeUnitLimit) * computeUnitPriceMicroLamports
         let priorityFee = (product + 999_999) / 1_000_000
@@ -543,8 +518,8 @@ extension DefaultSendAssetsService {
         request: SendRequest,
         senderLamports: UInt64,
         networkFee: Lamports,
-        ataRentNeeded: Lamports?
-    ) throws {
+        ataRentNeeded: Lamports?) throws
+    {
         var required = networkFee.rawValue
         if let rent = ataRentNeeded {
             required += rent.rawValue
@@ -556,12 +531,10 @@ extension DefaultSendAssetsService {
             if let rent = ataRentNeeded, senderLamports < networkFee.rawValue + rent.rawValue {
                 throw SendError.insufficientSolForRent(
                     required: Lamports(rawValue: networkFee.rawValue + rent.rawValue),
-                    available: Lamports(rawValue: senderLamports)
-                )
+                    available: Lamports(rawValue: senderLamports))
             }
             throw SendError.insufficientSolForFee(
-                required: Lamports(rawValue: required), available: Lamports(rawValue: senderLamports)
-            )
+                required: Lamports(rawValue: required), available: Lamports(rawValue: senderLamports))
         }
     }
 
@@ -584,8 +557,7 @@ extension DefaultSendAssetsService {
     private func fetchLatestBlockhash() async throws -> (Blockhash, UInt64) {
         let req = LatestBlockhashRPC.request()
         let resp: JSONRPCResponse<LatestBlockhashRPC.Result> = try await transport.send(
-            req, responseType: JSONRPCResponse<LatestBlockhashRPC.Result>.self
-        )
+            req, responseType: JSONRPCResponse<LatestBlockhashRPC.Result>.self)
         let result = try resp.unwrap()
         let blockhash = try Blockhash(base58: result.value.blockhash)
         return (blockhash, result.value.lastValidBlockHeight)
@@ -594,33 +566,30 @@ extension DefaultSendAssetsService {
     private func fetchAccount(address: WalletAddress) async throws -> AccountInfoRPC.AccountValue? {
         let req = AccountInfoRPC.request(address: address.base58)
         let resp: JSONRPCResponse<AccountInfoRPC.Result> = try await transport.send(
-            req, responseType: JSONRPCResponse<AccountInfoRPC.Result>.self
-        )
+            req, responseType: JSONRPCResponse<AccountInfoRPC.Result>.self)
         let result = try resp.unwrap()
         return result.value
     }
 
     private func fetchLamports(address: WalletAddress) async throws -> UInt64 {
-        try await fetchAccount(address: address)?.lamports ?? 0
+        try await self.fetchAccount(address: address)?.lamports ?? 0
     }
 
     private func fetchCurrentEpoch() async throws -> UInt64 {
         let req = EpochInfoRPC.request()
         let resp: JSONRPCResponse<EpochInfoRPC.Result> = try await transport.send(
-            req, responseType: JSONRPCResponse<EpochInfoRPC.Result>.self
-        )
+            req, responseType: JSONRPCResponse<EpochInfoRPC.Result>.self)
         return try resp.unwrap().epoch
     }
 
     private func fetchPriorityFee(writableAccounts: [String], tier: PriorityTier) async throws -> UInt64 {
         let req = RecentPrioritizationFeesRPC.request(accountAddresses: writableAccounts)
         let resp: JSONRPCResponse<RecentPrioritizationFeesRPC.Result> = try await transport.send(
-            req, responseType: JSONRPCResponse<RecentPrioritizationFeesRPC.Result>.self
-        )
+            req, responseType: JSONRPCResponse<RecentPrioritizationFeesRPC.Result>.self)
         let fees = try resp.unwrap().map(\.prioritizationFee).sorted()
-        guard !fees.isEmpty else { return config.priorityFeeFloorMicroLamports }
+        guard !fees.isEmpty else { return self.config.priorityFeeFloorMicroLamports }
         let index = max(0, min(fees.count - 1, Int(Double(fees.count) * tier.percentile)))
-        return max(fees[index], config.priorityFeeFloorMicroLamports)
+        return max(fees[index], self.config.priorityFeeFloorMicroLamports)
     }
 
     // MARK: - Private: simulation
@@ -638,20 +607,18 @@ extension DefaultSendAssetsService {
     private func simulateForSafety(_ compiled: CompiledMessage) async throws -> SimulationOutcome {
         let placeholder = try MessageCompiler.placeholderTransaction(for: compiled)
         let base64 = placeholder.wireBytes.base64EncodedString()
-        return try await runSimulation(base64: base64)
+        return try await self.runSimulation(base64: base64)
     }
 
     private func runSimulation(base64: String) async throws -> SimulationOutcome {
         let req = SimulateTransactionRPC.request(base64Transaction: base64)
         let resp: JSONRPCResponse<SimulateTransactionRPC.Result> = try await transport.send(
-            req, responseType: JSONRPCResponse<SimulateTransactionRPC.Result>.self
-        )
+            req, responseType: JSONRPCResponse<SimulateTransactionRPC.Result>.self)
         let result = try resp.unwrap()
         return SimulationOutcome(
             logs: result.value.logs ?? [],
             unitsConsumed: result.value.unitsConsumed,
-            errorString: result.value.err.map { Self.stringify($0) }
-        )
+            errorString: result.value.err.map { Self.stringify($0) })
     }
 
     // MARK: - Private: confirmation loop
@@ -659,9 +626,9 @@ extension DefaultSendAssetsService {
     private func pollForConfirmation(
         signature: Signature,
         lastValidBlockHeight: UInt64,
-        walletId: UUID
-    ) async throws -> SendOutcome {
-        let deadline = Date().addingTimeInterval(TimeInterval(config.confirmationTimeoutSeconds))
+        walletId: UUID) async throws -> SendOutcome
+    {
+        let deadline = Date().addingTimeInterval(TimeInterval(self.config.confirmationTimeoutSeconds))
         var ticksSinceEpochCheck = 0
 
         while Date() < deadline {
@@ -670,16 +637,15 @@ extension DefaultSendAssetsService {
             // Status check.
             let statusReq = SignatureStatusesRPC.request(signatures: [signature.base58])
             let resp: JSONRPCResponse<SignatureStatusesRPC.Result> = try await transport.send(
-                statusReq, responseType: JSONRPCResponse<SignatureStatusesRPC.Result>.self
-            )
+                statusReq, responseType: JSONRPCResponse<SignatureStatusesRPC.Result>.self)
             let result = try resp.unwrap()
             if let status = result.value.first ?? nil {
                 if status.err != nil {
-                    await pendingStore.remove(signatureBase58: signature.base58)
+                    await self.pendingStore.remove(signatureBase58: signature.base58)
                     return .failed(signature, error: Self.stringify(status.err))
                 }
                 if Self.isFinalEnough(status.confirmationStatus) {
-                    await pendingStore.remove(signatureBase58: signature.base58)
+                    await self.pendingStore.remove(signatureBase58: signature.base58)
                     return .confirmed(signature, slot: status.slot)
                 }
             }
@@ -690,19 +656,18 @@ extension DefaultSendAssetsService {
                 ticksSinceEpochCheck = 0
                 let epochReq = EpochInfoRPC.request()
                 let epochResp: JSONRPCResponse<EpochInfoRPC.Result> = try await transport.send(
-                    epochReq, responseType: JSONRPCResponse<EpochInfoRPC.Result>.self
-                )
+                    epochReq, responseType: JSONRPCResponse<EpochInfoRPC.Result>.self)
                 let epoch = try epochResp.unwrap()
                 if epoch.blockHeight > lastValidBlockHeight {
-                    await pendingStore.remove(signatureBase58: signature.base58)
+                    await self.pendingStore.remove(signatureBase58: signature.base58)
                     return .expired(signature)
                 }
             }
 
-            try await clock.sleep(for: config.pollInterval)
+            try await self.clock.sleep(for: self.config.pollInterval)
         }
         // Timed out without confirmation.
-        await pendingStore.remove(signatureBase58: signature.base58)
+        await self.pendingStore.remove(signatureBase58: signature.base58)
         return .expired(signature)
     }
 
@@ -745,7 +710,7 @@ extension DefaultSendAssetsService {
     private func unwrap(lifetime: Lifetime) -> (Blockhash, UInt64) {
         switch lifetime {
         case let .blockhash(blockhash, lastValidBlockHeight):
-            return (blockhash, lastValidBlockHeight)
+            (blockhash, lastValidBlockHeight)
         }
     }
 }
