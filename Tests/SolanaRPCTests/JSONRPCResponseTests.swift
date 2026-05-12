@@ -51,7 +51,7 @@ final class JSONRPCResponseTests: XCTestCase {
                 return
             }
             switch rpc {
-            case .rpc(let body):
+            case let .rpc(body):
                 XCTAssertEqual(body.code, -1)
                 XCTAssertEqual(body.message, "boom")
             default:
@@ -69,7 +69,7 @@ final class JSONRPCResponseTests: XCTestCase {
                 return
             }
             switch rpc {
-            case .decoding(let message):
+            case let .decoding(message):
                 XCTAssertTrue(message.contains("missing result"))
             default:
                 XCTFail("expected .decoding, got \(rpc)")

@@ -1,9 +1,8 @@
-import XCTest
 import SolanaKit
+import XCTest
 @testable import WalletOverviewDomain
 
 final class WalletIdentityTests: XCTestCase {
-
     private func makeAddress() throws -> WalletAddress {
         let material = makeTestPrivateKey()
         return try WalletAddress(base58: material.base58Address)

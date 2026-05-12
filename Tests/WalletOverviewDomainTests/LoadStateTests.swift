@@ -2,7 +2,6 @@ import XCTest
 @testable import WalletOverviewDomain
 
 final class LoadStateTests: XCTestCase {
-
     func testIdleCase() {
         let state = LoadState<Int>.idle
         if case .idle = state { return }

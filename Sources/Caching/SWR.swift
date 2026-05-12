@@ -7,8 +7,8 @@ public func staleWhileRevalidate<Key: Hashable & Sendable, Value: Sendable>(
     cache: TimedCache<Key, Value>,
     key: Key,
     forceRevalidate: Bool,
-    fetch: @Sendable @escaping () async throws -> Value
-) async -> SWRStream<Value> {
+    fetch: @Sendable @escaping () async throws -> Value) async -> SWRStream<Value>
+{
     let initial = await cache.read(key)
     let shouldRevalidate: Bool = {
         if forceRevalidate { return true }

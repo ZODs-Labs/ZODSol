@@ -13,24 +13,24 @@ final class CurrencyFormatterTests: XCTestCase {
         XCTAssertEqual(f.string(usd: Decimal(0)), "$0.00")
     }
 
-    func testSmallValueOneFractionDigitsBecomeTwo_enUS() {
+    func testSmallValueOneFractionDigitsBecomeTwo_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.string(usd: Decimal(string: "1.23")!), "$1.23")
+        XCTAssertEqual(try f.string(usd: XCTUnwrap(Decimal(string: "1.23"))), "$1.23")
     }
 
-    func testThousandsGroupingInsertsComma_enUS() {
+    func testThousandsGroupingInsertsComma_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.string(usd: Decimal(string: "1234.56")!), "$1,234.56")
+        XCTAssertEqual(try f.string(usd: XCTUnwrap(Decimal(string: "1234.56"))), "$1,234.56")
     }
 
-    func testMillionsGroupingInsertsCommas_enUS() {
+    func testMillionsGroupingInsertsCommas_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.string(usd: Decimal(string: "1234567.89")!), "$1,234,567.89")
+        XCTAssertEqual(try f.string(usd: XCTUnwrap(Decimal(string: "1234567.89"))), "$1,234,567.89")
     }
 
-    func testNegativeUsesUnicodeMinusGlyph_enUS() {
+    func testNegativeUsesUnicodeMinusGlyph_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        let result = f.string(usd: Decimal(string: "-1.23")!)
+        let result = try f.string(usd: XCTUnwrap(Decimal(string: "-1.23")))
         // We don't insist on the exact placement of the glyph (NumberFormatter places
         // it before the currency symbol in en_US: "−$1.23"); we just require U+2212
         // somewhere and no ASCII hyphen.
@@ -41,62 +41,62 @@ final class CurrencyFormatterTests: XCTestCase {
 
     // MARK: - string(usd:) consistency in non-en locales
 
-    func testDeDEConsistentWithReferenceFormatter() {
+    func testDeDEConsistentWithReferenceFormatter() throws {
         let f = CurrencyFormatter(locale: deDE)
-        let reference = Self.referenceCurrency(locale: deDE)
-        let value = Decimal(string: "1234.56")!
+        let reference = Self.referenceCurrency(locale: self.deDE)
+        let value = try XCTUnwrap(Decimal(string: "1234.56"))
         let expected = reference.string(from: value as NSDecimalNumber)!
         XCTAssertEqual(f.string(usd: value), expected)
     }
 
-    func testTrTRConsistentWithReferenceFormatter() {
+    func testTrTRConsistentWithReferenceFormatter() throws {
         let f = CurrencyFormatter(locale: trTR)
-        let reference = Self.referenceCurrency(locale: trTR)
-        let value = Decimal(string: "1234.56")!
+        let reference = Self.referenceCurrency(locale: self.trTR)
+        let value = try XCTUnwrap(Decimal(string: "1234.56"))
         let expected = reference.string(from: value as NSDecimalNumber)!
         XCTAssertEqual(f.string(usd: value), expected)
     }
 
     // MARK: - compact(usd:) en_US
 
-    func testCompactUnderTenThousandFallsThroughToFullDigits_enUS() {
+    func testCompactUnderTenThousandFallsThroughToFullDigits_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.compact(usd: Decimal(string: "9999")!), "$9,999.00")
+        XCTAssertEqual(try f.compact(usd: XCTUnwrap(Decimal(string: "9999"))), "$9,999.00")
     }
 
-    func testCompactTenThousandRendersAsTenPointZeroK_enUS() {
+    func testCompactTenThousandRendersAsTenPointZeroK_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.compact(usd: Decimal(string: "10000")!), "$10.00K")
+        XCTAssertEqual(try f.compact(usd: XCTUnwrap(Decimal(string: "10000"))), "$10.00K")
     }
 
-    func testCompactThousandsUseKSuffix_enUS() {
+    func testCompactThousandsUseKSuffix_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
         // 12_345 / 1000 = 12.345 → NumberFormatter default rounding (halfEven)
         // takes .345 (5 with preceding 4) to .34. Result: "$12.34K".
-        XCTAssertEqual(f.compact(usd: Decimal(string: "12345")!), "$12.34K")
+        XCTAssertEqual(try f.compact(usd: XCTUnwrap(Decimal(string: "12345"))), "$12.34K")
     }
 
-    func testCompactMillionsUseMSuffix_enUS() {
+    func testCompactMillionsUseMSuffix_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.compact(usd: Decimal(string: "1234567")!), "$1.23M")
+        XCTAssertEqual(try f.compact(usd: XCTUnwrap(Decimal(string: "1234567"))), "$1.23M")
     }
 
-    func testCompactBillionsUseBSuffix_enUS() {
+    func testCompactBillionsUseBSuffix_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.compact(usd: Decimal(string: "1234567890")!), "$1.23B")
+        XCTAssertEqual(try f.compact(usd: XCTUnwrap(Decimal(string: "1234567890"))), "$1.23B")
     }
 
-    func testCompactNegativeUsesUnicodeMinusGlyph_enUS() {
+    func testCompactNegativeUsesUnicodeMinusGlyph_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        let result = f.compact(usd: Decimal(string: "-12345")!)
+        let result = try f.compact(usd: XCTUnwrap(Decimal(string: "-12345")))
         XCTAssertTrue(result.contains("\u{2212}"), "expected U+2212 minus in \(result)")
         XCTAssertFalse(result.contains("-"), "ASCII hyphen must not appear in \(result)")
         XCTAssertTrue(result.contains("12.34K"))
     }
 
-    func testCompactNegativeUnderThresholdUsesUnicodeMinus_enUS() {
+    func testCompactNegativeUnderThresholdUsesUnicodeMinus_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        let result = f.compact(usd: Decimal(string: "-1.23")!)
+        let result = try f.compact(usd: XCTUnwrap(Decimal(string: "-1.23")))
         XCTAssertTrue(result.contains("\u{2212}"))
         XCTAssertFalse(result.contains("-"))
         XCTAssertTrue(result.contains("1.23"))
@@ -104,32 +104,32 @@ final class CurrencyFormatterTests: XCTestCase {
 
     // MARK: - displayValue(usd:) en_US
 
-    func testDisplayValueSubThousandUsesFullCurrency_enUS() {
+    func testDisplayValueSubThousandUsesFullCurrency_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.displayValue(usd: Decimal(string: "0.99")!), "$0.99")
-        XCTAssertEqual(f.displayValue(usd: Decimal(string: "164.50")!), "$164.50")
-        XCTAssertEqual(f.displayValue(usd: Decimal(string: "999.99")!), "$999.99")
+        XCTAssertEqual(try f.displayValue(usd: XCTUnwrap(Decimal(string: "0.99"))), "$0.99")
+        XCTAssertEqual(try f.displayValue(usd: XCTUnwrap(Decimal(string: "164.50"))), "$164.50")
+        XCTAssertEqual(try f.displayValue(usd: XCTUnwrap(Decimal(string: "999.99"))), "$999.99")
     }
 
-    func testDisplayValueAtOneThousandSwitchesToCompactK_enUS() {
+    func testDisplayValueAtOneThousandSwitchesToCompactK_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.displayValue(usd: Decimal(string: "1000")!), "$1K")
-        XCTAssertEqual(f.displayValue(usd: Decimal(string: "1234")!), "$1.23K")
+        XCTAssertEqual(try f.displayValue(usd: XCTUnwrap(Decimal(string: "1000"))), "$1K")
+        XCTAssertEqual(try f.displayValue(usd: XCTUnwrap(Decimal(string: "1234"))), "$1.23K")
     }
 
-    func testDisplayValueMillionsUseMSuffix_enUS() {
+    func testDisplayValueMillionsUseMSuffix_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.displayValue(usd: Decimal(string: "1234567")!), "$1.23M")
+        XCTAssertEqual(try f.displayValue(usd: XCTUnwrap(Decimal(string: "1234567"))), "$1.23M")
     }
 
-    func testDisplayValueBillionsUseBSuffix_enUS() {
+    func testDisplayValueBillionsUseBSuffix_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.displayValue(usd: Decimal(string: "1234567890")!), "$1.23B")
+        XCTAssertEqual(try f.displayValue(usd: XCTUnwrap(Decimal(string: "1234567890"))), "$1.23B")
     }
 
-    func testDisplayValueNegativeUsesUnicodeMinus_enUS() {
+    func testDisplayValueNegativeUsesUnicodeMinus_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        let result = f.displayValue(usd: Decimal(string: "-2500")!)
+        let result = try f.displayValue(usd: XCTUnwrap(Decimal(string: "-2500")))
         XCTAssertTrue(result.contains("\u{2212}"))
         XCTAssertFalse(result.contains("-"))
         XCTAssertTrue(result.contains("K"))
@@ -142,28 +142,28 @@ final class CurrencyFormatterTests: XCTestCase {
         XCTAssertEqual(f.priceUSD(Decimal(0)), "$0")
     }
 
-    func testPriceUSDSubCentCollapsesToThreshold_enUS() {
+    func testPriceUSDSubCentCollapsesToThreshold_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.priceUSD(Decimal(string: "0.005")!), "<$0.01")
-        XCTAssertEqual(f.priceUSD(Decimal(string: "0.0001")!), "<$0.01")
+        XCTAssertEqual(try f.priceUSD(XCTUnwrap(Decimal(string: "0.005"))), "<$0.01")
+        XCTAssertEqual(try f.priceUSD(XCTUnwrap(Decimal(string: "0.0001"))), "<$0.01")
     }
 
-    func testPriceUSDSubCentNegative_enUS() {
+    func testPriceUSDSubCentNegative_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        let result = f.priceUSD(Decimal(string: "-0.005")!)
+        let result = try f.priceUSD(XCTUnwrap(Decimal(string: "-0.005")))
         XCTAssertEqual(result, "\u{2212}<$0.01")
     }
 
-    func testPriceUSDFractionalUsesUpToFourDigits_enUS() {
+    func testPriceUSDFractionalUsesUpToFourDigits_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.priceUSD(Decimal(string: "0.0123")!), "$0.0123")
-        XCTAssertEqual(f.priceUSD(Decimal(string: "0.50")!), "$0.50")
+        XCTAssertEqual(try f.priceUSD(XCTUnwrap(Decimal(string: "0.0123"))), "$0.0123")
+        XCTAssertEqual(try f.priceUSD(XCTUnwrap(Decimal(string: "0.50"))), "$0.50")
     }
 
-    func testPriceUSDAtOrAboveOneUsesTwoDigits_enUS() {
+    func testPriceUSDAtOrAboveOneUsesTwoDigits_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        XCTAssertEqual(f.priceUSD(Decimal(string: "1")!), "$1.00")
-        XCTAssertEqual(f.priceUSD(Decimal(string: "1234.5")!), "$1,234.50")
+        XCTAssertEqual(try f.priceUSD(XCTUnwrap(Decimal(string: "1"))), "$1.00")
+        XCTAssertEqual(try f.priceUSD(XCTUnwrap(Decimal(string: "1234.5"))), "$1,234.50")
     }
 
     // MARK: - Helpers

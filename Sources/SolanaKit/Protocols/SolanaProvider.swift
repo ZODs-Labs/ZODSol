@@ -7,4 +7,5 @@ import Foundation
 /// `HeliusProvider` library) conform to `SolanaProvider` directly. The domain
 /// layer depends only on this composed protocol so backends can be swapped
 /// without ripple changes upstream.
-public protocol SolanaProvider: BalanceProvider, TokenAccountsProvider, AssetMetadataProvider, PriceProvider, Sendable {}
+public protocol SolanaProvider: BalanceProvider, TokenAccountsProvider, AssetMetadataProvider, PriceProvider,
+Sendable {}

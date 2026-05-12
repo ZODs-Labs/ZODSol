@@ -13,8 +13,8 @@ public enum SolanaPayURIBuilder {
         label: String? = nil,
         message: String? = nil,
         memo: String? = nil,
-        references: [WalletAddress] = []
-    ) throws -> URL {
+        references: [WalletAddress] = []) throws -> URL
+    {
         var components = URLComponents()
         components.scheme = "solana"
         components.host = nil
@@ -64,7 +64,7 @@ public enum SolanaPayURIBuilder {
         guard let raw = formatter.string(from: value) else {
             throw SolanaPayParseError.invalidAmount("\(amount)")
         }
-        guard isFiniteNonNegativeDecimal(raw) else {
+        guard self.isFiniteNonNegativeDecimal(raw) else {
             throw SolanaPayParseError.invalidAmount(raw)
         }
         return raw

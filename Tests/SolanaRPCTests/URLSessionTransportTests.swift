@@ -10,8 +10,13 @@ import XCTest
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var requestHandler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
 
     override func startLoading() {
         guard let handler = MockURLProtocol.requestHandler else {
@@ -37,12 +42,13 @@ private final class Counter: @unchecked Sendable {
     private let lock = NSLock()
     private var _value = 0
     func increment() {
-        lock.lock(); defer { lock.unlock() }
-        _value += 1
+        self.lock.lock(); defer { lock.unlock() }
+        self._value += 1
     }
+
     var value: Int {
-        lock.lock(); defer { lock.unlock() }
-        return _value
+        self.lock.lock(); defer { lock.unlock() }
+        return self._value
     }
 }
 
@@ -60,24 +66,21 @@ final class URLSessionTransportTests: XCTestCase {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         return URLSessionRPCTransport(
-            endpoint: endpoint,
+            endpoint: self.endpoint,
             configuration: config,
             retryPolicy: RetryPolicy(
                 maxAttempts: maxAttempts,
                 initialDelay: .milliseconds(10),
                 maxDelay: .seconds(30),
-                jitter: jitter
-            )
-        )
+                jitter: jitter))
     }
 
     private func makeHTTPResponse(status: Int, headers: [String: String] = [:], url: URL? = nil) -> HTTPURLResponse {
         HTTPURLResponse(
-            url: url ?? endpoint,
+            url: url ?? self.endpoint,
             statusCode: status,
             httpVersion: "HTTP/1.1",
-            headerFields: headers
-        )!
+            headerFields: headers)!
     }
 
     // MARK: - 1. success_200
@@ -91,13 +94,11 @@ final class URLSessionTransportTests: XCTestCase {
                     url: request.url!,
                     statusCode: 200,
                     httpVersion: "HTTP/1.1",
-                    headerFields: nil
-                )!,
-                body
-            )
+                    headerFields: nil)!,
+                body)
         }
 
-        let transport = makeTransport()
+        let transport = self.makeTransport()
         let req = JSONRPCRequest(method: "getBalance", params: ["testWallet"], id: "test")
         let response = try await transport.send(req, responseType: JSONRPCResponse<Int>.self)
         XCTAssertEqual(response.result, 42)
@@ -118,21 +119,19 @@ final class URLSessionTransportTests: XCTestCase {
                     url: request.url ?? endpoint,
                     statusCode: 429,
                     httpVersion: "HTTP/1.1",
-                    headerFields: ["Retry-After": "1"]
-                )!
+                    headerFields: ["Retry-After": "1"])!
                 return (resp, Data())
             } else {
                 let resp = HTTPURLResponse(
                     url: request.url ?? endpoint,
                     statusCode: 200,
                     httpVersion: "HTTP/1.1",
-                    headerFields: nil
-                )!
+                    headerFields: nil)!
                 return (resp, successBody)
             }
         }
 
-        let transport = makeTransport()
+        let transport = self.makeTransport()
         let req = JSONRPCRequest(method: "getBalance", params: ["w"], id: "test")
         let response = try await transport.send(req, responseType: JSONRPCResponse<Int>.self)
         XCTAssertEqual(response.result, 7)
@@ -150,12 +149,11 @@ final class URLSessionTransportTests: XCTestCase {
                 url: request.url ?? endpoint,
                 statusCode: 500,
                 httpVersion: "HTTP/1.1",
-                headerFields: nil
-            )!
+                headerFields: nil)!
             return (resp, Data())
         }
 
-        let transport = makeTransport(maxAttempts: 2)
+        let transport = self.makeTransport(maxAttempts: 2)
         let req = JSONRPCRequest(method: "getBalance", params: ["w"], id: "test")
         do {
             _ = try await transport.send(req, responseType: JSONRPCResponse<Int>.self)
@@ -180,12 +178,11 @@ final class URLSessionTransportTests: XCTestCase {
                 url: request.url ?? endpoint,
                 statusCode: 200,
                 httpVersion: "HTTP/1.1",
-                headerFields: nil
-            )!
+                headerFields: nil)!
             return (resp, body)
         }
 
-        let transport = makeTransport()
+        let transport = self.makeTransport()
         let req = JSONRPCRequest(method: "noop", params: [String](), id: "x")
         let response = try await transport.send(req, responseType: JSONRPCResponse<Int>.self)
         XCTAssertNil(response.result)
@@ -197,7 +194,7 @@ final class URLSessionTransportTests: XCTestCase {
                 return
             }
             switch rpc {
-            case .rpc(let inner):
+            case let .rpc(inner):
                 XCTAssertEqual(inner.code, -32600)
                 XCTAssertEqual(inner.message, "Invalid Request")
             default:
@@ -215,12 +212,11 @@ final class URLSessionTransportTests: XCTestCase {
                 url: request.url ?? endpoint,
                 statusCode: 200,
                 httpVersion: "HTTP/1.1",
-                headerFields: nil
-            )!
+                headerFields: nil)!
             return (resp, "not json".data(using: .utf8)!)
         }
 
-        let transport = makeTransport()
+        let transport = self.makeTransport()
         let req = JSONRPCRequest(method: "noop", params: [String](), id: "x")
         do {
             _ = try await transport.send(req, responseType: JSONRPCResponse<Int>.self)
@@ -239,6 +235,63 @@ final class URLSessionTransportTests: XCTestCase {
 
     // MARK: - 6. auth_error
 
+    // MARK: - 7. sendOnce bypasses retry on 5xx
+
+    func test_sendOnce_doesNotRetryOn500() async throws {
+        let counter = Counter()
+        let endpoint = self.endpoint
+        MockURLProtocol.requestHandler = { request in
+            counter.increment()
+            let resp = HTTPURLResponse(
+                url: request.url ?? endpoint,
+                statusCode: 500,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!
+            return (resp, Data())
+        }
+
+        // Configure a normally-retrying transport, but call sendOnce.
+        let transport = self.makeTransport(maxAttempts: 5)
+        let req = JSONRPCRequest(method: "sendTransaction", params: [String](), id: "x")
+        do {
+            _ = try await transport.sendOnce(req, responseType: JSONRPCResponse<String>.self)
+            XCTFail("expected 500 to throw")
+        } catch let error as RPCError {
+            XCTAssertEqual(error, .http(status: 500, retryAfter: nil))
+            XCTAssertEqual(counter.value, 1, "sendOnce must do exactly one attempt regardless of policy")
+        } catch {
+            XCTFail("expected RPCError, got \(error)")
+        }
+    }
+
+    func test_sendOnce_doesNotRetryOn429() async throws {
+        let counter = Counter()
+        let endpoint = self.endpoint
+        MockURLProtocol.requestHandler = { request in
+            counter.increment()
+            let resp = HTTPURLResponse(
+                url: request.url ?? endpoint,
+                statusCode: 429,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Retry-After": "1"])!
+            return (resp, Data())
+        }
+
+        let transport = self.makeTransport(maxAttempts: 5)
+        let req = JSONRPCRequest(method: "sendTransaction", params: [String](), id: "x")
+        do {
+            _ = try await transport.sendOnce(req, responseType: JSONRPCResponse<String>.self)
+            XCTFail("expected 429 to throw")
+        } catch let error as RPCError {
+            XCTAssertEqual(error, .http(status: 429, retryAfter: .seconds(1)))
+            XCTAssertEqual(counter.value, 1, "sendOnce must not honor Retry-After")
+        } catch {
+            XCTFail("expected RPCError, got \(error)")
+        }
+    }
+
+    // MARK: - 6. auth_error
+
     func test_auth401_throwsHTTPImmediatelyWithoutRetry() async throws {
         let counter = Counter()
         let endpoint = self.endpoint
@@ -248,12 +301,11 @@ final class URLSessionTransportTests: XCTestCase {
                 url: request.url ?? endpoint,
                 statusCode: 401,
                 httpVersion: "HTTP/1.1",
-                headerFields: nil
-            )!
+                headerFields: nil)!
             return (resp, Data())
         }
 
-        let transport = makeTransport()
+        let transport = self.makeTransport()
         let req = JSONRPCRequest(method: "noop", params: [String](), id: "x")
         do {
             _ = try await transport.send(req, responseType: JSONRPCResponse<Int>.self)

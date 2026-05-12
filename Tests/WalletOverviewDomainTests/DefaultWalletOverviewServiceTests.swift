@@ -1,9 +1,9 @@
-import Testing
-import Foundation
-import CryptoKit
-@testable import WalletOverviewDomain
-import SolanaKit
 import Caching
+import CryptoKit
+import Foundation
+import SolanaKit
+import Testing
+@testable import WalletOverviewDomain
 
 // MARK: - Mock Provider
 
@@ -19,40 +19,40 @@ final class MockSolanaProvider: SolanaProvider, @unchecked Sendable {
     private(set) var pricesCalled = 0
 
     init() {
-        assetsHandler = { _, _, _ in
+        self.assetsHandler = { _, _, _ in
             throw SolanaProviderError.providerUnavailable(message: "not configured")
         }
-        solChange24hHandler = { nil }
-        pricesHandler = { _ in [:] }
-        solBalanceHandler = { _, _ in 0 }
-        tokenAccountsHandler = { _, _ in [] }
+        self.solChange24hHandler = { nil }
+        self.pricesHandler = { _ in [:] }
+        self.solBalanceHandler = { _, _ in 0 }
+        self.tokenAccountsHandler = { _, _ in [] }
     }
 
     func assets(
         for address: WalletAddress,
         network: SolanaNetwork,
-        options: AssetQueryOptions
-    ) async throws -> AssetPage {
-        assetsCalled += 1
-        return try await assetsHandler(address, network, options)
+        options: AssetQueryOptions) async throws -> AssetPage
+    {
+        self.assetsCalled += 1
+        return try await self.assetsHandler(address, network, options)
     }
 
     func solChange24h() async throws -> Double? {
-        solChange24hCalled += 1
-        return try await solChange24hHandler()
+        self.solChange24hCalled += 1
+        return try await self.solChange24hHandler()
     }
 
     func prices(for mints: [Mint]) async throws -> [Mint: PriceQuote] {
-        pricesCalled += 1
-        return try await pricesHandler(mints)
+        self.pricesCalled += 1
+        return try await self.pricesHandler(mints)
     }
 
     func solBalance(for address: WalletAddress, network: SolanaNetwork) async throws -> Lamports {
-        try await solBalanceHandler(address, network)
+        try await self.solBalanceHandler(address, network)
     }
 
     func tokenAccounts(for address: WalletAddress, network: SolanaNetwork) async throws -> [ParsedTokenAccount] {
-        try await tokenAccountsHandler(address, network)
+        try await self.tokenAccountsHandler(address, network)
     }
 }
 
@@ -74,9 +74,8 @@ private func makeAssetPage(
     nativeSol: NativeBalance? = NativeBalance(
         lamports: Lamports(rawValue: 2_000_000_000),
         pricePerSol: Decimal(150),
-        totalUSD: Decimal(300)
-    )
-) -> AssetPage {
+        totalUSD: Decimal(300))) -> AssetPage
+{
     var items: [AssetSummary] = fungibles.map { f in
         AssetSummary(
             id: f.mint, kind: .fungible,
@@ -84,8 +83,7 @@ private func makeAssetPage(
             imageURL: nil,
             amount: TokenAmount(amount: 1000, decimals: 6),
             usdValue: f.usdValue, pricePerToken: f.pricePerToken,
-            priceChange24h: nil, tokenProgram: nil
-        )
+            priceChange24h: nil, tokenProgram: nil)
     }
     for _ in 0..<nftCount {
         items.append(AssetSummary(
@@ -94,21 +92,19 @@ private func makeAssetPage(
             imageURL: URL(string: "https://example.com/nft.png"),
             amount: TokenAmount(amount: 1, decimals: 0),
             usdValue: nil, pricePerToken: nil,
-            priceChange24h: nil, tokenProgram: nil
-        ))
+            priceChange24h: nil, tokenProgram: nil))
     }
     return AssetPage(
         items: items, nativeSol: nativeSol,
-        page: 1, limit: 1000, totalEstimated: nil, hasMore: false
-    )
+        page: 1, limit: 1000, totalEstimated: nil, hasMore: false)
 }
 
 private func makeService(
     mock: MockSolanaProvider,
     walletId: UUID,
     address: WalletAddress,
-    cacheTTL: Duration = .seconds(15)
-) -> DefaultWalletOverviewService {
+    cacheTTL: Duration = .seconds(15)) -> DefaultWalletOverviewService
+{
     let cache = TimedCache<UUID, WalletOverview>(ttl: cacheTTL, capacity: 32)
     return DefaultWalletOverviewService(
         provider: mock,
@@ -117,8 +113,7 @@ private func makeService(
             return address
         },
         network: .mainnet,
-        overviewCache: cache
-    )
+        overviewCache: cache)
 }
 
 // MARK: - Tests
@@ -128,8 +123,8 @@ struct DefaultWalletOverviewServiceTests {
     let walletId = UUID()
     let address = makeTestAddress()
 
-    @Test("Cold load fetches assets, solChange24h, and prices then emits .loaded")
-    func coldLoad() async {
+    @Test
+    func `Cold load fetches assets, solChange24h, and prices then emits .loaded`() async {
         let mint = makeTestMint()
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in
@@ -139,14 +134,14 @@ struct DefaultWalletOverviewServiceTests {
         mock.pricesHandler = { _ in [mint: PriceQuote(usdPrice: Decimal(1), change24h: 3.0)] }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
-        let state = await service.load(for: walletId, forceRevalidate: false)
+        let state = await service.load(for: self.walletId, forceRevalidate: false)
 
-        guard case .loaded(let overview, _) = state else {
+        guard case let .loaded(overview, _) = state else {
             Issue.record("Expected .loaded, got \(state)")
             return
         }
-        #expect(overview.walletId == walletId)
-        #expect(overview.address == address)
+        #expect(overview.walletId == self.walletId)
+        #expect(overview.address == self.address)
         #expect(overview.solBalance.rawValue == 2_000_000_000)
         #expect(overview.solPriceUSD == Decimal(150))
         #expect(overview.solChange24h == 2.5)
@@ -157,22 +152,22 @@ struct DefaultWalletOverviewServiceTests {
         #expect(mock.pricesCalled == 1)
     }
 
-    @Test("forceRevalidate=false on fresh cache returns cached value without provider calls")
-    func freshCacheHit() async {
+    @Test
+    func `forceRevalidate=false on fresh cache returns cached value without provider calls`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in makeAssetPage() }
         mock.solChange24hHandler = { 1.0 }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
 
-        let first = await service.load(for: walletId, forceRevalidate: false)
+        let first = await service.load(for: self.walletId, forceRevalidate: false)
         guard case .loaded = first else {
             Issue.record("Expected .loaded on first call")
             return
         }
         #expect(mock.assetsCalled == 1)
 
-        let second = await service.load(for: walletId, forceRevalidate: false)
+        let second = await service.load(for: self.walletId, forceRevalidate: false)
         guard case .loaded = second else {
             Issue.record("Expected .loaded on second call")
             return
@@ -180,23 +175,23 @@ struct DefaultWalletOverviewServiceTests {
         #expect(mock.assetsCalled == 1)
     }
 
-    @Test("forceRevalidate=true always fetches from provider")
-    func forceRevalidateAlwaysFetches() async {
+    @Test
+    func `forceRevalidate=true always fetches from provider`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in makeAssetPage() }
         mock.solChange24hHandler = { 1.0 }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
 
-        _ = await service.load(for: walletId, forceRevalidate: false)
+        _ = await service.load(for: self.walletId, forceRevalidate: false)
         #expect(mock.assetsCalled == 1)
 
-        _ = await service.load(for: walletId, forceRevalidate: true)
+        _ = await service.load(for: self.walletId, forceRevalidate: true)
         #expect(mock.assetsCalled == 2)
     }
 
-    @Test("prices throws results in isPartial overview")
-    func priceChangeThrowsPartial() async {
+    @Test
+    func `prices throws results in isPartial overview`() async {
         let mint = makeTestMint()
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in
@@ -208,37 +203,37 @@ struct DefaultWalletOverviewServiceTests {
         }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
-        let state = await service.load(for: walletId, forceRevalidate: false)
+        let state = await service.load(for: self.walletId, forceRevalidate: false)
 
         switch state {
-        case .partial(let overview, _):
+        case let .partial(overview, _):
             #expect(overview.isPartial == true)
-        case .loaded(let overview, _):
+        case let .loaded(overview, _):
             #expect(overview.isPartial == true)
         default:
             Issue.record("Expected .partial or .loaded with isPartial, got \(state)")
         }
     }
 
-    @Test("assets throws rateLimited with no cache returns .failed(.rateLimited)")
-    func rateLimitedNoCacheReturnsFailed() async {
+    @Test
+    func `assets throws rateLimited with no cache returns .failed(.rateLimited)`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in
             throw SolanaProviderError.rateLimited(retryAfter: .seconds(2))
         }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
-        let state = await service.load(for: walletId, forceRevalidate: false)
+        let state = await service.load(for: self.walletId, forceRevalidate: false)
 
-        guard case .failed(let err) = state else {
+        guard case let .failed(err) = state else {
             Issue.record("Expected .failed, got \(state)")
             return
         }
         #expect(err == .rateLimited(retryAfter: .seconds(2)))
     }
 
-    @Test("assets throws rateLimited with stale cache returns .partial")
-    func rateLimitedWithStaleCacheReturnsPartial() async {
+    @Test
+    func `assets throws rateLimited with stale cache returns .partial`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in makeAssetPage() }
         mock.solChange24hHandler = { 1.0 }
@@ -251,36 +246,35 @@ struct DefaultWalletOverviewServiceTests {
                 return address
             },
             network: .mainnet,
-            overviewCache: cache
-        )
+            overviewCache: cache)
 
-        _ = await service.load(for: walletId, forceRevalidate: false)
+        _ = await service.load(for: self.walletId, forceRevalidate: false)
 
         mock.assetsHandler = { _, _, _ in
             throw SolanaProviderError.rateLimited(retryAfter: .seconds(2))
         }
 
-        let state = await service.load(for: walletId, forceRevalidate: true)
-        guard case .partial(_, let err) = state else {
+        let state = await service.load(for: self.walletId, forceRevalidate: true)
+        guard case let .partial(_, err) = state else {
             Issue.record("Expected .partial with stale cache, got \(state)")
             return
         }
         #expect(err == .rateLimited(retryAfter: .seconds(2)))
     }
 
-    @Test("Cache hit on quick re-load avoids provider calls")
-    func cacheHitOnQuickReload() async {
+    @Test
+    func `Cache hit on quick re-load avoids provider calls`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in makeAssetPage() }
         mock.solChange24hHandler = { 1.0 }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
 
-        _ = await service.load(for: walletId, forceRevalidate: false)
+        _ = await service.load(for: self.walletId, forceRevalidate: false)
         let beforeAssets = mock.assetsCalled
         let beforeSol = mock.solChange24hCalled
 
-        let state = await service.load(for: walletId, forceRevalidate: false)
+        let state = await service.load(for: self.walletId, forceRevalidate: false)
         guard case .loaded = state else {
             Issue.record("Expected .loaded from cache, got \(state)")
             return
@@ -289,8 +283,8 @@ struct DefaultWalletOverviewServiceTests {
         #expect(mock.solChange24hCalled == beforeSol)
     }
 
-    @Test("Unknown wallet returns .idle")
-    func unknownWalletReturnsIdle() async {
+    @Test
+    func `Unknown wallet returns .idle`() async {
         let mock = MockSolanaProvider()
         let service = makeService(mock: mock, walletId: walletId, address: address)
         let state = await service.load(for: UUID(), forceRevalidate: false)
@@ -300,42 +294,42 @@ struct DefaultWalletOverviewServiceTests {
         }
     }
 
-    @Test("invalidate removes cached entry, next load fetches again")
-    func invalidateForcesFetch() async {
+    @Test
+    func `invalidate removes cached entry, next load fetches again`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in makeAssetPage() }
         mock.solChange24hHandler = { 1.0 }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
 
-        _ = await service.load(for: walletId, forceRevalidate: false)
+        _ = await service.load(for: self.walletId, forceRevalidate: false)
         #expect(mock.assetsCalled == 1)
 
-        await service.invalidate(walletId: walletId)
+        await service.invalidate(walletId: self.walletId)
 
-        _ = await service.load(for: walletId, forceRevalidate: false)
+        _ = await service.load(for: self.walletId, forceRevalidate: false)
         #expect(mock.assetsCalled == 2)
     }
 
-    @Test("invalidateAll clears all cached entries")
-    func invalidateAllClearsCache() async {
+    @Test
+    func `invalidateAll clears all cached entries`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in makeAssetPage() }
         mock.solChange24hHandler = { 1.0 }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
 
-        _ = await service.load(for: walletId, forceRevalidate: false)
+        _ = await service.load(for: self.walletId, forceRevalidate: false)
         #expect(mock.assetsCalled == 1)
 
         await service.invalidateAll()
 
-        _ = await service.load(for: walletId, forceRevalidate: false)
+        _ = await service.load(for: self.walletId, forceRevalidate: false)
         #expect(mock.assetsCalled == 2)
     }
 
-    @Test("Cancellation mid-fetch returns .failed(.canceled)")
-    func cancellationMidFetch() async {
+    @Test
+    func `Cancellation mid-fetch returns .failed(.canceled)`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in
             try await Task.sleep(for: .seconds(10))
@@ -345,21 +339,21 @@ struct DefaultWalletOverviewServiceTests {
         let service = makeService(mock: mock, walletId: walletId, address: address)
 
         let task = Task {
-            await service.load(for: walletId, forceRevalidate: false)
+            await service.load(for: self.walletId, forceRevalidate: false)
         }
 
         try? await Task.sleep(for: .milliseconds(50))
         task.cancel()
 
         let state = await task.value
-        guard case .failed(let err) = state else {
+        guard case let .failed(err) = state else {
             return
         }
         #expect(err == .canceled)
     }
 
-    @Test("Assemble sorts fungibles by usdValue descending, nil last")
-    func assembleSortsFungibles() async {
+    @Test
+    func `Assemble sorts fungibles by usdValue descending, nil last`() async {
         let mint1 = makeTestMint()
         let mint2 = makeTestMint()
         let mint3 = makeTestMint()
@@ -374,12 +368,12 @@ struct DefaultWalletOverviewServiceTests {
         mock.solChange24hHandler = { 1.0 }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
-        let state = await service.load(for: walletId, forceRevalidate: false)
+        let state = await service.load(for: self.walletId, forceRevalidate: false)
 
         let overview: WalletOverview
         switch state {
-        case .loaded(let v, _): overview = v
-        case .partial(let v, _): overview = v
+        case let .loaded(v, _): overview = v
+        case let .partial(v, _): overview = v
         default:
             Issue.record("Expected .loaded or .partial, got \(state)")
             return
@@ -390,16 +384,16 @@ struct DefaultWalletOverviewServiceTests {
         #expect(overview.tokens[2].usdValue == nil)
     }
 
-    @Test("NFTs counted correctly with collection previews capped at 6")
-    func nftSummary() async {
+    @Test
+    func `NFTs counted correctly with collection previews capped at 6`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in makeAssetPage(nftCount: 8) }
         mock.solChange24hHandler = { 1.0 }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
-        let state = await service.load(for: walletId, forceRevalidate: false)
+        let state = await service.load(for: self.walletId, forceRevalidate: false)
 
-        guard case .loaded(let overview, _) = state else {
+        guard case let .loaded(overview, _) = state else {
             Issue.record("Expected .loaded")
             return
         }
@@ -407,35 +401,34 @@ struct DefaultWalletOverviewServiceTests {
         #expect(overview.nfts.collectionPreviews.count == 6)
     }
 
-    @Test("totalUSD is nil when native SOL price is missing")
-    func totalUSDNilWithoutSolPrice() async {
+    @Test
+    func `totalUSD is nil when native SOL price is missing`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in
             makeAssetPage(nativeSol: NativeBalance(
                 lamports: Lamports(rawValue: 1_000_000_000),
-                pricePerSol: nil, totalUSD: nil
-            ))
+                pricePerSol: nil, totalUSD: nil))
         }
         mock.solChange24hHandler = { 1.0 }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
-        let state = await service.load(for: walletId, forceRevalidate: false)
+        let state = await service.load(for: self.walletId, forceRevalidate: false)
 
-        guard case .loaded(let overview, _) = state else {
+        guard case let .loaded(overview, _) = state else {
             Issue.record("Expected .loaded")
             return
         }
         #expect(overview.totalUSD == nil)
     }
 
-    @Test("stream emits values then finishes on cancellation")
-    func streamEmitsAndCancels() async {
+    @Test
+    func `stream emits values then finishes on cancellation`() async {
         let mock = MockSolanaProvider()
         mock.assetsHandler = { _, _, _ in makeAssetPage() }
         mock.solChange24hHandler = { 1.0 }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
-        let stream = service.stream(for: walletId, tick: .milliseconds(50))
+        let stream = service.stream(for: self.walletId, tick: .milliseconds(50))
 
         var received = 0
         for await state in stream {
@@ -446,8 +439,8 @@ struct DefaultWalletOverviewServiceTests {
         #expect(received >= 2)
     }
 
-    @Test("Jupiter quote fills usdValue and pricePerToken when Helius has no price; Helius wins when both present")
-    func jupiterFallbackAndHeliusPriority() async {
+    @Test
+    func `Jupiter quote fills usdValue and pricePerToken when Helius has no price; Helius wins when both present`() async {
         let unpriced = makeTestMint()
         let helius = makeTestMint()
         let mock = MockSolanaProvider()
@@ -461,9 +454,9 @@ struct DefaultWalletOverviewServiceTests {
         ] }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
-        let state = await service.load(for: walletId, forceRevalidate: false)
+        let state = await service.load(for: self.walletId, forceRevalidate: false)
 
-        guard case .loaded(let overview, _) = state else {
+        guard case let .loaded(overview, _) = state else {
             Issue.record("Expected .loaded, got \(state)")
             return
         }
@@ -478,8 +471,8 @@ struct DefaultWalletOverviewServiceTests {
         #expect(overview.isPartial == false)
     }
 
-    @Test("Zero-balance fungibles are filtered out of the overview tokens")
-    func zeroBalanceFungiblesFiltered() async {
+    @Test
+    func `Zero-balance fungibles are filtered out of the overview tokens`() async {
         let liveMint = makeTestMint()
         let dustMint = makeTestMint()
         let mock = MockSolanaProvider()
@@ -489,33 +482,29 @@ struct DefaultWalletOverviewServiceTests {
                     AssetSummary(
                         id: liveMint, kind: .fungible,
                         symbol: "LIVE", name: "Live Token", imageURL: nil,
-                        amount: TokenAmount(amount: 1_000, decimals: 6),
+                        amount: TokenAmount(amount: 1000, decimals: 6),
                         usdValue: Decimal(50), pricePerToken: Decimal(1),
-                        priceChange24h: nil, tokenProgram: nil
-                    ),
+                        priceChange24h: nil, tokenProgram: nil),
                     AssetSummary(
                         id: dustMint, kind: .fungible,
                         symbol: "DUST", name: "Empty Token", imageURL: nil,
                         amount: TokenAmount(amount: 0, decimals: 6),
                         usdValue: nil, pricePerToken: nil,
-                        priceChange24h: nil, tokenProgram: nil
-                    ),
+                        priceChange24h: nil, tokenProgram: nil),
                 ],
                 nativeSol: NativeBalance(
                     lamports: Lamports(rawValue: 2_000_000_000),
                     pricePerSol: Decimal(150),
-                    totalUSD: Decimal(300)
-                ),
-                page: 1, limit: 1000, totalEstimated: nil, hasMore: false
-            )
+                    totalUSD: Decimal(300)),
+                page: 1, limit: 1000, totalEstimated: nil, hasMore: false)
         }
         mock.solChange24hHandler = { 0.0 }
         mock.pricesHandler = { _ in [liveMint: PriceQuote(usdPrice: Decimal(1), change24h: 1.0)] }
 
         let service = makeService(mock: mock, walletId: walletId, address: address)
-        let state = await service.load(for: walletId, forceRevalidate: false)
+        let state = await service.load(for: self.walletId, forceRevalidate: false)
 
-        guard case .loaded(let overview, _) = state else {
+        guard case let .loaded(overview, _) = state else {
             Issue.record("Expected .loaded, got \(state)")
             return
         }

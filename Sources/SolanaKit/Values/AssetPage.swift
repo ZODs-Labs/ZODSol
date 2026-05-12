@@ -14,8 +14,8 @@ public struct AssetPage: Hashable, Sendable, Codable {
         page: Int,
         limit: Int,
         totalEstimated: Int?,
-        hasMore: Bool
-    ) {
+        hasMore: Bool)
+    {
         self.items = items
         self.nativeSol = nativeSol
         self.page = page

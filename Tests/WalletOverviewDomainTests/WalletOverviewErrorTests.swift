@@ -2,7 +2,6 @@ import XCTest
 @testable import WalletOverviewDomain
 
 final class WalletOverviewErrorTests: XCTestCase {
-
     func testNeedsSetupEquatable() {
         XCTAssertEqual(WalletOverviewError.needsSetup, WalletOverviewError.needsSetup)
         XCTAssertNotEqual(WalletOverviewError.needsSetup, WalletOverviewError.unauthorized)
@@ -15,29 +14,25 @@ final class WalletOverviewErrorTests: XCTestCase {
     func testRateLimitedEqualWithSameDuration() {
         XCTAssertEqual(
             WalletOverviewError.rateLimited(retryAfter: .seconds(5)),
-            WalletOverviewError.rateLimited(retryAfter: .seconds(5))
-        )
+            WalletOverviewError.rateLimited(retryAfter: .seconds(5)))
     }
 
     func testRateLimitedNotEqualWithDifferentDuration() {
         XCTAssertNotEqual(
             WalletOverviewError.rateLimited(retryAfter: .seconds(5)),
-            WalletOverviewError.rateLimited(retryAfter: .seconds(10))
-        )
+            WalletOverviewError.rateLimited(retryAfter: .seconds(10)))
     }
 
     func testRateLimitedNotEqualWhenNilVsValue() {
         XCTAssertNotEqual(
             WalletOverviewError.rateLimited(retryAfter: nil),
-            WalletOverviewError.rateLimited(retryAfter: .seconds(5))
-        )
+            WalletOverviewError.rateLimited(retryAfter: .seconds(5)))
     }
 
     func testRateLimitedNilEqualsNil() {
         XCTAssertEqual(
             WalletOverviewError.rateLimited(retryAfter: nil),
-            WalletOverviewError.rateLimited(retryAfter: nil)
-        )
+            WalletOverviewError.rateLimited(retryAfter: nil))
     }
 
     func testUnauthorizedEquatable() {
@@ -47,23 +42,19 @@ final class WalletOverviewErrorTests: XCTestCase {
     func testProviderUnavailableEquatable() {
         XCTAssertEqual(
             WalletOverviewError.providerUnavailable("helius"),
-            WalletOverviewError.providerUnavailable("helius")
-        )
+            WalletOverviewError.providerUnavailable("helius"))
         XCTAssertNotEqual(
             WalletOverviewError.providerUnavailable("helius"),
-            WalletOverviewError.providerUnavailable("jupiter")
-        )
+            WalletOverviewError.providerUnavailable("jupiter"))
     }
 
     func testMalformedResponseEquatable() {
         XCTAssertEqual(
             WalletOverviewError.malformedResponse("bad"),
-            WalletOverviewError.malformedResponse("bad")
-        )
+            WalletOverviewError.malformedResponse("bad"))
         XCTAssertNotEqual(
             WalletOverviewError.malformedResponse("bad"),
-            WalletOverviewError.malformedResponse("worse")
-        )
+            WalletOverviewError.malformedResponse("worse"))
     }
 
     func testBiometricInvalidatedEquatable() {
@@ -77,12 +68,10 @@ final class WalletOverviewErrorTests: XCTestCase {
     func testUnknownEquatable() {
         XCTAssertEqual(
             WalletOverviewError.unknown("oops"),
-            WalletOverviewError.unknown("oops")
-        )
+            WalletOverviewError.unknown("oops"))
         XCTAssertNotEqual(
             WalletOverviewError.unknown("oops"),
-            WalletOverviewError.unknown("bang")
-        )
+            WalletOverviewError.unknown("bang"))
     }
 
     func testDifferentCasesNotEqual() {

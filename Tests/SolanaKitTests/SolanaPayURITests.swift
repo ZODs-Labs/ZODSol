@@ -8,13 +8,13 @@ final class SolanaPayURITests: XCTestCase {
     private let secondReferenceBase58 = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 
     private func makeRecipient() throws -> WalletAddress {
-        try WalletAddress(base58: recipientBase58)
+        try WalletAddress(base58: self.recipientBase58)
     }
 
     func testRoundTripRecipientOnly() throws {
         let recipient = try makeRecipient()
         let url = try SolanaPayURIBuilder.build(recipient: recipient)
-        XCTAssertEqual(url.absoluteString, "solana:\(recipientBase58)")
+        XCTAssertEqual(url.absoluteString, "solana:\(self.recipientBase58)")
 
         let parsed = try SolanaPayURIParser.parse(url.absoluteString)
         let expected = SolanaPayURI(
@@ -24,8 +24,7 @@ final class SolanaPayURITests: XCTestCase {
             label: nil,
             message: nil,
             memo: nil,
-            references: []
-        )
+            references: [])
         XCTAssertEqual(parsed, expected)
     }
 
@@ -44,7 +43,7 @@ final class SolanaPayURITests: XCTestCase {
         let recipient = try makeRecipient()
         let usdc = try Mint(base58: usdcMintBase58)
         let url = try SolanaPayURIBuilder.build(recipient: recipient, splToken: usdc)
-        XCTAssertTrue(url.absoluteString.contains("spl-token=\(usdcMintBase58)"))
+        XCTAssertTrue(url.absoluteString.contains("spl-token=\(self.usdcMintBase58)"))
 
         let parsed = try SolanaPayURIParser.parse(url.absoluteString, expectedDecimals: 6)
         XCTAssertEqual(parsed.recipient, recipient)
@@ -61,8 +60,7 @@ final class SolanaPayURITests: XCTestCase {
             recipient: recipient,
             label: label,
             message: message,
-            memo: memo
-        )
+            memo: memo)
         // Each value must be percent-encoded in the URL representation.
         XCTAssertFalse(url.absoluteString.contains("Thanks for fish"))
         XCTAssertFalse(url.absoluteString.contains("Order #12345"))
@@ -79,15 +77,14 @@ final class SolanaPayURITests: XCTestCase {
         let second = try WalletAddress(base58: secondReferenceBase58)
         let url = try SolanaPayURIBuilder.build(
             recipient: recipient,
-            references: [first, second]
-        )
+            references: [first, second])
         let parsed = try SolanaPayURIParser.parse(url.absoluteString)
         XCTAssertEqual(parsed.references, [first, second])
     }
 
     func testMissingOptionalFields() throws {
-        let parsed = try SolanaPayURIParser.parse("solana:\(recipientBase58)")
-        XCTAssertEqual(parsed.recipient.base58, recipientBase58)
+        let parsed = try SolanaPayURIParser.parse("solana:\(self.recipientBase58)")
+        XCTAssertEqual(parsed.recipient.base58, self.recipientBase58)
         XCTAssertNil(parsed.amount)
         XCTAssertNil(parsed.splToken)
         XCTAssertNil(parsed.label)
@@ -103,14 +100,14 @@ final class SolanaPayURITests: XCTestCase {
     }
 
     func testUppercaseSchemeRejected() {
-        XCTAssertThrowsError(try SolanaPayURIParser.parse("SOLANA:\(recipientBase58)")) { error in
+        XCTAssertThrowsError(try SolanaPayURIParser.parse("SOLANA:\(self.recipientBase58)")) { error in
             XCTAssertEqual(error as? SolanaPayParseError, .notASolanaPayURI)
         }
     }
 
     func testWhitespaceAcceptedAfterTrim() throws {
-        let parsed = try SolanaPayURIParser.parse("  solana:\(recipientBase58)  ")
-        XCTAssertEqual(parsed.recipient.base58, recipientBase58)
+        let parsed = try SolanaPayURIParser.parse("  solana:\(self.recipientBase58)  ")
+        XCTAssertEqual(parsed.recipient.base58, self.recipientBase58)
     }
 
     func testExcessDecimalsRejected() {
@@ -143,7 +140,7 @@ final class SolanaPayURITests: XCTestCase {
     func testInvalidRecipientRejected() {
         let raw = "solana:not_base58_0OIl"
         XCTAssertThrowsError(try SolanaPayURIParser.parse(raw)) { error in
-            guard case .invalidRecipient(let value) = error as? SolanaPayParseError else {
+            guard case let .invalidRecipient(value) = error as? SolanaPayParseError else {
                 XCTFail("expected invalidRecipient, got \(error)")
                 return
             }
@@ -154,7 +151,7 @@ final class SolanaPayURITests: XCTestCase {
     func testInvalidSplTokenRejected() {
         let raw = "solana:\(recipientBase58)?spl-token=not_base58_0OIl"
         XCTAssertThrowsError(try SolanaPayURIParser.parse(raw)) { error in
-            guard case .invalidSplToken(let value) = error as? SolanaPayParseError else {
+            guard case let .invalidSplToken(value) = error as? SolanaPayParseError else {
                 XCTFail("expected invalidSplToken, got \(error)")
                 return
             }
@@ -165,7 +162,7 @@ final class SolanaPayURITests: XCTestCase {
     func testInvalidReferenceRejected() {
         let raw = "solana:\(recipientBase58)?reference=not_base58_0OIl"
         XCTAssertThrowsError(try SolanaPayURIParser.parse(raw)) { error in
-            guard case .invalidReference(let value) = error as? SolanaPayParseError else {
+            guard case let .invalidReference(value) = error as? SolanaPayParseError else {
                 XCTFail("expected invalidReference, got \(error)")
                 return
             }

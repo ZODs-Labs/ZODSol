@@ -7,16 +7,17 @@ public struct WalletAddress: Hashable, Sendable, Codable, CustomStringConvertibl
         let decoded = try Base58.decode(base58)
         guard decoded.count == 32 else {
             throw SolanaProviderError.invalidInput(
-                "base58 address must decode to exactly 32 bytes"
-            )
+                "base58 address must decode to exactly 32 bytes")
         }
         self.base58 = base58
     }
 
-    public var description: String { base58 }
+    public var description: String {
+        self.base58
+    }
 
     public func shortened(prefix: Int = 4, suffix: Int = 4) -> String {
-        "\(base58.prefix(prefix))…\(base58.suffix(suffix))"
+        "\(self.base58.prefix(prefix))…\(self.base58.suffix(suffix))"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -27,6 +28,6 @@ public struct WalletAddress: Hashable, Sendable, Codable, CustomStringConvertibl
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
-        try container.encode(base58)
+        try container.encode(self.base58)
     }
 }

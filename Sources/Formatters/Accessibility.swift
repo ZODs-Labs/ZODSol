@@ -3,12 +3,12 @@ import SolanaKit
 
 // MARK: - CurrencyFormatter
 
-public extension CurrencyFormatter {
+extension CurrencyFormatter {
     /// VoiceOver-friendly description such as
     /// `"one thousand two hundred thirty-four dollars and fifty-six cents"`.
     /// Uses `en_US` spell-out regardless of `self.locale` because VoiceOver labels
     /// in this app are English-only.
-    func accessibilityDescription(usd: Decimal) -> String {
+    public func accessibilityDescription(usd: Decimal) -> String {
         let isNegative = usd < 0
         let absUSD = isNegative ? -usd : usd
         let dollarsDecimal = absUSD.wholePart
@@ -36,18 +36,17 @@ public extension CurrencyFormatter {
 
 // MARK: - TokenAmountFormatter
 
-public extension TokenAmountFormatter {
+extension TokenAmountFormatter {
     /// VoiceOver-friendly token-amount description: full precision, no abbreviation,
     /// no subscript-zero notation. Uses `en_US_POSIX` to produce a raw decimal string
     /// that VoiceOver can read digit-by-digit.
-    func accessibilityDescription(_ amount: TokenAmount, symbol: String?) -> String {
+    public func accessibilityDescription(_ amount: TokenAmount, symbol: String?) -> String {
         let ui = amount.uiAmount
         let raw = (ui as NSDecimalNumber).description(withLocale: Locale(identifier: "en_US_POSIX"))
-        let suffix: String
-        if let symbol, !symbol.isEmpty {
-            suffix = " \(symbol)"
+        let suffix = if let symbol, !symbol.isEmpty {
+            " \(symbol)"
         } else {
-            suffix = ""
+            ""
         }
         return "\(raw)\(suffix)"
     }
@@ -55,10 +54,10 @@ public extension TokenAmountFormatter {
 
 // MARK: - PercentageDeltaFormatter
 
-public extension PercentageDeltaFormatter {
+extension PercentageDeltaFormatter {
     /// VoiceOver-friendly description such as `"Up 1.23 percent"`, `"Down 4.56 percent"`,
     /// or `"Unchanged"`.
-    func accessibilityDescription(_ delta: Double) -> String {
+    public func accessibilityDescription(_ delta: Double) -> String {
         if delta == 0.0 { return "Unchanged" }
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -74,9 +73,9 @@ public extension PercentageDeltaFormatter {
 
 // MARK: - CompactNumberFormatter
 
-public extension CompactNumberFormatter {
+extension CompactNumberFormatter {
     /// Full-precision description with locale-aware grouping. No K/M/B abbreviation.
-    func accessibilityDescription(_ integer: Int) -> String {
+    public func accessibilityDescription(_ integer: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.locale = locale
@@ -87,9 +86,9 @@ public extension CompactNumberFormatter {
 
 // MARK: - Decimal helpers (internal to this file)
 
-private extension Decimal {
+extension Decimal {
     /// Returns the integer part of the receiver as a `Decimal`, truncating toward zero.
-    var wholePart: Decimal {
+    fileprivate var wholePart: Decimal {
         var source = self
         var rounded = Decimal()
         NSDecimalRound(&rounded, &source, 0, .down)
@@ -97,7 +96,7 @@ private extension Decimal {
     }
 
     /// Rounds to the given scale using "schoolbook" half-up rounding.
-    func rounded(scale: Int) -> Decimal {
+    fileprivate func rounded(scale: Int) -> Decimal {
         var source = self
         var rounded = Decimal()
         NSDecimalRound(&rounded, &source, scale, .plain)

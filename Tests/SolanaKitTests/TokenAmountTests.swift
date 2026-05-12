@@ -3,8 +3,8 @@ import XCTest
 
 final class TokenAmountTests: XCTestCase {
     func testInitializerStoresFields() {
-        let amount = TokenAmount(amount: 12_345, decimals: 6)
-        XCTAssertEqual(amount.amount, 12_345)
+        let amount = TokenAmount(amount: 12345, decimals: 6)
+        XCTAssertEqual(amount.amount, 12345)
         XCTAssertEqual(amount.decimals, 6)
     }
 

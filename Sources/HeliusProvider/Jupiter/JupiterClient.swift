@@ -17,13 +17,14 @@ actor JupiterClient {
         do {
             let (data, response) = try await session.data(from: url)
             guard let http = response as? HTTPURLResponse,
-                  (200 ..< 300).contains(http.statusCode) else {
-                logger.debug("jupiter price non-2xx")
+                  (200..<300).contains(http.statusCode)
+            else {
+                self.logger.debug("jupiter price non-2xx")
                 return nil
             }
             return try JSONDecoder().decode(JupiterPriceResponse.self, from: data)
         } catch {
-            logger.debug("jupiter price fetch failed")
+            self.logger.debug("jupiter price fetch failed")
             return nil
         }
     }

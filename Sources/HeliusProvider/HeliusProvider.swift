@@ -16,8 +16,7 @@ public struct HeliusSolanaProvider: SolanaProvider {
         let queryItems = [URLQueryItem(name: "api-key", value: apiKey)]
         self.transport = URLSessionRPCTransport(
             endpoint: baseURL,
-            queryItems: queryItems
-        )
+            queryItems: queryItems)
         self.pricer = JupiterPriceProvider()
     }
 
@@ -31,15 +30,14 @@ public struct HeliusSolanaProvider: SolanaProvider {
             let address: String
             func encode(to encoder: any Encoder) throws {
                 var c = encoder.unkeyedContainer()
-                try c.encode(address)
+                try c.encode(self.address)
             }
         }
         let request = JSONRPCRequest(method: "getBalance", params: Params(address: address.base58))
         do {
             let resp: JSONRPCResponse<HeliusBalanceResult> = try await transport.send(
                 request,
-                responseType: JSONRPCResponse<HeliusBalanceResult>.self
-            )
+                responseType: JSONRPCResponse<HeliusBalanceResult>.self)
             let result = try resp.unwrap()
             return Lamports(rawValue: result.value)
         } catch let e as RPCError {
@@ -54,22 +52,20 @@ public struct HeliusSolanaProvider: SolanaProvider {
             let config: [String: String]
             func encode(to encoder: any Encoder) throws {
                 var c = encoder.unkeyedContainer()
-                try c.encode(owner)
-                try c.encode(filter)
-                try c.encode(config)
+                try c.encode(self.owner)
+                try c.encode(self.filter)
+                try c.encode(self.config)
             }
         }
         let params = Params(
             owner: address.base58,
             filter: ["programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"],
-            config: ["encoding": "jsonParsed", "commitment": "confirmed"]
-        )
+            config: ["encoding": "jsonParsed", "commitment": "confirmed"])
         let request = JSONRPCRequest(method: "getTokenAccountsByOwner", params: params)
         do {
             let resp: JSONRPCResponse<HeliusTokenAccountsResult> = try await transport.send(
                 request,
-                responseType: JSONRPCResponse<HeliusTokenAccountsResult>.self
-            )
+                responseType: JSONRPCResponse<HeliusTokenAccountsResult>.self)
             let result = try resp.unwrap()
             return try result.value.map { try Self.mapHolding($0, owner: address) }
         } catch let e as RPCError {
@@ -80,7 +76,11 @@ public struct HeliusSolanaProvider: SolanaProvider {
     /// Returns SPL Token v1 accounts only. Token-2022 holdings are surfaced via `assets(for:network:options:)`
     /// with `showFungible=true` (Helius DAS indexes both programs). This method exists to satisfy the
     /// `TokenAccountsProvider` protocol; the overview UI consumes `assets(...)`, not this method.
-    public func assets(for address: WalletAddress, network: SolanaNetwork, options: AssetQueryOptions) async throws -> AssetPage {
+    public func assets(
+        for address: WalletAddress,
+        network: SolanaNetwork,
+        options: AssetQueryOptions) async throws -> AssetPage
+    {
         let params = HeliusAssetsByOwnerParams(
             ownerAddress: address.base58,
             page: options.page,
@@ -88,15 +88,12 @@ public struct HeliusSolanaProvider: SolanaProvider {
             displayOptions: .init(
                 showFungible: options.showFungible,
                 showNativeBalance: options.showNativeBalance,
-                showZeroBalance: options.showZeroBalance
-            )
-        )
+                showZeroBalance: options.showZeroBalance))
         let request = JSONRPCRequest(method: "getAssetsByOwner", params: params)
         do {
             let resp: JSONRPCResponse<HeliusAssetsByOwnerResult> = try await transport.send(
                 request,
-                responseType: JSONRPCResponse<HeliusAssetsByOwnerResult>.self
-            )
+                responseType: JSONRPCResponse<HeliusAssetsByOwnerResult>.self)
             let result = try resp.unwrap()
             return try Self.buildPage(result, options: options)
         } catch let e as RPCError {
@@ -105,10 +102,10 @@ public struct HeliusSolanaProvider: SolanaProvider {
     }
 
     public func prices(for mints: [Mint]) async throws -> [Mint: PriceQuote] {
-        try await pricer.prices(for: mints)
+        try await self.pricer.prices(for: mints)
     }
 
     public func solChange24h() async throws -> Double? {
-        try await pricer.solChange24h()
+        try await self.pricer.solChange24h()
     }
 }

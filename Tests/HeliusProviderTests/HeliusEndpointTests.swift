@@ -1,9 +1,8 @@
-import XCTest
 import SolanaKit
+import XCTest
 @testable import HeliusProvider
 
 final class HeliusEndpointTests: XCTestCase {
-
     func test_mainnet_url() {
         let ep = HeliusEndpoint(network: .mainnet, apiKey: "test-key")
         XCTAssertEqual(ep.rpcURL.scheme, "https")

@@ -2,7 +2,6 @@ import XCTest
 @testable import HeliusProvider
 
 final class HeliusDTOTests: XCTestCase {
-
     func test_decodeAssetsByOwnerResult() throws {
         let data = try FixtureLoader.load("assets-by-owner-success.json")
         let envelope = try JSONDecoder().decode(RPCEnvelope<HeliusAssetsByOwnerResult>.self, from: data)

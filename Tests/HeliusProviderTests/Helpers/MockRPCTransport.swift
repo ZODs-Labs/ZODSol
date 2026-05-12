@@ -7,23 +7,23 @@ actor MockRPCTransport: RPCTransport {
     private(set) var lastMethod: String?
 
     func enqueue(data: Data) {
-        responses.append((data, nil))
+        self.responses.append((data, nil))
     }
 
     func enqueueError(_ error: RPCError) {
-        responses.append((nil, error))
+        self.responses.append((nil, error))
     }
 
-    func send<P, R>(
-        _ request: JSONRPCRequest<P>,
-        responseType: R.Type
-    ) async throws -> R where P: Encodable & Sendable, R: Decodable & Sendable {
-        requestCount += 1
-        lastMethod = request.method
-        guard !responses.isEmpty else {
+    func send<R: Decodable & Sendable>(
+        _ request: JSONRPCRequest<some Encodable & Sendable>,
+        responseType: R.Type) async throws -> R
+    {
+        self.requestCount += 1
+        self.lastMethod = request.method
+        guard !self.responses.isEmpty else {
             throw RPCError.transport(.unknown)
         }
-        let (data, error) = responses.removeFirst()
+        let (data, error) = self.responses.removeFirst()
         if let error { throw error }
         return try JSONDecoder().decode(R.self, from: data!)
     }

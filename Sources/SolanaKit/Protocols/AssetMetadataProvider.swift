@@ -12,7 +12,8 @@ public protocol AssetMetadataProvider: Sendable {
     ///   - options: Pagination and filter knobs (page, limit, what to include).
     /// - Returns: A page of asset summaries plus the optional native-SOL balance.
     /// - Throws: `SolanaProviderError`.
-    func assets(for address: WalletAddress,
-                network: SolanaNetwork,
-                options: AssetQueryOptions) async throws -> AssetPage
+    func assets(
+        for address: WalletAddress,
+        network: SolanaNetwork,
+        options: AssetQueryOptions) async throws -> AssetPage
 }

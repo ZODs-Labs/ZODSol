@@ -7,8 +7,7 @@ public struct Mint: Hashable, Sendable, Codable {
         let decoded = try Base58.decode(base58)
         guard decoded.count == 32 else {
             throw SolanaProviderError.invalidInput(
-                "base58 address must decode to exactly 32 bytes"
-            )
+                "base58 address must decode to exactly 32 bytes")
         }
         self.base58 = base58
     }
@@ -21,6 +20,6 @@ public struct Mint: Hashable, Sendable, Codable {
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
-        try container.encode(base58)
+        try container.encode(self.base58)
     }
 }

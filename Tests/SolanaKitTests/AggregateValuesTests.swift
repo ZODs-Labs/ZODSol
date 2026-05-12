@@ -29,8 +29,7 @@ final class AggregateValuesTests: XCTestCase {
             usdValue: Decimal(string: "1.00"),
             pricePerToken: Decimal(string: "1.00"),
             priceChange24h: 0.0,
-            tokenProgram: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        )
+            tokenProgram: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
         XCTAssertEqual(summary.id, mint)
     }
 
@@ -53,13 +52,12 @@ final class AggregateValuesTests: XCTestCase {
     // MARK: - NFTSummary
 
     func testNFTSummaryCodableRoundTrip() throws {
-        let summary = NFTSummary(
+        let summary = try NFTSummary(
             count: 7,
             collectionPreviews: [
-                URL(string: "https://example.com/a.png")!,
-                URL(string: "https://example.com/b.png")!,
-            ]
-        )
+                XCTUnwrap(URL(string: "https://example.com/a.png")),
+                XCTUnwrap(URL(string: "https://example.com/b.png")),
+            ])
         let data = try JSONEncoder().encode(summary)
         let decoded = try JSONDecoder().decode(NFTSummary.self, from: data)
         XCTAssertEqual(summary, decoded)
@@ -77,12 +75,11 @@ final class AggregateValuesTests: XCTestCase {
     // MARK: - ParsedTokenAccount
 
     func testParsedTokenAccountCodableRoundTrip() throws {
-        let account = ParsedTokenAccount(
-            mint: try Mint(base58: usdcMint),
+        let account = try ParsedTokenAccount(
+            mint: Mint(base58: usdcMint),
             amount: TokenAmount(amount: 5_000_000, decimals: 6),
-            owner: try WalletAddress(base58: ownerAddr),
-            tokenAccount: try WalletAddress(base58: tokenAcct)
-        )
+            owner: WalletAddress(base58: ownerAddr),
+            tokenAccount: WalletAddress(base58: tokenAcct))
         let data = try JSONEncoder().encode(account)
         let decoded = try JSONDecoder().decode(ParsedTokenAccount.self, from: data)
         XCTAssertEqual(account, decoded)
@@ -94,8 +91,7 @@ final class AggregateValuesTests: XCTestCase {
         let balance = NativeBalance(
             lamports: 12_345_000_000,
             pricePerSol: Decimal(string: "180.25"),
-            totalUSD: Decimal(string: "2224.18")
-        )
+            totalUSD: Decimal(string: "2224.18"))
         let data = try jsonEncoder().encode(balance)
         let decoded = try jsonDecoder().decode(NativeBalance.self, from: data)
         XCTAssertEqual(balance, decoded)
@@ -119,13 +115,11 @@ final class AggregateValuesTests: XCTestCase {
             nativeSol: NativeBalance(
                 lamports: 2_000_000_000,
                 pricePerSol: Decimal(string: "180"),
-                totalUSD: Decimal(string: "360")
-            ),
+                totalUSD: Decimal(string: "360")),
             page: 1,
             limit: 1000,
             totalEstimated: 1,
-            hasMore: false
-        )
+            hasMore: false)
         let data = try jsonEncoder().encode(page)
         let decoded = try jsonDecoder().decode(AssetPage.self, from: data)
         XCTAssertEqual(page, decoded)
@@ -138,8 +132,7 @@ final class AggregateValuesTests: XCTestCase {
             page: 2,
             limit: 500,
             totalEstimated: nil,
-            hasMore: true
-        )
+            hasMore: true)
         let data = try jsonEncoder().encode(page)
         let decoded = try jsonDecoder().decode(AssetPage.self, from: data)
         XCTAssertEqual(page, decoded)
@@ -165,8 +158,7 @@ final class AggregateValuesTests: XCTestCase {
             limit: 250,
             showFungible: false,
             showNativeBalance: false,
-            showZeroBalance: true
-        )
+            showZeroBalance: true)
         XCTAssertEqual(options.page, 3)
         XCTAssertEqual(options.limit, 250)
         XCTAssertFalse(options.showFungible)
@@ -182,15 +174,19 @@ final class AggregateValuesTests: XCTestCase {
         let summary = try makeSummary(mintBase58: usdcMint, kind: .fungible)
         let overview = try makeOverview()
         let nft = NFTSummary(count: 1, collectionPreviews: [])
-        let tokenAccount = ParsedTokenAccount(
-            mint: try Mint(base58: usdcMint),
+        let tokenAccount = try ParsedTokenAccount(
+            mint: Mint(base58: usdcMint),
             amount: TokenAmount(amount: 1, decimals: 6),
-            owner: try WalletAddress(base58: ownerAddr),
-            tokenAccount: try WalletAddress(base58: tokenAcct)
-        )
+            owner: WalletAddress(base58: ownerAddr),
+            tokenAccount: WalletAddress(base58: tokenAcct))
         let native = NativeBalance(lamports: 1, pricePerSol: nil, totalUSD: nil)
-        let page = AssetPage(items: [summary], nativeSol: native, page: 1,
-                             limit: 10, totalEstimated: 1, hasMore: false)
+        let page = AssetPage(
+            items: [summary],
+            nativeSol: native,
+            page: 1,
+            limit: 10,
+            totalEstimated: 1,
+            hasMore: false)
         let options = AssetQueryOptions.default
         let network = SolanaNetwork.mainnet
         let kind = AssetKind.fungible
@@ -215,13 +211,11 @@ final class AggregateValuesTests: XCTestCase {
                 mint: mint,
                 lamports: lamports,
                 amount: amount,
-                error: error
-            )
-        )
+                error: error))
     }
 
-    // A @Sendable function whose signature forces every parameter to be
-    // Sendable at compile time.
+    /// A @Sendable function whose signature forces every parameter to be
+    /// Sendable at compile time.
     @Sendable
     private static func consume(_ bundle: SendableBundle) async throws {
         XCTAssertEqual(bundle.summary.kind, .fungible)
@@ -238,7 +232,7 @@ final class AggregateValuesTests: XCTestCase {
         XCTAssertEqual(bundle.error, .canceled)
     }
 
-    private struct SendableBundle: Sendable {
+    private struct SendableBundle {
         let summary: AssetSummary
         let overview: WalletOverview
         let nft: NFTSummary
@@ -258,8 +252,8 @@ final class AggregateValuesTests: XCTestCase {
     // MARK: - Builders
 
     private func makeSummary(mintBase58: String, kind: AssetKind) throws -> AssetSummary {
-        AssetSummary(
-            id: try Mint(base58: mintBase58),
+        try AssetSummary(
+            id: Mint(base58: mintBase58),
             kind: kind,
             symbol: "USDC",
             name: "USD Coin",
@@ -268,24 +262,22 @@ final class AggregateValuesTests: XCTestCase {
             usdValue: Decimal(string: "1.50"),
             pricePerToken: Decimal(string: "1.00"),
             priceChange24h: 0.12,
-            tokenProgram: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        )
+            tokenProgram: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
     }
 
     private func makeOverview(isPartial: Bool = false) throws -> WalletOverview {
-        WalletOverview(
+        try WalletOverview(
             walletId: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
-            address: try WalletAddress(base58: usdcMint),
+            address: WalletAddress(base58: self.usdcMint),
             solBalance: 12_345_000_000,
             solPriceUSD: Decimal(string: "180.25"),
             solChange24h: -0.0345,
-            tokens: [try makeSummary(mintBase58: usdcMint, kind: .fungible)],
+            tokens: [self.makeSummary(mintBase58: self.usdcMint, kind: .fungible)],
             nfts: NFTSummary(count: 0, collectionPreviews: []),
             totalUSD: Decimal(string: "2224.18"),
             totalChange24h: 0.012,
             asOf: Date(timeIntervalSince1970: 1_700_000_000),
-            isPartial: isPartial
-        )
+            isPartial: isPartial)
     }
 
     private func jsonEncoder() -> JSONEncoder {

@@ -3,7 +3,7 @@ import XCTest
 @testable import SolanaRPC
 
 final class JSONRPCRequestTests: XCTestCase {
-    private struct SampleParams: Encodable, Sendable, Equatable {
+    private struct SampleParams: Encodable, Equatable {
         let owner: String
         let limit: Int
     }
@@ -12,8 +12,7 @@ final class JSONRPCRequestTests: XCTestCase {
         let request = JSONRPCRequest(
             method: "getAssetsByOwner",
             params: SampleParams(owner: "wallet", limit: 10),
-            id: "fixed-id"
-        )
+            id: "fixed-id")
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -23,8 +22,7 @@ final class JSONRPCRequestTests: XCTestCase {
         // Sorted-keys produces a deterministic shape
         XCTAssertEqual(
             json,
-            "{\"id\":\"fixed-id\",\"jsonrpc\":\"2.0\",\"method\":\"getAssetsByOwner\",\"params\":{\"limit\":10,\"owner\":\"wallet\"}}"
-        )
+            "{\"id\":\"fixed-id\",\"jsonrpc\":\"2.0\",\"method\":\"getAssetsByOwner\",\"params\":{\"limit\":10,\"owner\":\"wallet\"}}")
 
         let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(object["jsonrpc"] as? String, "2.0")

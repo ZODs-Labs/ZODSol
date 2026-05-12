@@ -1,10 +1,10 @@
-import XCTest
 import Foundation
 import KeychainKit
 import SolanaKit
+import XCTest
 @testable import WalletOverviewDomain
 
-private struct Fixture: Sendable {
+private struct Fixture {
     let store: WalletStore
     let secureStore: SecureItemStore
     let service: String
@@ -14,8 +14,7 @@ private struct Fixture: Sendable {
 private func makeFixture() throws -> Fixture {
     try XCTSkipUnless(
         ProcessInfo.processInfo.environment["ZODSOL_KEYCHAIN_TEST"] != nil,
-        "Keychain tests require ZODSOL_KEYCHAIN_TEST=1"
-    )
+        "Keychain tests require ZODSOL_KEYCHAIN_TEST=1")
     let uniqueSuffix = UUID().uuidString
     let service = "dev.zods.zodsol.test.\(uniqueSuffix)"
     let suite = "test.\(uniqueSuffix)"
@@ -27,14 +26,12 @@ private func makeFixture() throws -> Fixture {
         secureStore: secureStore,
         defaults: defaults,
         service: service,
-        selectedWalletKey: "test.selectedWalletId.\(uniqueSuffix)"
-    )
+        selectedWalletKey: "test.selectedWalletId.\(uniqueSuffix)")
     return Fixture(
         store: store,
         secureStore: secureStore,
         service: service,
-        defaultsSuiteName: suite
-    )
+        defaultsSuiteName: suite)
 }
 
 private func cleanup(_ fixture: Fixture) async {
@@ -46,7 +43,6 @@ private func cleanup(_ fixture: Fixture) async {
 }
 
 final class WalletStoreTests: XCTestCase {
-
     func testAddAndList() async throws {
         let fixture = try makeFixture()
         let material = makeTestPrivateKey()
@@ -152,7 +148,7 @@ final class WalletStoreTests: XCTestCase {
 
     func testConcurrentAddsAllAppearInIndex() async throws {
         let fixture = try makeFixture()
-        let materials = (0 ..< 5).map { _ in makeTestPrivateKey() }
+        let materials = (0..<5).map { _ in makeTestPrivateKey() }
         let importedKeys = try materials.map { try ImportedPrivateKey.parse($0.base58Key) }
 
         try await withThrowingTaskGroup(of: WalletIdentity.self) { group in
@@ -163,7 +159,9 @@ final class WalletStoreTests: XCTestCase {
                 }
             }
             var count = 0
-            for try await _ in group { count += 1 }
+            for try await _ in group {
+                count += 1
+            }
             XCTAssertEqual(count, 5)
         }
 
@@ -183,9 +181,10 @@ final class WalletStoreTests: XCTestCase {
         let importedKey = try ImportedPrivateKey.parse(material.base58Key)
         let identity = try await fixture.store.add(privateKey: importedKey, label: "Read")
 
-        let snapshot: Data = try await fixture.store.withPrivateKey(walletId: identity.id, prompt: "Authorize") { buffer in
-            return buffer
-        }
+        let snapshot: Data = try await fixture.store
+            .withPrivateKey(walletId: identity.id, prompt: "Authorize") { buffer in
+                buffer
+            }
         XCTAssertEqual(snapshot, material.secretKey64)
 
         await cleanup(fixture)

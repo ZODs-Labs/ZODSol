@@ -7,7 +7,7 @@ final class MintTests: XCTestCase {
 
     func testValid32ByteMintIsAccepted() throws {
         let mint = try Mint(base58: usdcMint)
-        XCTAssertEqual(mint.base58, usdcMint)
+        XCTAssertEqual(mint.base58, self.usdcMint)
     }
 
     func testRejects31BytePayload() {
@@ -15,7 +15,7 @@ final class MintTests: XCTestCase {
         let encoded = Base58.encode(bytes)
         XCTAssertEqual(try Base58.decode(encoded).count, 31)
         XCTAssertThrowsError(try Mint(base58: encoded)) { error in
-            assertInvalidInput(error)
+            self.assertInvalidInput(error)
         }
     }
 
@@ -24,7 +24,7 @@ final class MintTests: XCTestCase {
         let encoded = Base58.encode(bytes)
         XCTAssertEqual(try Base58.decode(encoded).count, 33)
         XCTAssertThrowsError(try Mint(base58: encoded)) { error in
-            assertInvalidInput(error)
+            self.assertInvalidInput(error)
         }
     }
 
@@ -36,9 +36,11 @@ final class MintTests: XCTestCase {
             "lPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
         ]
         for sample in invalidSamples {
-            XCTAssertThrowsError(try Mint(base58: sample),
-                                 "Expected rejection of '\(sample)'") { error in
-                assertInvalidInput(error)
+            XCTAssertThrowsError(
+                try Mint(base58: sample),
+                "Expected rejection of '\(sample)'")
+            { error in
+                self.assertInvalidInput(error)
             }
         }
     }
@@ -49,7 +51,7 @@ final class MintTests: XCTestCase {
         let c = try Mint(base58: wrappedSol)
         var bucket: [Mint: Int] = [:]
         bucket[a] = 1
-        bucket[b] = 2  // Overwrites — same key.
+        bucket[b] = 2 // Overwrites — same key.
         bucket[c] = 3
         XCTAssertEqual(bucket.count, 2)
         XCTAssertEqual(bucket[a], 2)
@@ -70,9 +72,11 @@ final class MintTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func assertInvalidInput(_ error: any Error,
-                                    file: StaticString = #filePath,
-                                    line: UInt = #line) {
+    private func assertInvalidInput(
+        _ error: any Error,
+        file: StaticString = #filePath,
+        line: UInt = #line)
+    {
         guard let providerError = error as? SolanaProviderError else {
             XCTFail("Expected SolanaProviderError, got \(error)", file: file, line: line)
             return

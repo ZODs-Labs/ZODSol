@@ -5,7 +5,9 @@ public struct Lamports: Hashable, Sendable, Codable, ExpressibleByIntegerLiteral
 
     public static let lamportsPerSol: UInt64 = 1_000_000_000
 
-    public var solValue: Double { Double(rawValue) / 1_000_000_000.0 }
+    public var solValue: Double {
+        Double(self.rawValue) / 1_000_000_000.0
+    }
 
     public init(rawValue: UInt64) {
         self.rawValue = rawValue
@@ -22,6 +24,6 @@ public struct Lamports: Hashable, Sendable, Codable, ExpressibleByIntegerLiteral
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
+        try container.encode(self.rawValue)
     }
 }

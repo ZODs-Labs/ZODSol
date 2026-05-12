@@ -17,18 +17,18 @@ public struct CompactNumberFormatter: Sendable {
         let sign = integer < 0 ? "\u{2212}" : ""
 
         if absN >= 1_000_000_000 {
-            return fmt(Double(absN) / 1_000_000_000, fractionDigits: 2, sign: sign, suffix: "B")
+            return self.fmt(Double(absN) / 1_000_000_000, fractionDigits: 2, sign: sign, suffix: "B")
         }
         if absN >= 1_000_000 {
-            return fmt(Double(absN) / 1_000_000, fractionDigits: 2, sign: sign, suffix: "M")
+            return self.fmt(Double(absN) / 1_000_000, fractionDigits: 2, sign: sign, suffix: "M")
         }
-        if absN >= 1_000 {
-            return fmt(Double(absN) / 1_000, fractionDigits: 1, sign: sign, suffix: "K")
+        if absN >= 1000 {
+            return self.fmt(Double(absN) / 1000, fractionDigits: 1, sign: sign, suffix: "K")
         }
 
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.locale = locale
+        formatter.locale = self.locale
         formatter.usesGroupingSeparator = true
         let body = formatter.string(from: NSNumber(value: absN)) ?? "\(absN)"
         return "\(sign)\(body)"
@@ -37,7 +37,7 @@ public struct CompactNumberFormatter: Sendable {
     private func fmt(_ value: Double, fractionDigits: Int, sign: String, suffix: String) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.locale = locale
+        formatter.locale = self.locale
         formatter.minimumFractionDigits = fractionDigits
         formatter.maximumFractionDigits = fractionDigits
         let body = formatter.string(from: NSNumber(value: value))

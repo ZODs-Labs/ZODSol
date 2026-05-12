@@ -31,9 +31,9 @@ public enum SolanaPayURIParser {
         for item in components.queryItems ?? [] {
             switch item.name {
             case "amount":
-                amount = try parseAmount(item.value, expectedDecimals: expectedDecimals)
+                amount = try self.parseAmount(item.value, expectedDecimals: expectedDecimals)
             case "spl-token":
-                splToken = try parseSplToken(item.value)
+                splToken = try self.parseSplToken(item.value)
             case "reference":
                 if let reference = try parseReference(item.value) {
                     references.append(reference)
@@ -56,8 +56,7 @@ public enum SolanaPayURIParser {
             label: label,
             message: message,
             memo: memo,
-            references: references
-        )
+            references: references)
     }
 
     private static func parseRecipient(components: URLComponents) throws -> WalletAddress {

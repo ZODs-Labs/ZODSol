@@ -21,8 +21,8 @@ public struct SolanaPayURI: Sendable, Equatable {
         label: String?,
         message: String?,
         memo: String?,
-        references: [WalletAddress]
-    ) {
+        references: [WalletAddress])
+    {
         self.recipient = recipient
         self.amount = amount
         self.splToken = splToken

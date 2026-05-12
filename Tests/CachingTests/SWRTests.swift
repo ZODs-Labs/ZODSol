@@ -2,17 +2,20 @@ import XCTest
 @testable import Caching
 
 final class SWRTests: XCTestCase {
-
     // MARK: - Helpers
 
     private actor FetchCounter {
         private(set) var count: Int = 0
-        func increment() { count += 1 }
+        func increment() {
+            self.count += 1
+        }
     }
 
     private actor CancelFlag {
         private(set) var wasCancelled: Bool = false
-        func markCancelled() { wasCancelled = true }
+        func markCancelled() {
+            self.wasCancelled = true
+        }
     }
 
     private func collect<Value>(_ stream: AsyncStream<Value>) async -> [Value] {
@@ -37,8 +40,7 @@ final class SWRTests: XCTestCase {
             fetch: {
                 await counter.increment()
                 return 99
-            }
-        )
+            })
 
         XCTAssertEqual(swr.initial, .miss)
         let values = await collect(swr.revalidated)
@@ -60,8 +62,7 @@ final class SWRTests: XCTestCase {
             fetch: {
                 await counter.increment()
                 return 99
-            }
-        )
+            })
 
         XCTAssertEqual(swr.initial, .fresh(7))
         let values = await collect(swr.revalidated)
@@ -85,8 +86,7 @@ final class SWRTests: XCTestCase {
             fetch: {
                 await counter.increment()
                 return 99
-            }
-        )
+            })
 
         XCTAssertEqual(swr.initial, .stale(7))
         let values = await collect(swr.revalidated)
@@ -108,8 +108,7 @@ final class SWRTests: XCTestCase {
             fetch: {
                 await counter.increment()
                 return 99
-            }
-        )
+            })
 
         XCTAssertEqual(swr.initial, .fresh(7))
         let values = await collect(swr.revalidated)
@@ -129,8 +128,7 @@ final class SWRTests: XCTestCase {
             forceRevalidate: false,
             fetch: {
                 throw FetchError()
-            }
-        )
+            })
 
         XCTAssertEqual(swr.initial, .miss)
         let values = await collect(swr.revalidated)
@@ -157,8 +155,7 @@ final class SWRTests: XCTestCase {
                     } onCancel: {
                         Task { await flag.markCancelled() }
                     }
-                }
-            )
+                })
             for await _ in swr.revalidated {}
         }
 

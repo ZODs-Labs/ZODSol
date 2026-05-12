@@ -12,8 +12,8 @@ public struct AssetQueryOptions: Hashable, Sendable {
         limit: Int = 1000,
         showFungible: Bool = true,
         showNativeBalance: Bool = true,
-        showZeroBalance: Bool = false
-    ) {
+        showZeroBalance: Bool = false)
+    {
         self.page = page
         self.limit = limit
         self.showFungible = showFungible

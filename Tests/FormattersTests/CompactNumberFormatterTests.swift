@@ -24,7 +24,7 @@ final class CompactNumberFormatterTests: XCTestCase {
     func testThousandsUseKSuffixOneFractionDigit_enUS() {
         let f = CompactNumberFormatter(locale: enUS)
         XCTAssertEqual(f.string(1234), "1.2K")
-        XCTAssertEqual(f.string(12_345), "12.3K")
+        XCTAssertEqual(f.string(12345), "12.3K")
         XCTAssertEqual(f.string(999_999), "1,000.0K")
     }
 
@@ -47,7 +47,7 @@ final class CompactNumberFormatterTests: XCTestCase {
 
     func testNegativeUsesUnicodeMinusGlyph_enUS() {
         let f = CompactNumberFormatter(locale: enUS)
-        let result = f.string(-12_345)
+        let result = f.string(-12345)
         XCTAssertTrue(result.hasPrefix("\u{2212}"), "expected U+2212 minus prefix, got \(result)")
         XCTAssertFalse(result.hasPrefix("-"))
         XCTAssertEqual(result, "\u{2212}12.3K")
@@ -72,20 +72,20 @@ final class CompactNumberFormatterTests: XCTestCase {
         XCTAssertEqual(f.string(1_234_567), "1,23M")
     }
 
-    func testGroupingSeparatorIsLocalized_deDE() {
+    func testGroupingSeparatorIsLocalized_deDE() throws {
         let f = CompactNumberFormatter(locale: deDE)
         // In de_DE under-1K isn't grouped, but we cross-check via reference NumberFormatter
         // to avoid hard-coding a separator that may differ across OS versions.
         let reference = NumberFormatter()
         reference.numberStyle = .decimal
-        reference.locale = deDE
+        reference.locale = self.deDE
         reference.usesGroupingSeparator = true
-        let expected = reference.string(from: NSNumber(value: 999))!
+        let expected = try XCTUnwrap(reference.string(from: NSNumber(value: 999)))
         XCTAssertEqual(f.string(999), expected)
     }
 
     func testTurkishLocaleUsesCommaDecimal_trTR() {
         let f = CompactNumberFormatter(locale: trTR)
-        XCTAssertEqual(f.string(12_345), "12,3K")
+        XCTAssertEqual(f.string(12345), "12,3K")
     }
 }

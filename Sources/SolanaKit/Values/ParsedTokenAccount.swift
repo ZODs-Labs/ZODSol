@@ -10,8 +10,8 @@ public struct ParsedTokenAccount: Hashable, Sendable, Codable {
         mint: Mint,
         amount: TokenAmount,
         owner: WalletAddress,
-        tokenAccount: WalletAddress
-    ) {
+        tokenAccount: WalletAddress)
+    {
         self.mint = mint
         self.amount = amount
         self.owner = owner

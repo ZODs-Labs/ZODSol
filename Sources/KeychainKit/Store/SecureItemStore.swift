@@ -1,7 +1,7 @@
 import Foundation
-import Security
 import LocalAuthentication
 import OSLog
+import Security
 
 public actor SecureItemStore {
     private let service: String
@@ -9,18 +9,19 @@ public actor SecureItemStore {
 
     public init(
         service: String,
-        logger: Logger = Logger(subsystem: "dev.zods.zodsol", category: "keychain")
-    ) {
+        logger: Logger = Logger(subsystem: "dev.zods.zodsol", category: "keychain"))
+    {
         self.service = service
         self.logger = logger
     }
 
-    /// Fresh `LAContext` per call. Setting `interactionNotAllowed = true` and
-    /// passing it via `kSecUseAuthenticationContext` is the modern way to tell
-    /// `SecItem*` operations to never present UI - the legacy login-keychain
-    /// password prompt that ad-hoc rebuilds otherwise trigger is suppressed,
-    /// and the call fails fast with `errSecInteractionNotAllowed` so we can
-    /// handle the stale-ACL case in code.
+    /// Fresh `LAContext` per call. `interactionNotAllowed = true` suppresses
+    /// the biometric/`SecAccessControl` prompt path. The legacy login-keychain
+    /// "Always Allow / Deny" ACL prompt that ad-hoc rebuilds trigger is a
+    /// separate UI path - `kSecUseAuthenticationUI: kSecUseAuthenticationUIFail`
+    /// (applied alongside this context on every query) is what suppresses
+    /// that one, returning `errSecInteractionNotAllowed` so the stale-ACL
+    /// case can be handled in code.
     private func nonInteractiveContext() -> LAContext {
         let context = LAContext()
         context.interactionNotAllowed = true
@@ -31,54 +32,56 @@ public actor SecureItemStore {
         _ data: Data,
         to item: SecureItem,
         accessibility: SecureAccessibility,
-        gate: BiometricGate
-    ) async throws {
-        try await authenticateIfNeeded(for: gate)
+        gate: BiometricGate) async throws
+    {
+        try await self.authenticateIfNeeded(for: gate)
 
-        let silent = nonInteractiveContext()
+        let silent = self.nonInteractiveContext()
         var addQuery: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: item.service,
             kSecAttrAccount: item.account,
             kSecValueData: data,
-            kSecUseAuthenticationContext: silent
+            kSecUseAuthenticationContext: silent,
+            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
-        try apply(accessibility, to: &addQuery)
+        try self.apply(accessibility, to: &addQuery)
 
         let searchQuery: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: item.service,
             kSecAttrAccount: item.account,
             kSecMatchLimit: kSecMatchLimitOne,
-            kSecUseAuthenticationContext: silent
+            kSecUseAuthenticationContext: silent,
+            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
 
         var unused: AnyObject?
         let searchStatus = SecItemCopyMatching(searchQuery as CFDictionary, &unused)
 
         if searchStatus == errSecItemNotFound {
-            try performAdd(addQuery, label: "add")
+            try self.performAdd(addQuery, label: "add")
             return
         }
 
         if searchStatus != errSecSuccess {
-            logger.debug("keychain \("write-check", privacy: .public) status=\(searchStatus, privacy: .public)")
+            self.logger.debug("keychain \("write-check", privacy: .public) status=\(searchStatus, privacy: .public)")
             throw Self.mapStatus(searchStatus)
         }
 
         var updateAttrs: [CFString: Any] = [kSecValueData: data]
         try apply(accessibility, to: &updateAttrs)
         let updateStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttrs as CFDictionary)
-        logger.debug("keychain \("update", privacy: .public) status=\(updateStatus, privacy: .public)")
+        self.logger.debug("keychain \("update", privacy: .public) status=\(updateStatus, privacy: .public)")
         switch updateStatus {
         case errSecSuccess:
             return
         case errSecAuthFailed, errSecInteractionNotAllowed:
-            try evictOrphan(matching: searchQuery)
-            try performAdd(addQuery, label: "add-after-evict")
+            try self.evictOrphan(matching: searchQuery)
+            try self.performAdd(addQuery, label: "add-after-evict")
         case errSecParam:
-            try clearOrEvict(matching: searchQuery)
-            try performAdd(addQuery, label: "add-after-delete")
+            try self.clearOrEvict(matching: searchQuery)
+            try self.performAdd(addQuery, label: "add-after-delete")
         default:
             throw Self.mapStatus(updateStatus)
         }
@@ -86,7 +89,7 @@ public actor SecureItemStore {
 
     private func performAdd(_ query: [CFString: Any], label: StaticString) throws {
         let status = SecItemAdd(query as CFDictionary, nil)
-        logger.debug("keychain \(label, privacy: .public) status=\(status, privacy: .public)")
+        self.logger.debug("keychain \(label, privacy: .public) status=\(status, privacy: .public)")
         if status != errSecSuccess { throw Self.mapStatus(status) }
     }
 
@@ -94,7 +97,7 @@ public actor SecureItemStore {
         let status = SecItemDelete(searchQuery as CFDictionary)
         if status == errSecSuccess || status == errSecItemNotFound { return }
         if Self.isOrphanStatus(status) {
-            try evictOrphan(matching: searchQuery)
+            try self.evictOrphan(matching: searchQuery)
             return
         }
         throw Self.mapStatus(status)
@@ -102,7 +105,7 @@ public actor SecureItemStore {
 
     public func read(_ item: SecureItem, prompt: String? = nil) async throws -> Data {
         if let prompt {
-            try await authenticate(reason: prompt)
+            try await self.authenticate(reason: prompt)
         }
 
         let query: [CFString: Any] = [
@@ -111,12 +114,13 @@ public actor SecureItemStore {
             kSecAttrAccount: item.account,
             kSecReturnData: true,
             kSecMatchLimit: kSecMatchLimitOne,
-            kSecUseAuthenticationContext: nonInteractiveContext()
+            kSecUseAuthenticationContext: self.nonInteractiveContext(),
+            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        logger.debug("keychain \("read", privacy: .public) status=\(status, privacy: .public)")
+        self.logger.debug("keychain \("read", privacy: .public) status=\(status, privacy: .public)")
 
         guard status == errSecSuccess else {
             throw Self.mapStatus(status)
@@ -132,16 +136,17 @@ public actor SecureItemStore {
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: item.service,
             kSecAttrAccount: item.account,
-            kSecUseAuthenticationContext: nonInteractiveContext()
+            kSecUseAuthenticationContext: self.nonInteractiveContext(),
+            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
 
         let status = SecItemDelete(query as CFDictionary)
-        logger.debug("keychain \("delete", privacy: .public) status=\(status, privacy: .public)")
+        self.logger.debug("keychain \("delete", privacy: .public) status=\(status, privacy: .public)")
 
         if status == errSecSuccess || status == errSecItemNotFound { return }
 
         if Self.isOrphanStatus(status) {
-            try evictOrphan(matching: query)
+            try self.evictOrphan(matching: query)
             return
         }
 
@@ -154,7 +159,8 @@ public actor SecureItemStore {
             kSecAttrService: item.service,
             kSecAttrAccount: item.account,
             kSecMatchLimit: kSecMatchLimitOne,
-            kSecUseAuthenticationContext: nonInteractiveContext()
+            kSecUseAuthenticationContext: self.nonInteractiveContext(),
+            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
 
         let status = SecItemCopyMatching(query as CFDictionary, nil)
@@ -170,10 +176,10 @@ public actor SecureItemStore {
         let suffix = "orphan.\(UUID().uuidString)"
         let originalAccount = (searchQuery[kSecAttrAccount] as? String) ?? ""
         let rename: [CFString: Any] = [
-            kSecAttrAccount: "\(originalAccount).\(suffix)"
+            kSecAttrAccount: "\(originalAccount).\(suffix)",
         ]
         let status = SecItemUpdate(searchQuery as CFDictionary, rename as CFDictionary)
-        logger.debug("keychain \("evict-orphan", privacy: .public) status=\(status, privacy: .public)")
+        self.logger.debug("keychain \("evict-orphan", privacy: .public) status=\(status, privacy: .public)")
         if status == errSecSuccess || status == errSecItemNotFound { return }
 
         let deleteStatus = SecItemDelete(searchQuery as CFDictionary)
@@ -197,7 +203,7 @@ public actor SecureItemStore {
 
     private func authenticateIfNeeded(for gate: BiometricGate) async throws {
         guard gate.requiresUserPresence else { return }
-        try await authenticate(reason: gate.localizedPrompt)
+        try await self.authenticate(reason: gate.localizedPrompt)
     }
 
     /// Run a Touch ID / Mac password prompt and throw a typed
@@ -234,19 +240,19 @@ public actor SecureItemStore {
     private static func mapLAError(_ error: LAError) -> KeychainError {
         switch error.code {
         case .userCancel, .systemCancel, .appCancel:
-            return .userCanceled
+            .userCanceled
         case .userFallback:
-            return .userCanceled
+            .userCanceled
         case .biometryLockout:
-            return .biometryLockout
+            .biometryLockout
         case .biometryNotAvailable:
-            return .biometryNotAvailable
+            .biometryNotAvailable
         case .biometryNotEnrolled:
-            return .biometryNotEnrolled
+            .biometryNotEnrolled
         case .authenticationFailed, .invalidContext:
-            return .biometricFailed
+            .biometricFailed
         default:
-            return .biometricFailed
+            .biometricFailed
         }
     }
 }

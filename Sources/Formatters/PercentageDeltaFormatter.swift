@@ -16,7 +16,7 @@ public struct PercentageDeltaFormatter: Sendable {
         if delta == 0.0 { return "0.00%" }
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.locale = locale
+        formatter.locale = self.locale
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         let absFormatted = formatter.string(from: NSNumber(value: abs(delta)))
@@ -34,7 +34,7 @@ public struct PercentageDeltaFormatter: Sendable {
         let digits = abs > 100 ? 0 : 2
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.locale = locale
+        formatter.locale = self.locale
         formatter.minimumFractionDigits = digits
         formatter.maximumFractionDigits = digits
         let body = formatter.string(from: NSNumber(value: abs))

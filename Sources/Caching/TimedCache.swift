@@ -1,7 +1,7 @@
-// Signature matches the specification. Internally uses a nowProvider closure to
-// type-erase Clock.Instant, enabling any Clock<Duration> parameter without
-// existential Instant arithmetic. The private makeNowProvider helper is opened
-// at call-site via implicit existential opening (SE-0352, Swift 5.7+).
+/// Signature matches the specification. Internally uses a nowProvider closure to
+/// type-erase Clock.Instant, enabling any Clock<Duration> parameter without
+/// existential Instant arithmetic. The private makeNowProvider helper is opened
+/// at call-site via implicit existential opening (SE-0352, Swift 5.7+).
 public actor TimedCache<Key: Hashable & Sendable, Value: Sendable> {
     private struct Entry {
         let value: Value
@@ -20,43 +20,43 @@ public actor TimedCache<Key: Hashable & Sendable, Value: Sendable> {
         self.nowProvider = Self.makeNowProvider(clock)
     }
 
-    // Opens the any Clock<Duration> existential to capture a concrete epoch and
-    // compute a monotonically increasing Duration offset on each call.
+    /// Opens the any Clock<Duration> existential to capture a concrete epoch and
+    /// compute a monotonically increasing Duration offset on each call.
     private static func makeNowProvider<C: Clock>(
-        _ clock: C
-    ) -> @Sendable () -> Duration where C.Duration == Duration {
+        _ clock: C) -> @Sendable () -> Duration where C.Duration == Duration
+    {
         let epoch = clock.now
         return { epoch.duration(to: clock.now) }
     }
 
     public func read(_ key: Key) -> CacheRead<Value> {
         guard var entry = entries[key] else { return .miss }
-        let now = nowProvider()
+        let now = self.nowProvider()
         entry.lastAccessedAt = now
-        entries[key] = entry
+        self.entries[key] = entry
         return now <= entry.expiresAt ? .fresh(entry.value) : .stale(entry.value)
     }
 
     public func write(_ value: Value, for key: Key) {
-        let now = nowProvider()
-        entries[key] = Entry(value: value, expiresAt: now + ttl, lastAccessedAt: now)
-        if entries.count > capacity {
-            evictLRU()
+        let now = self.nowProvider()
+        self.entries[key] = Entry(value: value, expiresAt: now + self.ttl, lastAccessedAt: now)
+        if self.entries.count > self.capacity {
+            self.evictLRU()
         }
     }
 
     public func invalidate(_ key: Key) {
-        entries.removeValue(forKey: key)
+        self.entries.removeValue(forKey: key)
     }
 
     public func invalidateAll() {
-        entries.removeAll()
+        self.entries.removeAll()
     }
 
     private func evictLRU() {
         guard let victim = entries.min(by: {
             $0.value.lastAccessedAt < $1.value.lastAccessedAt
         })?.key else { return }
-        entries.removeValue(forKey: victim)
+        self.entries.removeValue(forKey: victim)
     }
 }

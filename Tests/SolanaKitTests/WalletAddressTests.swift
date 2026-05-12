@@ -9,20 +9,20 @@ final class WalletAddressTests: XCTestCase {
 
     func testValid32ByteAddressIsAccepted() throws {
         let address = try WalletAddress(base58: usdcMint)
-        XCTAssertEqual(address.base58, usdcMint)
-        XCTAssertEqual(address.description, usdcMint)
+        XCTAssertEqual(address.base58, self.usdcMint)
+        XCTAssertEqual(address.description, self.usdcMint)
     }
 
     func testValidAddressWithLeadingOnes() throws {
         // The system program address decodes to 32 zero bytes — exercises the
         // leading-zero path of the Base58 decoder.
         let address = try WalletAddress(base58: systemProgram)
-        XCTAssertEqual(address.base58, systemProgram)
+        XCTAssertEqual(address.base58, self.systemProgram)
     }
 
     func testValidWrappedSolAddress() throws {
         let address = try WalletAddress(base58: wrappedSol)
-        XCTAssertEqual(address.base58, wrappedSol)
+        XCTAssertEqual(address.base58, self.wrappedSol)
     }
 
     func testRejects31BytePayload() {
@@ -31,7 +31,7 @@ final class WalletAddressTests: XCTestCase {
         let encoded = Base58.encode(bytes)
         XCTAssertEqual(try Base58.decode(encoded).count, 31)
         XCTAssertThrowsError(try WalletAddress(base58: encoded)) { error in
-            assertInvalidInput(error)
+            self.assertInvalidInput(error)
         }
     }
 
@@ -40,29 +40,31 @@ final class WalletAddressTests: XCTestCase {
         let encoded = Base58.encode(bytes)
         XCTAssertEqual(try Base58.decode(encoded).count, 33)
         XCTAssertThrowsError(try WalletAddress(base58: encoded)) { error in
-            assertInvalidInput(error)
+            self.assertInvalidInput(error)
         }
     }
 
     func testRejectsInvalidAlphabetCharacters() {
         // The Bitcoin base58 alphabet omits '0', 'O', 'I', and 'l'.
         let invalidSamples = [
-            "0PjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",   // '0'
-            "OPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",   // 'O'
-            "IPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",   // 'I'
-            "lPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",   // 'l'
+            "0PjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // '0'
+            "OPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // 'O'
+            "IPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // 'I'
+            "lPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // 'l'
         ]
         for sample in invalidSamples {
-            XCTAssertThrowsError(try WalletAddress(base58: sample),
-                                 "Expected rejection of '\(sample)'") { error in
-                assertInvalidInput(error)
+            XCTAssertThrowsError(
+                try WalletAddress(base58: sample),
+                "Expected rejection of '\(sample)'")
+            { error in
+                self.assertInvalidInput(error)
             }
         }
     }
 
     func testRejectsEmptyString() {
         XCTAssertThrowsError(try WalletAddress(base58: "")) { error in
-            assertInvalidInput(error)
+            self.assertInvalidInput(error)
         }
     }
 
@@ -99,9 +101,11 @@ final class WalletAddressTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func assertInvalidInput(_ error: any Error,
-                                    file: StaticString = #filePath,
-                                    line: UInt = #line) {
+    private func assertInvalidInput(
+        _ error: any Error,
+        file: StaticString = #filePath,
+        line: UInt = #line)
+    {
         guard let providerError = error as? SolanaProviderError else {
             XCTFail("Expected SolanaProviderError, got \(error)", file: file, line: line)
             return

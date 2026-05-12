@@ -24,8 +24,8 @@ public struct WalletOverview: Hashable, Sendable, Codable {
         totalUSD: Decimal?,
         totalChange24h: Double?,
         asOf: Date,
-        isPartial: Bool
-    ) {
+        isPartial: Bool)
+    {
         self.walletId = walletId
         self.address = address
         self.solBalance = solBalance

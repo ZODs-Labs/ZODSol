@@ -21,7 +21,7 @@ public struct JupiterPriceProvider: PriceProvider, Sendable {
         guard !mints.isEmpty else { return [:] }
         var out: [Mint: PriceQuote] = [:]
         for chunk in mints.chunked(into: 50) {
-            let mintStrings = chunk.map { $0.base58 }
+            let mintStrings = chunk.map(\.base58)
             guard let resp = await client.fetchPrices(mints: mintStrings) else { continue }
             for mint in chunk {
                 guard let entry = resp.entries[mint.base58] else { continue }
@@ -39,10 +39,10 @@ public struct JupiterPriceProvider: PriceProvider, Sendable {
     }
 }
 
-private extension Array {
-    func chunked(into size: Int) -> [[Element]] {
+extension Array {
+    fileprivate func chunked(into size: Int) -> [[Element]] {
         stride(from: 0, to: count, by: size).map {
-            Array(self[$0 ..< Swift.min($0 + size, count)])
+            Array(self[$0..<Swift.min($0 + size, count)])
         }
     }
 }

@@ -1,5 +1,5 @@
-import XCTest
 import SolanaKit
+import XCTest
 @testable import Formatters
 
 final class AccessibilityTests: XCTestCase {
@@ -8,18 +8,18 @@ final class AccessibilityTests: XCTestCase {
 
     // MARK: - CurrencyFormatter
 
-    func testCurrencyAccessibilityContainsSpelledOutDollars_enUS() {
+    func testCurrencyAccessibilityContainsSpelledOutDollars_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        let description = f.accessibilityDescription(usd: Decimal(string: "1234.56")!)
+        let description = try f.accessibilityDescription(usd: XCTUnwrap(Decimal(string: "1234.56")))
         let lower = description.lowercased()
         XCTAssertTrue(lower.contains("one thousand"), "expected 'one thousand' in: \(description)")
         XCTAssertTrue(lower.contains("dollars"), "expected 'dollars' in: \(description)")
         XCTAssertTrue(lower.contains("cents"), "expected 'cents' in: \(description)")
     }
 
-    func testCurrencyAccessibilityIncludesCentsForOddRemainders_enUS() {
+    func testCurrencyAccessibilityIncludesCentsForOddRemainders_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        let description = f.accessibilityDescription(usd: Decimal(string: "1234.56")!).lowercased()
+        let description = try f.accessibilityDescription(usd: XCTUnwrap(Decimal(string: "1234.56"))).lowercased()
         // 56 → "fifty-six" (with a hyphen).
         XCTAssertTrue(description.contains("fifty-six"), "expected 'fifty-six' in: \(description)")
     }
@@ -33,9 +33,9 @@ final class AccessibilityTests: XCTestCase {
         XCTAssertFalse(description.contains("cents"))
     }
 
-    func testCurrencyAccessibilityNegativePrefixed_enUS() {
+    func testCurrencyAccessibilityNegativePrefixed_enUS() throws {
         let f = CurrencyFormatter(locale: enUS)
-        let description = f.accessibilityDescription(usd: Decimal(string: "-1.23")!).lowercased()
+        let description = try f.accessibilityDescription(usd: XCTUnwrap(Decimal(string: "-1.23"))).lowercased()
         XCTAssertTrue(description.hasPrefix("negative "), "expected 'negative ' prefix in: \(description)")
         XCTAssertTrue(description.contains("twenty-three"))
     }
@@ -48,7 +48,7 @@ final class AccessibilityTests: XCTestCase {
         let description = f.accessibilityDescription(amount, symbol: "SOL")
         XCTAssertEqual(description, "0.000000001 SOL")
         // Guarantee no subscript characters leaked in.
-        let hasSubscript = description.unicodeScalars.contains { (0x2080 ... 0x2089).contains($0.value) }
+        let hasSubscript = description.unicodeScalars.contains { (0x2080...0x2089).contains($0.value) }
         XCTAssertFalse(hasSubscript, "subscript glyph must NOT appear in accessibility description")
     }
 
@@ -122,7 +122,7 @@ final class AccessibilityTests: XCTestCase {
         // NumberFormatter (.decimal, en_US) renders negative integers with ASCII
         // hyphen-minus. Accessibility text need not enforce U+2212.
         let f = CompactNumberFormatter(locale: enUS)
-        let description = f.accessibilityDescription(-12_345)
+        let description = f.accessibilityDescription(-12345)
         // We assert on substring presence rather than the exact minus glyph to remain
         // tolerant of OS-version differences in negative-number rendering.
         XCTAssertTrue(description.contains("12,345"))

@@ -35,7 +35,6 @@ private func makeAddress() -> WalletAddress {
 }
 
 final class RecentRecipientsStoreTests: XCTestCase {
-
     func testRecordThenListReturnsRecipient() async {
         let fixture = makeFixture()
         defer { cleanup(fixture) }
@@ -73,7 +72,7 @@ final class RecentRecipientsStoreTests: XCTestCase {
         let walletId = UUID()
         let base = Date(timeIntervalSince1970: 1_000_000)
         var addresses: [WalletAddress] = []
-        for index in 0 ..< 12 {
+        for index in 0..<12 {
             let addr = makeAddress()
             addresses.append(addr)
             await store.record(addr, walletId: walletId, at: base.addingTimeInterval(Double(index)))
@@ -172,8 +171,7 @@ final class RecentRecipientsStoreTests: XCTestCase {
         let list = await store.list(walletId: walletId)
         XCTAssertEqual(
             list.map(\.address.base58),
-            [addrB.base58, addrC.base58, addrA.base58]
-        )
+            [addrB.base58, addrC.base58, addrA.base58])
     }
 
     func testGlobalCap50() async {
@@ -183,10 +181,10 @@ final class RecentRecipientsStoreTests: XCTestCase {
         let base = Date(timeIntervalSince1970: 1_000_000)
         // Spread 60 records across 10 wallets, 6 each - per-wallet cap (10)
         // does not bite, so the global cap (50) is the only thing trimming.
-        let walletIds = (0 ..< 10).map { _ in UUID() }
+        let walletIds = (0..<10).map { _ in UUID() }
         var counter = 0
         for walletId in walletIds {
-            for _ in 0 ..< 6 {
+            for _ in 0..<6 {
                 let when = base.addingTimeInterval(Double(counter))
                 await store.record(makeAddress(), walletId: walletId, at: when)
                 counter += 1

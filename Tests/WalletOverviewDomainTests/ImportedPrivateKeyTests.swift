@@ -1,9 +1,9 @@
 import CryptoKit
+import SolanaKit
 import XCTest
 @testable import WalletOverviewDomain
 
 final class ImportedPrivateKeyTests: XCTestCase {
-
     func testParseValidBase58Succeeds() throws {
         let material = makeTestPrivateKey()
         let imported = try ImportedPrivateKey.parse(material.base58Key)

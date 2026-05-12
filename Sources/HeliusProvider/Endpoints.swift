@@ -5,11 +5,10 @@ public struct HeliusEndpoint: Sendable {
     public let rpcURL: URL
 
     public init(network: SolanaNetwork, apiKey: String) {
-        let host: String
-        switch network {
-        case .mainnet: host = "mainnet.helius-rpc.com"
-        case .devnet:  host = "devnet.helius-rpc.com"
-        case .testnet: host = "api.testnet.solana.com"
+        let host = switch network {
+        case .mainnet: "mainnet.helius-rpc.com"
+        case .devnet: "devnet.helius-rpc.com"
+        case .testnet: "api.testnet.solana.com"
         }
         var c = URLComponents()
         c.scheme = "https"

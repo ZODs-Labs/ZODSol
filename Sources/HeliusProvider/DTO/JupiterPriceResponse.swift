@@ -1,6 +1,6 @@
 import Foundation
 
-struct JupiterPriceResponse: Decodable, Sendable {
+struct JupiterPriceResponse: Decodable {
     let entries: [String: JupiterPrice]
 
     init(from decoder: any Decoder) throws {
@@ -13,7 +13,7 @@ struct JupiterPriceResponse: Decodable, Sendable {
     }
 }
 
-struct JupiterPrice: Decodable, Sendable {
+struct JupiterPrice: Decodable {
     let usdPrice: Decimal?
     let blockId: UInt64?
     let decimals: UInt8?

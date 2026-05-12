@@ -11,9 +11,8 @@ import XCTest
 @testable import KeychainKit
 
 final class SecureItemStoreTests: XCTestCase {
-
     func testPlainRoundTrip() async throws {
-        try requireKeychainTestsEnabled()
+        try self.requireKeychainTestsEnabled()
         let service = "dev.zods.zodsol.test.\(UUID().uuidString)"
         let store = SecureItemStore(service: service)
         let item = SecureItem(service: service, account: "roundtrip")
@@ -29,7 +28,7 @@ final class SecureItemStoreTests: XCTestCase {
     }
 
     func testUpdateOnDoubleWrite() async throws {
-        try requireKeychainTestsEnabled()
+        try self.requireKeychainTestsEnabled()
         let service = "dev.zods.zodsol.test.\(UUID().uuidString)"
         let store = SecureItemStore(service: service)
         let item = SecureItem(service: service, account: "update")
@@ -45,7 +44,7 @@ final class SecureItemStoreTests: XCTestCase {
     }
 
     func testDeleteNonExistentIsIdempotent() async throws {
-        try requireKeychainTestsEnabled()
+        try self.requireKeychainTestsEnabled()
         let service = "dev.zods.zodsol.test.\(UUID().uuidString)"
         let store = SecureItemStore(service: service)
         let item = SecureItem(service: service, account: "ghost")
@@ -53,7 +52,7 @@ final class SecureItemStoreTests: XCTestCase {
     }
 
     func testContainsReturnsFalseForMissing() async throws {
-        try requireKeychainTestsEnabled()
+        try self.requireKeychainTestsEnabled()
         let service = "dev.zods.zodsol.test.\(UUID().uuidString)"
         let store = SecureItemStore(service: service)
         let item = SecureItem(service: service, account: "missing")
@@ -62,11 +61,10 @@ final class SecureItemStoreTests: XCTestCase {
     }
 
     func testUserPresenceRoundTrip() async throws {
-        try requireKeychainTestsEnabled()
+        try self.requireKeychainTestsEnabled()
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["ZODSOL_KEYCHAIN_USER_PRESENCE_SMOKE"] != nil,
-            "Set ZODSOL_KEYCHAIN_USER_PRESENCE_SMOKE=1 to run user-presence round-trip locally"
-        )
+            "Set ZODSOL_KEYCHAIN_USER_PRESENCE_SMOKE=1 to run user-presence round-trip locally")
         let service = "dev.zods.zodsol.test.\(UUID().uuidString)"
         let store = SecureItemStore(service: service)
         let item = SecureItem(service: service, account: "userPresenceSmoke")
@@ -76,8 +74,7 @@ final class SecureItemStoreTests: XCTestCase {
             payload,
             to: item,
             accessibility: .whenUnlockedThisDeviceOnly,
-            gate: .userPresence(prompt: "Authorize to continue")
-        )
+            gate: .userPresence(prompt: "Authorize to continue"))
         let read = try await store.read(item, prompt: "Authorize to read")
         XCTAssertEqual(read, payload)
         try await store.delete(item)
@@ -86,7 +83,6 @@ final class SecureItemStoreTests: XCTestCase {
     private func requireKeychainTestsEnabled() throws {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["ZODSOL_KEYCHAIN_TEST"] != nil,
-            "Keychain tests require ZODSOL_KEYCHAIN_TEST=1"
-        )
+            "Keychain tests require ZODSOL_KEYCHAIN_TEST=1")
     }
 }

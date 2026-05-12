@@ -9,29 +9,29 @@ final class AnyJSONTests: XCTestCase {
     // MARK: - Per-case round trip
 
     func test_string_roundTrip() throws {
-        try assertRoundTrip(.string("hello"), expectedJSON: "\"hello\"")
+        try self.assertRoundTrip(.string("hello"), expectedJSON: "\"hello\"")
     }
 
     func test_number_roundTrip_integerPreserved() throws {
-        try assertRoundTrip(.number(Decimal(42)), expectedJSON: "42")
+        try self.assertRoundTrip(.number(Decimal(42)), expectedJSON: "42")
     }
 
     func test_number_roundTrip_largeUInt64Decimal() throws {
         // 18446744073709551615 is UInt64.max — Double would lose precision.
-        let decimal = Decimal(string: "18446744073709551615")!
+        let decimal = try XCTUnwrap(Decimal(string: "18446744073709551615"))
         try assertRoundTrip(.number(decimal), expectedJSON: "18446744073709551615")
     }
 
     func test_bool_true_roundTrip() throws {
-        try assertRoundTrip(.bool(true), expectedJSON: "true")
+        try self.assertRoundTrip(.bool(true), expectedJSON: "true")
     }
 
     func test_bool_false_roundTrip() throws {
-        try assertRoundTrip(.bool(false), expectedJSON: "false")
+        try self.assertRoundTrip(.bool(false), expectedJSON: "false")
     }
 
     func test_null_roundTrip() throws {
-        try assertRoundTrip(.null, expectedJSON: "null")
+        try self.assertRoundTrip(.null, expectedJSON: "null")
     }
 
     func test_array_nested_roundTrip() throws {
@@ -107,20 +107,21 @@ final class AnyJSONTests: XCTestCase {
         XCTAssertEqual(decoded, decodedAgain, "Helius-style payload must round-trip losslessly")
 
         // Spot checks on the decoded structure.
-        guard case .object(let root) = decoded else {
+        guard case let .object(root) = decoded else {
             XCTFail("expected object root")
             return
         }
         XCTAssertEqual(root["total"], .number(1))
         XCTAssertEqual(root["cursor"], .string("abc"))
-        guard case .array(let items) = root["items"] ?? .null,
-              case .object(let first) = items.first ?? .null else {
+        guard case let .array(items) = root["items"] ?? .null,
+              case let .object(first) = items.first ?? .null
+        else {
             XCTFail("expected items[0] to be an object")
             return
         }
         XCTAssertEqual(first["id"], .string("asset-1"))
         XCTAssertEqual(first["burnt"], .bool(false))
-        guard case .object(let ownership) = first["ownership"] ?? .null else {
+        guard case let .object(ownership) = first["ownership"] ?? .null else {
             XCTFail("expected ownership object")
             return
         }
@@ -130,7 +131,12 @@ final class AnyJSONTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func assertRoundTrip(_ value: AnyJSON, expectedJSON: String, file: StaticString = #filePath, line: UInt = #line) throws {
+    private func assertRoundTrip(
+        _ value: AnyJSON,
+        expectedJSON: String,
+        file: StaticString = #filePath,
+        line: UInt = #line) throws
+    {
         let data = try encoder.encode(value)
         let json = try XCTUnwrap(String(data: data, encoding: .utf8), file: file, line: line)
         XCTAssertEqual(json, expectedJSON, file: file, line: line)

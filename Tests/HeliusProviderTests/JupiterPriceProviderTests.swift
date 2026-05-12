@@ -1,9 +1,8 @@
-import XCTest
 import SolanaKit
+import XCTest
 @testable import HeliusProvider
 
 final class JupiterPriceProviderTests: XCTestCase {
-
     override func setUp() {
         super.setUp()
         MockURLProtocol.reset()
@@ -27,7 +26,7 @@ final class JupiterPriceProviderTests: XCTestCase {
             throw URLError(.unknown)
         }
 
-        let provider = makeProvider()
+        let provider = self.makeProvider()
         let result = try await provider.prices(for: [])
         XCTAssertTrue(result.isEmpty)
     }
@@ -39,17 +38,16 @@ final class JupiterPriceProviderTests: XCTestCase {
                 url: JupiterEndpoint.priceV3,
                 statusCode: 200,
                 httpVersion: nil,
-                headerFields: nil
-            )!
+                headerFields: nil)!
             return (response, fixtureData)
         }
 
-        let mints = [
-            try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
-            try Mint(base58: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"),
-            try Mint(base58: "So11111111111111111111111111111111111111112"),
+        let mints = try [
+            Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
+            Mint(base58: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"),
+            Mint(base58: "So11111111111111111111111111111111111111112"),
         ]
-        let provider = makeProvider()
+        let provider = self.makeProvider()
         let result = try await provider.prices(for: mints)
 
         XCTAssertEqual(result.count, 3)
@@ -67,13 +65,12 @@ final class JupiterPriceProviderTests: XCTestCase {
                 url: JupiterEndpoint.priceV3,
                 statusCode: 429,
                 httpVersion: nil,
-                headerFields: nil
-            )!
+                headerFields: nil)!
             return (response, Data())
         }
 
         let mint = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-        let provider = makeProvider()
+        let provider = self.makeProvider()
         let result = try await provider.prices(for: [mint])
         XCTAssertTrue(result.isEmpty)
     }
@@ -84,7 +81,7 @@ final class JupiterPriceProviderTests: XCTestCase {
         }
 
         let mint = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-        let provider = makeProvider()
+        let provider = self.makeProvider()
         let result = try await provider.prices(for: [mint])
         XCTAssertTrue(result.isEmpty)
     }
@@ -96,14 +93,13 @@ final class JupiterPriceProviderTests: XCTestCase {
                 url: JupiterEndpoint.priceV3,
                 statusCode: 200,
                 httpVersion: nil,
-                headerFields: nil
-            )!
+                headerFields: nil)!
             return (response, fixtureData)
         }
 
         let baseMint = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
         let mints = Array(repeating: baseMint, count: 51)
-        let provider = makeProvider()
+        let provider = self.makeProvider()
         _ = try await provider.prices(for: mints)
 
         XCTAssertEqual(MockURLProtocol.requestLog.count, 2)
@@ -118,12 +114,11 @@ final class JupiterPriceProviderTests: XCTestCase {
                 url: JupiterEndpoint.priceV3,
                 statusCode: 200,
                 httpVersion: nil,
-                headerFields: nil
-            )!
+                headerFields: nil)!
             return (response, fixtureData)
         }
 
-        let provider = makeProvider()
+        let provider = self.makeProvider()
         let change = try await provider.solChange24h()
         XCTAssertEqual(change, 3.45)
     }
@@ -133,7 +128,7 @@ final class JupiterPriceProviderTests: XCTestCase {
             throw URLError(.notConnectedToInternet)
         }
 
-        let provider = makeProvider()
+        let provider = self.makeProvider()
         let change = try await provider.solChange24h()
         XCTAssertNil(change)
     }

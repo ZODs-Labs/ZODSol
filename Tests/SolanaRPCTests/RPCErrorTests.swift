@@ -21,12 +21,10 @@ final class RPCErrorTests: XCTestCase {
         XCTAssertEqual(RPCError.transport(.timedOut), RPCError.transport(.timedOut))
         XCTAssertEqual(
             RPCError.http(status: 500, retryAfter: nil),
-            RPCError.http(status: 500, retryAfter: nil)
-        )
+            RPCError.http(status: 500, retryAfter: nil))
         XCTAssertEqual(
             RPCError.http(status: 429, retryAfter: .seconds(2)),
-            RPCError.http(status: 429, retryAfter: .seconds(2))
-        )
+            RPCError.http(status: 429, retryAfter: .seconds(2)))
         let inner = JSONRPCError(code: -1, message: "boom", data: nil)
         XCTAssertEqual(RPCError.rpc(inner), RPCError.rpc(inner))
     }
@@ -37,8 +35,7 @@ final class RPCErrorTests: XCTestCase {
         XCTAssertNotEqual(RPCError.transport(.timedOut), RPCError.transport(.cannotFindHost))
         XCTAssertNotEqual(
             RPCError.http(status: 500, retryAfter: nil),
-            RPCError.http(status: 502, retryAfter: nil)
-        )
+            RPCError.http(status: 502, retryAfter: nil))
     }
 
     func test_http_withAndWithoutRetryAfter() {

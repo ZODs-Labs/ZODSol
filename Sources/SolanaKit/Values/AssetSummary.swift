@@ -22,8 +22,8 @@ public struct AssetSummary: Hashable, Sendable, Codable, Identifiable {
         usdValue: Decimal?,
         pricePerToken: Decimal?,
         priceChange24h: Double?,
-        tokenProgram: String?
-    ) {
+        tokenProgram: String?)
+    {
         self.id = id
         self.kind = kind
         self.symbol = symbol

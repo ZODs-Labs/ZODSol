@@ -2,7 +2,6 @@ import XCTest
 @testable import Caching
 
 final class TimedCacheTests: XCTestCase {
-
     // MARK: - Freshness
 
     func testFreshRead() async {

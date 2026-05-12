@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import SolanaKit
 @testable import WalletOverviewDomain
 
 struct TestKeyMaterial {
@@ -21,6 +22,5 @@ func makeTestPrivateKey() -> TestKeyMaterial {
         pubKey: Data(pub),
         secretKey64: key64,
         base58Key: Base58.encode(key64),
-        base58Address: Base58.encode(Data(pub))
-    )
+        base58Address: Base58.encode(Data(pub)))
 }

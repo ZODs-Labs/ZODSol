@@ -21,28 +21,28 @@ public enum KeychainError: Error, Sendable, Equatable {
 extension KeychainError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case .unhandledStatus(let status):
-            return "Keychain failed (\(Self.statusName(status))). \(Self.statusMessage(status))"
+        case let .unhandledStatus(status):
+            "Keychain failed (\(Self.statusName(status))). \(Self.statusMessage(status))"
         case .itemNotFound:
-            return "Item not found in Keychain."
+            "Item not found in Keychain."
         case .duplicateItem:
-            return "An item with this account already exists in Keychain."
+            "An item with this account already exists in Keychain."
         case .interactionRequired:
-            return "Keychain needs user interaction but it is not allowed in this context."
+            "Keychain needs user interaction but it is not allowed in this context."
         case .biometricFailed:
-            return "Authentication did not succeed. Try again."
+            "Authentication did not succeed. Try again."
         case .userCanceled:
-            return "You cancelled the authentication prompt."
+            "You cancelled the authentication prompt."
         case .biometryNotAvailable:
-            return "Local authentication is not available on this Mac."
+            "Local authentication is not available on this Mac."
         case .biometryLockout:
-            return "Authentication is temporarily locked. Use your Mac password, then try again."
+            "Authentication is temporarily locked. Use your Mac password, then try again."
         case .biometryNotEnrolled:
-            return "No Touch ID fingerprints are enrolled in System Settings."
+            "No Touch ID fingerprints are enrolled in System Settings."
         case .dataDecodingFailed:
-            return "Stored Keychain value could not be decoded."
-        case .missingEntitlement(let status):
-            return """
+            "Stored Keychain value could not be decoded."
+        case let .missingEntitlement(status):
+            """
             This build asked Keychain for an entitlement-gated operation (\(Self.statusName(status))). \
             Rebuild with the standard macOS Keychain path for Homebrew, or provide matching signing entitlements.
             """
@@ -52,15 +52,15 @@ extension KeychainError: LocalizedError {
     public var recoverySuggestion: String? {
         switch self {
         case .biometryLockout:
-            return "Use your Mac password in the system authentication prompt, then retry."
+            "Use your Mac password in the system authentication prompt, then retry."
         case .biometryNotEnrolled:
-            return "Open System Settings → Touch ID & Password to enroll a fingerprint."
+            "Open System Settings → Touch ID & Password to enroll a fingerprint."
         case .biometryNotAvailable:
-            return "This action needs local authentication. Set a Mac login password, or change the access policy."
+            "This action needs local authentication. Set a Mac login password, or change the access policy."
         case .missingEntitlement:
-            return "Use the default Homebrew packaging path, or enable sandbox only with a matching signing identity."
+            "Use the default Homebrew packaging path, or enable sandbox only with a matching signing identity."
         default:
-            return nil
+            nil
         }
     }
 
@@ -77,16 +77,16 @@ extension KeychainError: LocalizedError {
     private static func statusMessage(_ status: OSStatus) -> String {
         switch status {
         case -34018:
-            return """
+            """
             errSecMissingEntitlement - the binary requested a Keychain mode that needs entitlements not present \
             in the current code signature.
             """
-        case -50:    return "errSecParam — invalid parameters passed to the Keychain API."
-        case -25291: return "errSecNotAvailable — Keychain is not available right now."
-        case -25299: return "errSecDuplicateItem — an item with this account already exists."
-        case -25300: return "errSecItemNotFound."
-        case -25308: return "errSecInteractionNotAllowed — the process cannot interact with the user."
-        default:     return "Unmapped Keychain status."
+        case -50: "errSecParam — invalid parameters passed to the Keychain API."
+        case -25291: "errSecNotAvailable — Keychain is not available right now."
+        case -25299: "errSecDuplicateItem — an item with this account already exists."
+        case -25300: "errSecItemNotFound."
+        case -25308: "errSecInteractionNotAllowed — the process cannot interact with the user."
+        default: "Unmapped Keychain status."
         }
     }
 }

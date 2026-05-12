@@ -1,5 +1,5 @@
-import XCTest
 import SolanaKit
+import XCTest
 @testable import Formatters
 
 final class TokenAmountFormatterTests: XCTestCase {
@@ -31,17 +31,17 @@ final class TokenAmountFormatterTests: XCTestCase {
         XCTAssertEqual(f.string(amount, symbol: "SOL"), "1 SOL")
     }
 
-    func testLargeAmountUsesGroupingAndTwoFractionDigits_enUS() {
+    func testLargeAmountUsesGroupingAndTwoFractionDigits_enUS() throws {
         let f = TokenAmountFormatter(locale: enUS)
         // 1_234_567_890 / 10^6 = 1234.56789 → rounds to 2 frac digits.
         let amount = TokenAmount(amount: 1_234_567_890, decimals: 6)
         let reference = NumberFormatter()
         reference.numberStyle = .decimal
-        reference.locale = enUS
+        reference.locale = self.enUS
         reference.minimumFractionDigits = 0
         reference.maximumFractionDigits = 2
         reference.usesGroupingSeparator = true
-        let body = reference.string(from: NSDecimalNumber(decimal: amount.uiAmount))!
+        let body = try XCTUnwrap(reference.string(from: NSDecimalNumber(decimal: amount.uiAmount)))
         XCTAssertEqual(f.string(amount, symbol: "USDC"), "\(body) USDC")
         XCTAssertTrue(body.contains(","), "expected grouping separator in \(body)")
     }
@@ -78,7 +78,7 @@ final class TokenAmountFormatterTests: XCTestCase {
         let result = f.string(amount, symbol: "SYM")
         XCTAssertEqual(result, "0.0\u{2084}1234 SYM")
         // Sanity: there is exactly one subscript-digit character (₄).
-        let subscriptChars = result.unicodeScalars.filter { (0x2080 ... 0x2089).contains($0.value) }
+        let subscriptChars = result.unicodeScalars.filter { (0x2080...0x2089).contains($0.value) }
         XCTAssertEqual(subscriptChars.count, 1)
         XCTAssertEqual(subscriptChars.first?.value, 0x2084)
     }
@@ -100,17 +100,17 @@ final class TokenAmountFormatterTests: XCTestCase {
 
     // MARK: - Locale awareness
 
-    func testDeDEUsesCommaDecimalSeparator_aboveOne() {
+    func testDeDEUsesCommaDecimalSeparator_aboveOne() throws {
         let f = TokenAmountFormatter(locale: deDE)
         let amount = TokenAmount(amount: 1_234_567_890, decimals: 6)
         // Verify via reference NumberFormatter to avoid baking in fragile separators.
         let reference = NumberFormatter()
         reference.numberStyle = .decimal
-        reference.locale = deDE
+        reference.locale = self.deDE
         reference.minimumFractionDigits = 0
         reference.maximumFractionDigits = 2
         reference.usesGroupingSeparator = true
-        let expectedBody = reference.string(from: NSDecimalNumber(decimal: amount.uiAmount))!
+        let expectedBody = try XCTUnwrap(reference.string(from: NSDecimalNumber(decimal: amount.uiAmount)))
         XCTAssertEqual(f.string(amount, symbol: "USDC"), "\(expectedBody) USDC")
     }
 
@@ -121,17 +121,17 @@ final class TokenAmountFormatterTests: XCTestCase {
         XCTAssertEqual(f.string(amount, symbol: "SOL"), "0,0\u{2088}1 SOL")
     }
 
-    func testTrTRSubOneBranchConsistentWithReference() {
+    func testTrTRSubOneBranchConsistentWithReference() throws {
         let f = TokenAmountFormatter(locale: trTR)
         // 1234 / 10^6 = 0.001234 — 4 sig digits via reference formatter.
         let amount = TokenAmount(amount: 1234, decimals: 6)
         let reference = NumberFormatter()
         reference.numberStyle = .decimal
-        reference.locale = trTR
+        reference.locale = self.trTR
         reference.usesSignificantDigits = true
         reference.minimumSignificantDigits = 1
         reference.maximumSignificantDigits = 4
-        let expectedBody = reference.string(from: NSDecimalNumber(decimal: amount.uiAmount))!
+        let expectedBody = try XCTUnwrap(reference.string(from: NSDecimalNumber(decimal: amount.uiAmount)))
         XCTAssertEqual(f.string(amount, symbol: "USDC"), "\(expectedBody) USDC")
     }
 }

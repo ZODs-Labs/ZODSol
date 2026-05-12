@@ -11,14 +11,13 @@ public struct CurrencyFormatter: Sendable {
         let f = NumberFormatter()
         f.numberStyle = .currency
         f.currencyCode = "USD"
-        f.locale = locale
+        f.locale = self.locale
         f.minimumFractionDigits = 2
         f.maximumFractionDigits = 2
         f.usesGroupingSeparator = true
         let result = f.string(from: usd as NSDecimalNumber) ?? "\(usd)"
         if usd < 0 {
-            let cleaned = result.replacingOccurrences(of: "-", with: "\u{2212}")
-            return cleaned
+            return result.replacingOccurrences(of: "-", with: "\u{2212}")
         }
         return result
     }
@@ -32,7 +31,7 @@ public struct CurrencyFormatter: Sendable {
             let f = NumberFormatter()
             f.numberStyle = .currency
             f.currencyCode = "USD"
-            f.locale = locale
+            f.locale = self.locale
             f.minimumFractionDigits = fraction
             f.maximumFractionDigits = fraction
             f.usesGroupingSeparator = true
@@ -46,13 +45,13 @@ public struct CurrencyFormatter: Sendable {
         if absValue >= 1_000_000 {
             return format(absValue / 1_000_000, fraction: 2, suffix: "M")
         }
-        if absValue >= 10_000 {
-            return format(absValue / 1_000, fraction: 2, suffix: "K")
+        if absValue >= 10000 {
+            return format(absValue / 1000, fraction: 2, suffix: "K")
         }
         if isNegative {
-            return "\u{2212}\(string(usd: absValue))"
+            return "\u{2212}\(self.string(usd: absValue))"
         }
-        return string(usd: usd)
+        return self.string(usd: usd)
     }
 
     /// Portfolio-row USD value. Sub-$1K renders as canonical two-decimal currency
@@ -66,7 +65,7 @@ public struct CurrencyFormatter: Sendable {
             let f = NumberFormatter()
             f.numberStyle = .currency
             f.currencyCode = "USD"
-            f.locale = locale
+            f.locale = self.locale
             f.minimumFractionDigits = 0
             f.maximumFractionDigits = fraction
             f.usesGroupingSeparator = true
@@ -80,10 +79,10 @@ public struct CurrencyFormatter: Sendable {
         if absValue >= 1_000_000 {
             return format(absValue / 1_000_000, fraction: 2, suffix: "M")
         }
-        if absValue >= 1_000 {
-            return format(absValue / 1_000, fraction: 2, suffix: "K")
+        if absValue >= 1000 {
+            return format(absValue / 1000, fraction: 2, suffix: "K")
         }
-        return isNegative ? "\u{2212}\(string(usd: absValue))" : string(usd: usd)
+        return isNegative ? "\u{2212}\(self.string(usd: absValue))" : self.string(usd: usd)
     }
 
     /// Per-token spot price. Below 1¢ collapses to `<$0.01` (no scientific notation,
@@ -102,7 +101,7 @@ public struct CurrencyFormatter: Sendable {
         let f = NumberFormatter()
         f.numberStyle = .currency
         f.currencyCode = "USD"
-        f.locale = locale
+        f.locale = self.locale
         f.usesGroupingSeparator = true
         if absValue >= 1 {
             f.minimumFractionDigits = 2

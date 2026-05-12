@@ -2,16 +2,16 @@ import Foundation
 import XCTest
 @testable import Caching
 
-struct TestInstant: InstantProtocol, Sendable {
+struct TestInstant: InstantProtocol {
     typealias Duration = Swift.Duration
     let d: Duration
 
     func advanced(by duration: Duration) -> TestInstant {
-        TestInstant(d: d + duration)
+        TestInstant(d: self.d + duration)
     }
 
     func duration(to other: TestInstant) -> Duration {
-        other.d - d
+        other.d - self.d
     }
 
     static func < (lhs: TestInstant, rhs: TestInstant) -> Bool {
@@ -23,25 +23,25 @@ struct TestInstant: InstantProtocol, Sendable {
     }
 }
 
-// @unchecked is intentional: NSLock makes this thread-safe and Swift's Clock protocol prevents a clean actor-based Sendable conformance.
+/// @unchecked is intentional: NSLock makes this thread-safe and Swift's Clock protocol prevents a clean actor-based Sendable conformance.
 final class TestClockStorage: @unchecked Sendable {
     private let lock = NSLock()
     private var current: Duration = .zero
 
     var now: TestInstant {
-        lock.lock()
+        self.lock.lock()
         defer { lock.unlock() }
-        return TestInstant(d: current)
+        return TestInstant(d: self.current)
     }
 
     func advance(by delta: Duration) {
-        lock.lock()
+        self.lock.lock()
         defer { lock.unlock() }
-        current += delta
+        self.current += delta
     }
 }
 
-struct TestClock: Clock, Sendable {
+struct TestClock: Clock {
     typealias Duration = Swift.Duration
     typealias Instant = TestInstant
 
@@ -51,14 +51,19 @@ struct TestClock: Clock, Sendable {
         self.storage = TestClockStorage()
     }
 
-    var now: TestInstant { storage.now }
-    var minimumResolution: Duration { .nanoseconds(1) }
+    var now: TestInstant {
+        self.storage.now
+    }
+
+    var minimumResolution: Duration {
+        .nanoseconds(1)
+    }
 
     func sleep(until deadline: TestInstant, tolerance: Duration?) async throws {
         throw CancellationError()
     }
 
     func advance(by delta: Duration) {
-        storage.advance(by: delta)
+        self.storage.advance(by: delta)
     }
 }

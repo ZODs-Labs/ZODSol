@@ -5,7 +5,7 @@ public struct TokenAmount: Hashable, Sendable, Codable {
     public let decimals: UInt8
 
     public var uiAmount: Decimal {
-        Decimal(amount) / pow(Decimal(10), Int(decimals))
+        Decimal(self.amount) / pow(Decimal(10), Int(self.decimals))
     }
 
     public init(amount: UInt64, decimals: UInt8) {
