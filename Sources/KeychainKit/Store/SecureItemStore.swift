@@ -6,12 +6,15 @@ import Security
 public actor SecureItemStore {
     private let service: String
     private let logger: Logger
+    private let authenticator: any BiometricAuthenticating
 
     public init(
         service: String,
+        authenticator: any BiometricAuthenticating = LocalAuthenticationAuthenticator(),
         logger: Logger = Logger(subsystem: "dev.zods.zodsol", category: "keychain"))
     {
         self.service = service
+        self.authenticator = authenticator
         self.logger = logger
     }
 
@@ -123,6 +126,8 @@ public actor SecureItemStore {
         self.logger.debug("keychain \("read", privacy: .public) status=\(status, privacy: .public)")
 
         guard status == errSecSuccess else {
+            self.logger.error(
+                "keychain read failed account=\(item.account, privacy: .public) status=\(status, privacy: .public)")
             throw Self.mapStatus(status)
         }
         guard let data = result as? Data else {
@@ -203,56 +208,10 @@ public actor SecureItemStore {
 
     private func authenticateIfNeeded(for gate: BiometricGate) async throws {
         guard gate.requiresUserPresence else { return }
-        try await self.authenticate(reason: gate.localizedPrompt)
+        try await self.authenticator.authenticate(reason: gate.localizedPrompt)
     }
 
-    /// Run a Touch ID / Mac password prompt and throw a typed
-    /// `KeychainError` on cancel or authentication failure.
     private func authenticate(reason: String) async throws {
-        let context = LAContext()
-        context.localizedReason = reason.isEmpty ? "Authenticate to continue" : reason
-        var probeError: NSError?
-        let policy: LAPolicy = .deviceOwnerAuthentication
-        guard context.canEvaluatePolicy(policy, error: &probeError) else {
-            if let probeError = probeError as? LAError {
-                throw Self.mapLAError(probeError)
-            }
-            throw KeychainError.biometryNotAvailable
-        }
-        let prompt = reason.isEmpty ? "Authenticate to continue" : reason
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            context.evaluatePolicy(policy, localizedReason: prompt) { success, error in
-                if success {
-                    cont.resume(returning: ())
-                    return
-                }
-                if let laError = error as? LAError {
-                    cont.resume(throwing: Self.mapLAError(laError))
-                } else if let nsError = error as NSError? {
-                    cont.resume(throwing: KeychainError.unhandledStatus(OSStatus(nsError.code)))
-                } else {
-                    cont.resume(throwing: KeychainError.biometricFailed)
-                }
-            }
-        }
-    }
-
-    private static func mapLAError(_ error: LAError) -> KeychainError {
-        switch error.code {
-        case .userCancel, .systemCancel, .appCancel:
-            .userCanceled
-        case .userFallback:
-            .userCanceled
-        case .biometryLockout:
-            .biometryLockout
-        case .biometryNotAvailable:
-            .biometryNotAvailable
-        case .biometryNotEnrolled:
-            .biometryNotEnrolled
-        case .authenticationFailed, .invalidContext:
-            .biometricFailed
-        default:
-            .biometricFailed
-        }
+        try await self.authenticator.authenticate(reason: reason)
     }
 }
