@@ -10,10 +10,4 @@ final class ZODSolDisplayModelTests: XCTestCase {
         XCTAssertEqual(model.panelLabel, "ZODs")
     }
 
-    func testInitialPanelSizeIsFixedForFirstShell() {
-        let model = ZODSolDisplayModel.initial
-
-        XCTAssertEqual(model.panelWidth, 360)
-        XCTAssertEqual(model.panelHeight, 600)
-    }
 }

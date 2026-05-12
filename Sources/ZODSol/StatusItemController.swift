@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Observation
 import OSLog
 import HeliusProvider
 import KeychainKit
@@ -16,6 +17,7 @@ final class StatusItemController: NSObject {
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
     private let viewModel: WalletOverviewViewModel
+    private var sizeObservationToken: UInt64 = 0
 
     init(displayModel: ZODSolDisplayModel) {
         self.displayModel = displayModel
@@ -66,16 +68,23 @@ final class StatusItemController: NSObject {
 
     private func makePanel() -> NSPanel {
         let panelView = WalletPanelView(viewModel: self.viewModel)
-        let contentSize = NSSize(
-            width: self.displayModel.panelWidth,
-            height: self.displayModel.panelHeight)
+        let initialHeight = WalletPanelMetrics.clampedHeight(
+            ideal: WalletPanelMetrics.idealHeight(
+                route: self.viewModel.route,
+                hasAPIKey: self.viewModel.hasAPIKey,
+                walletCount: self.viewModel.wallets.count,
+                state: self.viewModel.state
+            ),
+            screen: NSScreen.main
+        )
+        let contentSize = NSSize(width: WalletPanelMetrics.width, height: initialHeight)
         let panel = WalletPanel(
             contentRect: NSRect(origin: .zero, size: contentSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false)
 
-        let glass = GlassPanelView(size: contentSize, cornerRadius: 16)
+        let glass = GlassPanelView(size: contentSize, cornerRadius: WalletPanelMetrics.cornerRadius)
         let hosting = VibrantHostingView(rootView: panelView)
         hosting.frame = glass.bounds
         hosting.autoresizingMask = [.width, .height]
@@ -92,6 +101,10 @@ final class StatusItemController: NSObject {
         panel.level = .popUpMenu
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.animationBehavior = .utilityWindow
+        // Force the shadow to be regenerated now that the contentView's layer
+        // has its rounded mask in place, otherwise the first shadow pass uses
+        // the rectangular bounds set during NSWindow init.
+        panel.invalidateShadow()
         return panel
     }
 
@@ -102,13 +115,24 @@ final class StatusItemController: NSObject {
         }
         let panel = self.panel ?? self.makePanel()
         self.panel = panel
+        self.applyDesiredHeight(animated: false)
         self.position(panel, below: sender)
+        // Order front AND make key in one step. `orderFrontRegardless` alone
+        // shows the panel as non-key, and the first click inside flips it to
+        // key - that transition makes NSGlassEffectView / NSVisualEffectView
+        // visibly change material, which the user reads as "the background
+        // jumped". Native menu-bar panels (Battery, Wi-Fi, Control Center)
+        // open already-key for the same reason. `.nonactivatingPanel` keeps
+        // the user's frontmost app active even though we become key.
         panel.orderFrontRegardless()
+        panel.makeKey()
         self.startEventMonitoring()
+        self.startPanelSizeObservation()
         self.viewModel.panelDidAppear()
     }
 
     private func closePanel() {
+        self.stopPanelSizeObservation()
         self.viewModel.panelDidDisappear()
         self.panel?.orderOut(nil)
         self.stopEventMonitoring()
@@ -118,15 +142,75 @@ final class StatusItemController: NSObject {
         guard let window = sender.window else { return }
         let buttonFrame = window.convertToScreen(sender.convert(sender.bounds, to: nil))
         let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? buttonFrame
-        let horizontalInset: CGFloat = 8
-        let verticalGap: CGFloat = 4
         let panelSize = panel.frame.size
         let unclampedX = buttonFrame.midX - (panelSize.width / 2)
-        let minX = visibleFrame.minX + horizontalInset
-        let maxX = visibleFrame.maxX - panelSize.width - horizontalInset
+        let minX = visibleFrame.minX + WalletPanelMetrics.horizontalEdgeInset
+        let maxX = visibleFrame.maxX - panelSize.width - WalletPanelMetrics.horizontalEdgeInset
         let x = min(max(unclampedX, minX), maxX)
-        let y = buttonFrame.minY - panelSize.height - verticalGap
+        let topY = buttonFrame.minY - WalletPanelMetrics.menuBarGap
+        let y = max(visibleFrame.minY + WalletPanelMetrics.bottomSafetyMargin, topY - panelSize.height)
         panel.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    // MARK: - Dynamic panel height
+
+    private func startPanelSizeObservation() {
+        self.sizeObservationToken &+= 1
+        let token = self.sizeObservationToken
+        self.observeRoute(token: token)
+    }
+
+    private func stopPanelSizeObservation() {
+        self.sizeObservationToken &+= 1
+    }
+
+    private func observeRoute(token: UInt64) {
+        guard token == self.sizeObservationToken else { return }
+        withObservationTracking {
+            // Touch every observable input that drives the table-driven
+            // height, then re-apply. The closure is what `withObservationTracking`
+            // records as the dependency set for the next change notification.
+            self.applyDesiredHeight(animated: true)
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.observeRoute(token: token)
+            }
+        }
+    }
+
+    private func applyDesiredHeight(animated: Bool) {
+        guard let panel = self.panel else { return }
+        let ideal = WalletPanelMetrics.idealHeight(
+            route: self.viewModel.route,
+            hasAPIKey: self.viewModel.hasAPIKey,
+            walletCount: self.viewModel.wallets.count,
+            state: self.viewModel.state
+        )
+        let target = WalletPanelMetrics.clampedHeight(ideal: ideal, screen: panel.screen ?? NSScreen.main)
+        let current = panel.frame
+        if abs(current.height - target) < 0.5 { return }
+
+        // Pin the top edge so the panel grows / shrinks downward from the
+        // menu-bar anchor. Matches how Wi-Fi and Now Playing extensions resize.
+        let topY = current.maxY
+        let originY = max(panelMinY(for: panel) + WalletPanelMetrics.bottomSafetyMargin, topY - target)
+        let newFrame = NSRect(x: current.minX, y: originY, width: WalletPanelMetrics.width, height: target)
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.22
+                ctx.allowsImplicitAnimation = true
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(newFrame, display: true)
+            }
+        } else {
+            panel.setFrame(newFrame, display: true)
+        }
+        panel.invalidateShadow()
+    }
+
+    private func panelMinY(for panel: NSPanel) -> CGFloat {
+        (panel.screen ?? NSScreen.main)?.visibleFrame.minY ?? 0
     }
 
     private func startEventMonitoring() {
@@ -229,8 +313,8 @@ fileprivate actor LazyProvider: SolanaProvider {
         try await resolved().assets(for: address, network: network, options: options)
     }
 
-    func priceChange24h(for mints: [Mint]) async throws -> [Mint: Double] {
-        try await resolved().priceChange24h(for: mints)
+    func prices(for mints: [Mint]) async throws -> [Mint: PriceQuote] {
+        try await resolved().prices(for: mints)
     }
 
     func solChange24h() async throws -> Double? {

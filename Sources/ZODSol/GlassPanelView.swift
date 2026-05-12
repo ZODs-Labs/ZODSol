@@ -15,6 +15,13 @@ final class GlassPanelView: NSView {
         super.init(frame: NSRect(origin: .zero, size: size))
         self.autoresizingMask = [.width, .height]
         self.wantsLayer = true
+        // Round the contentView's own layer with masksToBounds so NSPanel's
+        // auto shadow follows the rounded silhouette. Without this the panel
+        // computes its shadow from the rectangular layer bounds and a
+        // squared-off ghost is visible behind the rounded glass.
+        self.layer?.cornerRadius = cornerRadius
+        self.layer?.cornerCurve = .continuous
+        self.layer?.masksToBounds = true
 
         if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency {
             let opaque = NSView(frame: self.bounds)
@@ -30,11 +37,14 @@ final class GlassPanelView: NSView {
             let glass = NSGlassEffectView(frame: self.bounds)
             glass.autoresizingMask = [.width, .height]
             // `.regular` matches Apple's native menu-bar panels (Battery,
-            // Wi-Fi, Control Center): glass blur of what is behind, but
-            // opaque enough that content over it stays legible and the look
-            // does not change when the panel becomes the key window. `.clear`
-            // is Apple's most see-through Liquid Glass variant and goes
-            // washed-out on focus — wrong for a text-entry panel.
+            // Wi-Fi, Control Center): a glass blur of what is behind, opaque
+            // enough that content over it stays legible. `.clear` is Apple's
+            // most see-through Liquid Glass variant and goes washed-out on
+            // focus, wrong for a text-entry panel. NOTE: every Liquid Glass
+            // style still re-renders when the host window flips between
+            // non-key and key, so the panel must be opened already key
+            // (see StatusItemController.togglePanel) to avoid a visible
+            // background "jump" on the first click.
             glass.style = .regular
             glass.cornerRadius = cornerRadius
             self.addSubview(glass)
