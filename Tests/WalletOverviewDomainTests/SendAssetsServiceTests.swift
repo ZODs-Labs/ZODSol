@@ -25,7 +25,6 @@ private func cleanupServiceFixture(_ fixture: ServiceFixture) {
 }
 
 final class SendAssetsServiceTests: XCTestCase {
-
     // MARK: - Helpers
 
     private func makeService(
@@ -35,31 +34,33 @@ final class SendAssetsServiceTests: XCTestCase {
         from: WalletAddress,
         fixture: ServiceFixture,
         network: SolanaNetwork = .devnet,
-        confirmationTimeoutSeconds: Int = 90
-    ) -> DefaultSendAssetsService {
+        confirmationTimeoutSeconds: Int = 90) -> DefaultSendAssetsService
+    {
         let lookup = MockWalletLookup([walletId: from])
         let pendingStore = PendingSendStore(defaults: fixture.defaults, key: "test.pending")
         let config = SendAssetsServiceConfig(
             ataRentLamports: Lamports(rawValue: 2_039_280),
             confirmationTimeoutSeconds: confirmationTimeoutSeconds,
             pollInterval: .milliseconds(10),
-            priorityFeeFloorMicroLamports: 1_000
-        )
+            priorityFeeFloorMicroLamports: 1000)
         return DefaultSendAssetsService(
             transport: transport,
             walletLookup: lookup,
             signer: signer,
             pendingStore: pendingStore,
             network: network,
-            config: config
-        )
+            config: config)
     }
 
-    private func makeSolRequest(walletId: UUID, from: WalletAddress, to: WalletAddress, lamports: UInt64) -> SendRequest {
+    private func makeSolRequest(
+        walletId: UUID,
+        from: WalletAddress,
+        to: WalletAddress,
+        lamports: UInt64) -> SendRequest
+    {
         SendRequest(
             walletId: walletId, from: from, recipient: to,
-            asset: .sol(amount: Lamports(rawValue: lamports))
-        )
+            asset: .sol(amount: Lamports(rawValue: lamports)))
     }
 
     private func signerAddress(_ signer: MockSendSigner) throws -> WalletAddress {
@@ -83,8 +84,13 @@ final class SendAssetsServiceTests: XCTestCase {
         let from = try signerAddress(signer)
         let walletId = UUID()
         let transport = MockSendTransport()
-        let service = makeService(transport: transport, signer: signer, walletId: walletId, from: from, fixture: fixture)
-        let request = makeSolRequest(walletId: walletId, from: from, to: pda, lamports: 1_000)
+        let service = self.makeService(
+            transport: transport,
+            signer: signer,
+            walletId: walletId,
+            from: from,
+            fixture: fixture)
+        let request = self.makeSolRequest(walletId: walletId, from: from, to: pda, lamports: 1000)
         do {
             _ = try await service.quote(request)
             XCTFail("expected off-curve refusal")
@@ -104,10 +110,14 @@ final class SendAssetsServiceTests: XCTestCase {
         let from = try signerAddress(signer)
         let walletId = UUID()
         let transport = MockSendTransport()
-        let service = makeService(transport: transport, signer: signer, walletId: walletId, from: from, fixture: fixture)
-        let request = makeSolRequest(
-            walletId: walletId, from: from, to: ProgramAddresses.token, lamports: 1
-        )
+        let service = self.makeService(
+            transport: transport,
+            signer: signer,
+            walletId: walletId,
+            from: from,
+            fixture: fixture)
+        let request = self.makeSolRequest(
+            walletId: walletId, from: from, to: ProgramAddresses.token, lamports: 1)
         do {
             _ = try await service.quote(request)
             XCTFail("expected known-program refusal")
@@ -135,104 +145,15 @@ final class SendAssetsServiceTests: XCTestCase {
             signer: signer,
             pendingStore: pending,
             network: .devnet,
-            config: .default
-        )
-        let request = makeSolRequest(
-            walletId: walletId, from: actualFrom, to: try makeOnCurveRecipient(), lamports: 1
-        )
+            config: .default)
+        let request = try makeSolRequest(
+            walletId: walletId, from: actualFrom, to: makeOnCurveRecipient(), lamports: 1)
         do {
             _ = try await service.quote(request)
             XCTFail("expected walletAddressMismatch")
         } catch let error as SendError {
             XCTAssertEqual(error, .walletAddressMismatch)
         }
-    }
-
-    // MARK: - quote() happy path for SOL
-
-    func testSolHappyPathBuildsCorrectQuoteAndCallsRPCInOrder() async throws {
-        let fixture = makeServiceFixture()
-        defer { cleanupServiceFixture(fixture) }
-        let signer = MockSendSigner()
-        let from = try signerAddress(signer)
-        let to = try makeOnCurveRecipient()
-        let walletId = UUID()
-
-        let transport = MockSendTransport()
-        let lifetimeBlockhash = try Blockhash(bytes: Data((0 ..< 32).map { UInt8($0) }))
-        await transport.enqueue(method: "getLatestBlockhash", json: """
-        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(lifetimeBlockhash.base58)","lastValidBlockHeight":1500}}}
-        """)
-        await transport.enqueue(method: "getRecentPrioritizationFees", json: """
-        {"jsonrpc":"2.0","id":"x","result":[
-            {"slot":1,"prioritizationFee":2000},
-            {"slot":2,"prioritizationFee":3000},
-            {"slot":3,"prioritizationFee":5000},
-            {"slot":4,"prioritizationFee":1500}
-        ]}
-        """)
-        // First simulate: returns unitsConsumed = 150 (System.transfer is cheap).
-        await transport.enqueue(method: "simulateTransaction", json: """
-        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{
-            "err":null,
-            "logs":["Program 11111111111111111111111111111111 invoke [1]",
-                    "Program 11111111111111111111111111111111 success"],
-            "unitsConsumed":150
-        }}}
-        """)
-        // Second simulate: same shape, used as safety check.
-        await transport.enqueue(method: "simulateTransaction", json: """
-        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"err":null,"logs":["safety-ok"],"unitsConsumed":150}}}
-        """)
-        // Sender balance check.
-        await transport.enqueue(method: "getAccountInfo", json: """
-        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{
-            "lamports":10000000,"owner":"11111111111111111111111111111111",
-            "executable":false,"rentEpoch":0,"data":["","base64"]
-        }}}
-        """)
-
-        let service = makeService(transport: transport, signer: signer, walletId: walletId, from: from, fixture: fixture)
-        let request = makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000_000)
-        let quote = try await service.quote(request)
-
-        // Verify the order of RPC calls.
-        let methods = await transport.observedMethods
-        XCTAssertEqual(methods, [
-            "getLatestBlockhash",
-            "getRecentPrioritizationFees",
-            "simulateTransaction",
-            "simulateTransaction",
-            "getAccountInfo",
-        ])
-
-        // Compute unit limit = ceil(150 * 1.1) = 166, floored at 5000.
-        XCTAssertEqual(quote.computeUnitLimit, 5_000)
-        // Priority fee = 75th percentile of [1500,2000,3000,5000] = sorted index 3 = 5000.
-        XCTAssertEqual(quote.priorityFeeMicroLamports, 5_000)
-        // Fee = 1 * 5000 base + ceil(5000 * 5000 / 1_000_000) = 5000 + 25 = 5025.
-        XCTAssertEqual(quote.networkFeeLamports.rawValue, 5_025)
-        // No ATA creation for SOL.
-        XCTAssertFalse(quote.recipientAtaWillBeCreated)
-        XCTAssertEqual(quote.rentForRecipientAta.rawValue, 0)
-        // No Token-2022 notice for SOL.
-        XCTAssertNil(quote.token2022Notice)
-        // SOL: recipient receives the same amount.
-        XCTAssertEqual(quote.recipientReceives, request.asset)
-        // Cluster reflected.
-        XCTAssertEqual(quote.cluster, .devnet)
-        // Logs surfaced from second simulate.
-        XCTAssertEqual(quote.simulationLogs, ["safety-ok"])
-        // Lifetime carries the blockhash + last valid block height.
-        if case let .blockhash(bh, lvbh) = quote.lifetime {
-            XCTAssertEqual(bh, lifetimeBlockhash)
-            XCTAssertEqual(lvbh, 1500)
-        } else {
-            XCTFail("expected blockhash lifetime")
-        }
-        // signableMessage is a non-trivial V0-encoded blob.
-        XCTAssertGreaterThan(quote.signableMessage.count, 100)
-        XCTAssertEqual(quote.signableMessage.first, 0x80, "V0 version prefix")
     }
 
     // MARK: - SOL balance enforcement
@@ -246,9 +167,10 @@ final class SendAssetsServiceTests: XCTestCase {
         let walletId = UUID()
 
         let transport = MockSendTransport()
-        let bh = try Blockhash(bytes: Data((0 ..< 32).map { UInt8($0) }))
+        let bh = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
         await transport.enqueue(method: "getLatestBlockhash", json: """
-        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(bh.base58)","lastValidBlockHeight":1500}}}
+        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(bh
+            .base58)","lastValidBlockHeight":1500}}}
         """)
         await transport.enqueue(method: "getRecentPrioritizationFees", json: """
         {"jsonrpc":"2.0","id":"x","result":[]}
@@ -267,14 +189,19 @@ final class SendAssetsServiceTests: XCTestCase {
         }}}
         """)
 
-        let service = makeService(transport: transport, signer: signer, walletId: walletId, from: from, fixture: fixture)
-        let request = makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000_000)
+        let service = self.makeService(
+            transport: transport,
+            signer: signer,
+            walletId: walletId,
+            from: from,
+            fixture: fixture)
+        let request = self.makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000_000)
         do {
             _ = try await service.quote(request)
             XCTFail("expected insufficientSolForFee")
         } catch let error as SendError {
             switch error {
-            case .insufficientSolForFee(_, let available):
+            case let .insufficientSolForFee(_, available):
                 XCTAssertEqual(available, Lamports(rawValue: 100))
             default:
                 XCTFail("expected .insufficientSolForFee, got \(error)")
@@ -296,9 +223,10 @@ final class SendAssetsServiceTests: XCTestCase {
         let walletId = UUID()
 
         let transport = MockSendTransport()
-        let bh = try Blockhash(bytes: Data((0 ..< 32).map { UInt8($0) }))
+        let bh = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
         await transport.enqueue(method: "getLatestBlockhash", json: """
-        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(bh.base58)","lastValidBlockHeight":1500}}}
+        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(bh
+            .base58)","lastValidBlockHeight":1500}}}
         """)
         await transport.enqueue(method: "getRecentPrioritizationFees", json: """
         {"jsonrpc":"2.0","id":"x","result":[]}
@@ -308,14 +236,19 @@ final class SendAssetsServiceTests: XCTestCase {
         {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"err":{"InstructionError":[0,{"Custom":1}]},"logs":["log1","log2"],"unitsConsumed":null}}}
         """)
 
-        let service = makeService(transport: transport, signer: signer, walletId: walletId, from: from, fixture: fixture)
-        let request = makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000)
+        let service = self.makeService(
+            transport: transport,
+            signer: signer,
+            walletId: walletId,
+            from: from,
+            fixture: fixture)
+        let request = self.makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1000)
         do {
             _ = try await service.quote(request)
             XCTFail("expected simulationFailed")
         } catch let error as SendError {
             switch error {
-            case .simulationFailed(let logs, _):
+            case let .simulationFailed(logs, _):
                 XCTAssertEqual(logs, ["log1", "log2"])
             default:
                 XCTFail("expected simulationFailed, got \(error)")
@@ -334,11 +267,12 @@ final class SendAssetsServiceTests: XCTestCase {
         let walletId = UUID()
 
         let transport = MockSendTransport()
-        let bh = try Blockhash(bytes: Data((0 ..< 32).map { UInt8($0) }))
+        let bh = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
 
         func enqueueSuccessfulQuote() async {
             await transport.enqueue(method: "getLatestBlockhash", json: """
-            {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(bh.base58)","lastValidBlockHeight":1500}}}
+            {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(bh
+                .base58)","lastValidBlockHeight":1500}}}
             """)
             await transport.enqueue(method: "getRecentPrioritizationFees", json: """
             {"jsonrpc":"2.0","id":"x","result":[]}
@@ -359,8 +293,13 @@ final class SendAssetsServiceTests: XCTestCase {
         await enqueueSuccessfulQuote()
         await transport.enqueue(method: "sendTransaction", error: RPCError.transport(.timedOut))
 
-        let service = makeService(transport: transport, signer: signer, walletId: walletId, from: from, fixture: fixture)
-        let request = makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000)
+        let service = self.makeService(
+            transport: transport,
+            signer: signer,
+            walletId: walletId,
+            from: from,
+            fixture: fixture)
+        let request = self.makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1000)
         let quote1 = try await service.quote(request)
         do {
             _ = try await service.send(quote: quote1)
@@ -394,7 +333,8 @@ final class SendAssetsServiceTests: XCTestCase {
     /// distinct, predictable value uninfluenced by the floor.
     private func enqueueDeterministicQuoteRPCs(transport: MockSendTransport, lifetimeBlockhash: Blockhash) async {
         await transport.enqueue(method: "getLatestBlockhash", json: """
-        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(lifetimeBlockhash.base58)","lastValidBlockHeight":1500}}}
+        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(lifetimeBlockhash
+            .base58)","lastValidBlockHeight":1500}}}
         """)
         await transport.enqueue(method: "getRecentPrioritizationFees", json: """
         {"jsonrpc":"2.0","id":"x","result":[
@@ -424,6 +364,105 @@ final class SendAssetsServiceTests: XCTestCase {
         """)
     }
 
+}
+
+extension SendAssetsServiceTests {
+
+    // MARK: - quote() happy path for SOL
+
+    func testSolHappyPathBuildsCorrectQuoteAndCallsRPCInOrder() async throws {
+        let fixture = makeServiceFixture()
+        defer { cleanupServiceFixture(fixture) }
+        let signer = MockSendSigner()
+        let from = try signerAddress(signer)
+        let to = try makeOnCurveRecipient()
+        let walletId = UUID()
+
+        let transport = MockSendTransport()
+        let lifetimeBlockhash = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
+        await transport.enqueue(method: "getLatestBlockhash", json: """
+        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"blockhash":"\(lifetimeBlockhash
+            .base58)","lastValidBlockHeight":1500}}}
+        """)
+        await transport.enqueue(method: "getRecentPrioritizationFees", json: """
+        {"jsonrpc":"2.0","id":"x","result":[
+            {"slot":1,"prioritizationFee":2000},
+            {"slot":2,"prioritizationFee":3000},
+            {"slot":3,"prioritizationFee":5000},
+            {"slot":4,"prioritizationFee":1500}
+        ]}
+        """)
+        // First simulate: returns unitsConsumed = 150 (System.transfer is cheap).
+        await transport.enqueue(method: "simulateTransaction", json: """
+        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{
+            "err":null,
+            "logs":["Program 11111111111111111111111111111111 invoke [1]",
+                    "Program 11111111111111111111111111111111 success"],
+            "unitsConsumed":150
+        }}}
+        """)
+        // Second simulate: same shape, used as safety check.
+        await transport.enqueue(method: "simulateTransaction", json: """
+        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"err":null,"logs":["safety-ok"],"unitsConsumed":150}}}
+        """)
+        // Sender balance check.
+        await transport.enqueue(method: "getAccountInfo", json: """
+        {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{
+            "lamports":10000000,"owner":"11111111111111111111111111111111",
+            "executable":false,"rentEpoch":0,"data":["","base64"]
+        }}}
+        """)
+
+        let service = self.makeService(
+            transport: transport,
+            signer: signer,
+            walletId: walletId,
+            from: from,
+            fixture: fixture)
+        let request = self.makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000_000)
+        let quote = try await service.quote(request)
+
+        // Verify the order of RPC calls.
+        let methods = await transport.observedMethods
+        XCTAssertEqual(methods, [
+            "getLatestBlockhash",
+            "getRecentPrioritizationFees",
+            "simulateTransaction",
+            "simulateTransaction",
+            "getAccountInfo",
+        ])
+
+        // Compute unit limit = ceil(150 * 1.1) = 166, floored at 5000.
+        XCTAssertEqual(quote.computeUnitLimit, 5000)
+        // Priority fee = 75th percentile of [1500,2000,3000,5000] = sorted index 3 = 5000.
+        XCTAssertEqual(quote.priorityFeeMicroLamports, 5000)
+        // Fee = 1 * 5000 base + ceil(5000 * 5000 / 1_000_000) = 5000 + 25 = 5025.
+        XCTAssertEqual(quote.networkFeeLamports.rawValue, 5025)
+        // No ATA creation for SOL.
+        XCTAssertFalse(quote.recipientAtaWillBeCreated)
+        XCTAssertEqual(quote.rentForRecipientAta.rawValue, 0)
+        // No Token-2022 notice for SOL.
+        XCTAssertNil(quote.token2022Notice)
+        // SOL: recipient receives the same amount.
+        XCTAssertEqual(quote.recipientReceives, request.asset)
+        // Cluster reflected.
+        XCTAssertEqual(quote.cluster, .devnet)
+        // Logs surfaced from second simulate.
+        XCTAssertEqual(quote.simulationLogs, ["safety-ok"])
+        // Lifetime carries the blockhash + last valid block height.
+        if case let .blockhash(bh, lvbh) = quote.lifetime {
+            XCTAssertEqual(bh, lifetimeBlockhash)
+            XCTAssertEqual(lvbh, 1500)
+        } else {
+            XCTFail("expected blockhash lifetime")
+        }
+        // signableMessage is a non-trivial V0-encoded blob.
+        XCTAssertGreaterThan(quote.signableMessage.count, 100)
+        XCTAssertEqual(quote.signableMessage.first, 0x80, "V0 version prefix")
+    }
+
+    // MARK: - Priority tier selection
+
     func test_quote_priorityTier_turbo_selects95thPercentile() async throws {
         let fixture = makeServiceFixture()
         defer { cleanupServiceFixture(fixture) }
@@ -433,14 +472,19 @@ final class SendAssetsServiceTests: XCTestCase {
         let walletId = UUID()
 
         let transport = MockSendTransport()
-        let bh = try Blockhash(bytes: Data((0 ..< 32).map { UInt8($0) }))
-        await enqueueDeterministicQuoteRPCs(transport: transport, lifetimeBlockhash: bh)
+        let bh = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
+        await self.enqueueDeterministicQuoteRPCs(transport: transport, lifetimeBlockhash: bh)
 
-        let service = makeService(transport: transport, signer: signer, walletId: walletId, from: from, fixture: fixture)
-        let request = makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000_000)
+        let service = self.makeService(
+            transport: transport,
+            signer: signer,
+            walletId: walletId,
+            from: from,
+            fixture: fixture)
+        let request = self.makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000_000)
         let quote = try await service.quote(request, tier: .turbo)
 
-        XCTAssertEqual(quote.priorityFeeMicroLamports, 11_000)
+        XCTAssertEqual(quote.priorityFeeMicroLamports, 11000)
     }
 
     func test_quote_priorityTier_standard_selects50thPercentile() async throws {
@@ -452,13 +496,18 @@ final class SendAssetsServiceTests: XCTestCase {
         let walletId = UUID()
 
         let transport = MockSendTransport()
-        let bh = try Blockhash(bytes: Data((0 ..< 32).map { UInt8($0) }))
-        await enqueueDeterministicQuoteRPCs(transport: transport, lifetimeBlockhash: bh)
+        let bh = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
+        await self.enqueueDeterministicQuoteRPCs(transport: transport, lifetimeBlockhash: bh)
 
-        let service = makeService(transport: transport, signer: signer, walletId: walletId, from: from, fixture: fixture)
-        let request = makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000_000)
+        let service = self.makeService(
+            transport: transport,
+            signer: signer,
+            walletId: walletId,
+            from: from,
+            fixture: fixture)
+        let request = self.makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000_000)
         let quote = try await service.quote(request, tier: .standard)
 
-        XCTAssertEqual(quote.priorityFeeMicroLamports, 7_000)
+        XCTAssertEqual(quote.priorityFeeMicroLamports, 7000)
     }
 }
