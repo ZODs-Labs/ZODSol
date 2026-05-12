@@ -43,7 +43,7 @@ public struct WalletPanelView: View {
                     AddWalletView(viewModel: self.viewModel)
                         .transition(.push)
                 case let .send(intent):
-                    SendNavigator(viewModel: self.makeSendViewModel(intent: intent))
+                    SendNavigator(intent: intent, parent: self.viewModel)
                         .transition(.push)
                 case let .assetPicker(intent):
                     AssetPickerView(intent: intent, viewModel: self.viewModel)
@@ -72,71 +72,6 @@ public struct WalletPanelView: View {
                 overview: overview)
         case let .failed(error):
             ErrorView(error: error, viewModel: self.viewModel)
-        }
-    }
-
-    private func makeSendViewModel(intent: SendIntent) -> SendViewModel {
-        let parent = self.viewModel
-        let lookup: @MainActor (Mint) -> (decimals: UInt8, symbol: String, name: String)? = { [weak parent] mint in
-            guard let parent else { return nil }
-            return Self.splInfo(for: mint, in: parent.state)
-        }
-        let sendVM = SendViewModel(
-            intent: intent,
-            cluster: viewModel.network,
-            service: self.viewModel.sendService,
-            onDismiss: { [viewModel] in viewModel.route = .overview },
-            recentRecipientsStore: self.viewModel.recentRecipientsStore,
-            splTokenLookup: lookup)
-        if let row = findPortfolioRow(for: intent.asset) {
-            sendVM.assetBalanceBaseUnits = row.amount.amount
-            sendVM.assetPriceUSD = row.pricePerToken
-        }
-        if let signature = viewModel.preloadConfirmingSignature {
-            sendVM.preloadConfirming(signature: signature)
-            self.viewModel.preloadConfirmingSignature = nil
-        }
-        return sendVM
-    }
-
-    private static func splInfo(
-        for mint: Mint,
-        in state: LoadState<WalletOverview>) -> (decimals: UInt8, symbol: String, name: String)?
-    {
-        let overview: WalletOverview
-        switch state {
-        case let .loaded(value, _): overview = value
-        case let .partial(value, _): overview = value
-        default: return nil
-        }
-        guard let asset = overview.tokens.first(where: { $0.id == mint }) else { return nil }
-        let symbol = asset.symbol ?? "token"
-        let name = asset.name ?? symbol
-        return (decimals: asset.amount.decimals, symbol: symbol, name: name)
-    }
-
-    private func findPortfolioRow(for asset: SendAssetKind) -> PortfolioRow? {
-        let overview: WalletOverview
-        switch self.viewModel.state {
-        case let .loaded(value, _):
-            overview = value
-        case let .partial(value, _):
-            overview = value
-        default:
-            return nil
-        }
-        switch asset {
-        case .sol:
-            return .sol(
-                balance: overview.solBalance,
-                price: overview.solPriceUSD,
-                change: overview.solChange24h)
-        case let .splToken(mint, _, _, _):
-            let mintBase58 = mint.base58
-            guard let match = overview.tokens.first(where: { $0.id.base58 == mintBase58 }) else {
-                return nil
-            }
-            return PortfolioRow.from(match)
         }
     }
 
