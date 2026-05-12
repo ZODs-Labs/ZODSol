@@ -12,10 +12,19 @@ public struct WalletPanelView: View {
 
     public var body: some View {
         self.content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: Self.panelWidth, height: Self.panelHeight)
             .onAppear { self.viewModel.panelDidAppear() }
             .onDisappear { self.viewModel.panelDidDisappear() }
     }
+
+    /// Canonical panel dimensions. SwiftUI declares the size; the
+    /// surrounding NSPanel follows via `NSHostingView.sizingOptions =
+    /// .preferredContentSize`. Matches the Apple-recommended pattern used by
+    /// `NSPopover` + `NSHostingController`. Height is calibrated to fit the
+    /// loaded overview (header + balance + actions + a few token rows) with
+    /// the rest scrolling inside; shorter routes simply center within.
+    public static let panelWidth: CGFloat = 360
+    public static let panelHeight: CGFloat = 440
 
     @ViewBuilder
     private var content: some View {

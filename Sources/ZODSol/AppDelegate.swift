@@ -9,6 +9,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DotEnvLoader.applyToProcessEnvironment()
         #endif
         NSApp.setActivationPolicy(.accessory)
+        // LSUIElement utility - no document windows, no window tabbing. AppKit
+        // otherwise tries to index our NSPanel for system-wide tab grouping
+        // and logs "Cannot index window tabs due to missing main bundle
+        // identifier" on every panel create.
+        NSWindow.allowsAutomaticWindowTabbing = false
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

@@ -87,8 +87,24 @@ final class GlassPanelView: NSView {
 
 /// Hosting view that opts its SwiftUI subtree into AppKit vibrancy so text and
 /// shapes blend correctly against the glass background.
+///
+/// `sizingOptions = .preferredContentSize` is the Apple-recommended pattern
+/// for menu-bar apps - SwiftUI's natural content size becomes the host view's
+/// `preferredContentSize`, and the surrounding panel follows. Matches how
+/// `NSPopover` + `NSHostingController` size themselves to their root view's
+/// `.frame(...)` declaration.
 @MainActor
 final class VibrantHostingView<Content: View>: NSHostingView<Content> {
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+        self.sizingOptions = .preferredContentSize
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
     override var allowsVibrancy: Bool {
         true
     }

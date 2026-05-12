@@ -18,15 +18,24 @@ final class StatusItemController: NSObject {
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
     private let viewModel: WalletOverviewViewModel
-    private var sizeObservationToken: UInt64 = 0
+    private let session: WalletSession
+    private let lockObservers: SessionLockObservers
 
     init(displayModel: ZODSolDisplayModel) {
         self.displayModel = displayModel
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         let secureStore = SecureItemStore(service: "dev.zods.zodsol")
+        let policyStore = WalletSessionPolicyStore()
+        // Hydrate the policy synchronously off the actor; the store reads
+        // UserDefaults directly so calling `load()` outside of an actor hop
+        // is fine - but we use the actor for symmetry and to keep all writes
+        // serialized. The session is created with the persisted policy so
+        // the very first send after launch already honors the user's
+        // configured idle window.
+        let session = WalletSession(policy: .default)
         let apiKeyStore = HeliusAPIKeyStore(secureStore: secureStore)
-        let walletStore = WalletStore(secureStore: secureStore)
+        let walletStore = WalletStore(secureStore: secureStore, session: session)
         let providerHolder = LazyProvider(apiKeyStore: apiKeyStore)
         let overviewCache: TimedCache<UUID, WalletOverview> = TimedCache(ttl: .seconds(15))
         let service = DefaultWalletOverviewService(
@@ -43,6 +52,7 @@ final class StatusItemController: NSObject {
             pendingStore: pendingSendStore,
             network: .mainnet)
         let recentRecipientsStore = RecentRecipientsStore()
+        self.session = session
         self.viewModel = WalletOverviewViewModel(
             service: service,
             walletStore: walletStore,
@@ -50,19 +60,28 @@ final class StatusItemController: NSObject {
             sendService: sendService,
             network: .mainnet,
             recentRecipientsStore: recentRecipientsStore,
+            session: session,
+            sessionPolicyStore: policyStore,
             credentialsDidChange: {
                 await providerHolder.reset()
                 await lazyTransport.reset()
             })
 
+        self.lockObservers = SessionLockObservers(session: session)
         super.init()
         self.statusItem.behavior = .removalAllowed
         self.statusItem.autosaveName = "dev.zods.zodsol.StatusItem"
         self.configureStatusItem()
+        self.lockObservers.start()
+        Task { @MainActor [policyStore, session] in
+            let persisted = await policyStore.load()
+            await session.setPolicy(persisted)
+        }
     }
 
     func releaseStatusItem() {
         self.closePanel()
+        self.lockObservers.stop()
         NSStatusBar.system.removeStatusItem(self.statusItem)
     }
 
@@ -80,13 +99,7 @@ final class StatusItemController: NSObject {
 
     private func makePanel() -> NSPanel {
         let panelView = WalletPanelView(viewModel: self.viewModel)
-        let initialHeight = WalletPanelMetrics.clampedHeight(
-            ideal: WalletPanelMetrics.idealHeight(
-                route: self.viewModel.route,
-                hasAPIKey: self.viewModel.hasAPIKey,
-                walletCount: self.viewModel.wallets.count,
-                state: self.viewModel.state),
-            screen: NSScreen.main)
+        let initialHeight = WalletPanelMetrics.clampedHeight(screen: NSScreen.main)
         let contentSize = NSSize(width: WalletPanelMetrics.width, height: initialHeight)
         let panel = WalletPanel(
             contentRect: NSRect(origin: .zero, size: contentSize),
@@ -111,6 +124,7 @@ final class StatusItemController: NSObject {
         panel.level = .popUpMenu
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.animationBehavior = .utilityWindow
+        panel.tabbingMode = .disallowed
         // Force the shadow to be regenerated now that the contentView's layer
         // has its rounded mask in place, otherwise the first shadow pass uses
         // the rectangular bounds set during NSWindow init.
@@ -125,7 +139,6 @@ final class StatusItemController: NSObject {
         }
         let panel = self.panel ?? self.makePanel()
         self.panel = panel
-        self.applyDesiredHeight(animated: false)
         self.position(panel, below: sender)
         // Order front AND make key in one step. `orderFrontRegardless` alone
         // shows the panel as non-key, and the first click inside flips it to
@@ -137,12 +150,10 @@ final class StatusItemController: NSObject {
         panel.orderFrontRegardless()
         panel.makeKey()
         self.startEventMonitoring()
-        self.startPanelSizeObservation()
         self.viewModel.panelDidAppear()
     }
 
     private func closePanel() {
-        self.stopPanelSizeObservation()
         self.viewModel.panelDidDisappear()
         self.panel?.orderOut(nil)
         self.stopEventMonitoring()
@@ -160,66 +171,6 @@ final class StatusItemController: NSObject {
         let topY = buttonFrame.minY - WalletPanelMetrics.menuBarGap
         let y = max(visibleFrame.minY + WalletPanelMetrics.bottomSafetyMargin, topY - panelSize.height)
         panel.setFrameOrigin(NSPoint(x: x, y: y))
-    }
-
-    // MARK: - Dynamic panel height
-
-    private func startPanelSizeObservation() {
-        self.sizeObservationToken &+= 1
-        let token = self.sizeObservationToken
-        self.observeRoute(token: token)
-    }
-
-    private func stopPanelSizeObservation() {
-        self.sizeObservationToken &+= 1
-    }
-
-    private func observeRoute(token: UInt64) {
-        guard token == self.sizeObservationToken else { return }
-        withObservationTracking {
-            // Touch every observable input that drives the table-driven
-            // height, then re-apply. The closure is what `withObservationTracking`
-            // records as the dependency set for the next change notification.
-            self.applyDesiredHeight(animated: true)
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.observeRoute(token: token)
-            }
-        }
-    }
-
-    private func applyDesiredHeight(animated: Bool) {
-        guard let panel = self.panel else { return }
-        let ideal = WalletPanelMetrics.idealHeight(
-            route: self.viewModel.route,
-            hasAPIKey: self.viewModel.hasAPIKey,
-            walletCount: self.viewModel.wallets.count,
-            state: self.viewModel.state)
-        let target = WalletPanelMetrics.clampedHeight(ideal: ideal, screen: panel.screen ?? NSScreen.main)
-        let current = panel.frame
-        if abs(current.height - target) < 0.5 { return }
-
-        // Pin the top edge so the panel grows / shrinks downward from the
-        // menu-bar anchor. Matches how Wi-Fi and Now Playing extensions resize.
-        let topY = current.maxY
-        let originY = max(panelMinY(for: panel) + WalletPanelMetrics.bottomSafetyMargin, topY - target)
-        let newFrame = NSRect(x: current.minX, y: originY, width: WalletPanelMetrics.width, height: target)
-
-        if animated {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.22
-                ctx.allowsImplicitAnimation = true
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                panel.animator().setFrame(newFrame, display: true)
-            }
-        } else {
-            panel.setFrame(newFrame, display: true)
-        }
-        panel.invalidateShadow()
-    }
-
-    private func panelMinY(for panel: NSPanel) -> CGFloat {
-        (panel.screen ?? NSScreen.main)?.visibleFrame.minY ?? 0
     }
 
     private func startEventMonitoring() {
@@ -250,11 +201,17 @@ final class StatusItemController: NSObject {
 
     private func isEventInOurUI(_ event: NSEvent, statusItemWindow: NSWindow?) -> Bool {
         guard let panel = self.panel else { return false }
+        // An NSAlert/sheet attached to the panel keeps the panel's flow alive
+        // even though the click lands in a different NSWindow. Without this
+        // we'd treat the alert's own Delete button as an outside-click and
+        // tear down the panel mid-action.
+        if NSApp.modalWindow != nil { return true }
+        if panel.attachedSheet != nil { return true }
         var window: NSWindow? = event.window
         while let candidate = window {
             if candidate === panel { return true }
             if let statusItemWindow, candidate === statusItemWindow { return true }
-            window = candidate.parent
+            window = candidate.parent ?? candidate.sheetParent
         }
         return false
     }
@@ -289,105 +246,3 @@ final class WalletPanel: NSPanel {
     }
 }
 
-// MARK: - HeliusAPIKeyStore conformance to APIKeyStore
-
-extension HeliusAPIKeyStore: APIKeyStore {}
-
-// MARK: - LazyProvider
-
-private actor LazyProvider: SolanaProvider {
-    private let apiKeyStore: HeliusAPIKeyStore
-    private var concrete: HeliusSolanaProvider?
-
-    init(apiKeyStore: HeliusAPIKeyStore) {
-        self.apiKeyStore = apiKeyStore
-    }
-
-    private func resolved() async throws -> HeliusSolanaProvider {
-        if let concrete { return concrete }
-        guard let key = try await apiKeyStore.currentKey(), !key.isEmpty else {
-            throw SolanaProviderError.unauthorized
-        }
-        let made = HeliusSolanaProvider(network: .mainnet, apiKey: key)
-        self.concrete = made
-        return made
-    }
-
-    func reset() {
-        self.concrete = nil
-    }
-
-    func solBalance(for address: WalletAddress, network: SolanaNetwork) async throws -> Lamports {
-        try await self.resolved().solBalance(for: address, network: network)
-    }
-
-    func tokenAccounts(for address: WalletAddress, network: SolanaNetwork) async throws -> [ParsedTokenAccount] {
-        try await self.resolved().tokenAccounts(for: address, network: network)
-    }
-
-    func assets(
-        for address: WalletAddress,
-        network: SolanaNetwork,
-        options: AssetQueryOptions) async throws -> AssetPage
-    {
-        try await self.resolved().assets(for: address, network: network, options: options)
-    }
-
-    func prices(for mints: [Mint]) async throws -> [Mint: PriceQuote] {
-        try await self.resolved().prices(for: mints)
-    }
-
-    func solChange24h() async throws -> Double? {
-        try await self.resolved().solChange24h()
-    }
-}
-
-// MARK: - LazyRPCTransport
-
-/// Same lazy-resolution pattern as `LazyProvider`, but for the raw RPC
-/// transport used by the send pipeline. Defers building `URLSessionRPCTransport`
-/// until the user has configured an API key, so onboarding does not crash.
-private actor LazyRPCTransport: RPCTransport {
-    private let apiKeyStore: HeliusAPIKeyStore
-    private let network: SolanaNetwork
-    private var concrete: URLSessionRPCTransport?
-
-    init(apiKeyStore: HeliusAPIKeyStore, network: SolanaNetwork) {
-        self.apiKeyStore = apiKeyStore
-        self.network = network
-    }
-
-    func reset() {
-        self.concrete = nil
-    }
-
-    private func resolved() async throws -> URLSessionRPCTransport {
-        if let concrete { return concrete }
-        guard let key = try await apiKeyStore.currentKey(), !key.isEmpty else {
-            throw RPCError.http(status: 401, retryAfter: nil)
-        }
-        let endpoint = HeliusEndpoint(network: network, apiKey: key)
-        var components = URLComponents(url: endpoint.rpcURL, resolvingAgainstBaseURL: false)!
-        components.queryItems = nil
-        let baseURL = components.url!
-        let made = URLSessionRPCTransport(
-            endpoint: baseURL,
-            queryItems: [URLQueryItem(name: "api-key", value: key)])
-        self.concrete = made
-        return made
-    }
-
-    func send<R: Decodable & Sendable>(
-        _ request: JSONRPCRequest<some Encodable & Sendable>,
-        responseType: R.Type) async throws -> R
-    {
-        try await self.resolved().send(request, responseType: responseType)
-    }
-
-    func sendOnce<R: Decodable & Sendable>(
-        _ request: JSONRPCRequest<some Encodable & Sendable>,
-        responseType: R.Type) async throws -> R
-    {
-        try await self.resolved().sendOnce(request, responseType: responseType)
-    }
-}
