@@ -44,6 +44,7 @@ let package = Package(
             ]),
 
         // MARK: - SolanaKit
+
         .target(
             name: "SolanaKit",
             path: "Sources/SolanaKit",
@@ -62,6 +63,7 @@ let package = Package(
             ]),
 
         // MARK: - SolanaRPC
+
         .target(
             name: "SolanaRPC",
             path: "Sources/SolanaRPC",
@@ -80,6 +82,7 @@ let package = Package(
             ]),
 
         // MARK: - KeychainKit
+
         .target(
             name: "KeychainKit",
             path: "Sources/KeychainKit",
@@ -98,6 +101,7 @@ let package = Package(
             ]),
 
         // MARK: - Formatters
+
         .target(
             name: "Formatters",
             dependencies: ["SolanaKit"],
@@ -117,6 +121,7 @@ let package = Package(
             ]),
 
         // MARK: - Caching
+
         .target(
             name: "Caching",
             path: "Sources/Caching",
@@ -135,6 +140,7 @@ let package = Package(
             ]),
 
         // MARK: - HeliusProvider
+
         .target(
             name: "HeliusProvider",
             dependencies: ["SolanaKit", "SolanaRPC", "KeychainKit"],
@@ -155,9 +161,10 @@ let package = Package(
             ]),
 
         // MARK: - WalletOverviewDomain
+
         .target(
             name: "WalletOverviewDomain",
-            dependencies: ["SolanaKit", "KeychainKit", "Caching"],
+            dependencies: ["SolanaKit", "SolanaRPC", "KeychainKit", "Caching"],
             path: "Sources/WalletOverviewDomain",
             swiftSettings: [
                 .swiftLanguageMode(.v6),
@@ -166,7 +173,7 @@ let package = Package(
             ]),
         .testTarget(
             name: "WalletOverviewDomainTests",
-            dependencies: ["WalletOverviewDomain"],
+            dependencies: ["WalletOverviewDomain", "SolanaRPC"],
             path: "Tests/WalletOverviewDomainTests",
             swiftSettings: [
                 .swiftLanguageMode(.v6),
@@ -174,6 +181,7 @@ let package = Package(
             ]),
 
         // MARK: - WalletOverviewUI
+
         .target(
             name: "WalletOverviewUI",
             dependencies: ["WalletOverviewDomain", "SolanaKit", "Formatters"],
