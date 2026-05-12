@@ -2,70 +2,70 @@ import SwiftUI
 import SolanaKit
 import Formatters
 
-/// One row in the compact portfolio list. Single-line layout with tabular
-/// figures throughout so the value column scans cleanly when amounts change.
+/// One row in the portfolio list, laid out like a native macOS menu-bar item:
+/// 22pt icon · two-line label (symbol + name on top, balance × price below)
+/// · right-aligned value and share. System dynamic-type sizes throughout so
+/// the panel respects the user's text-size preference.
 struct AssetRowView: View {
     let row: PortfolioRow
     let share: Double
 
-    private let amountFormatter = TokenAmountFormatter()
-    private let currencyFormatter = CurrencyFormatter()
-    private let deltaFormatter = PercentageDeltaFormatter()
+    private let amountFormatter = TokenAmountFormatter(locale: Locale(identifier: "en_US"))
+    private let currencyFormatter = CurrencyFormatter(locale: Locale(identifier: "en_US"))
+    private let deltaFormatter = PercentageDeltaFormatter(locale: Locale(identifier: "en_US"))
 
     @State private var isHovered = false
 
     var body: some View {
-        HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: 10) {
             icon
-                .frame(width: 14, height: 14)
+                .frame(width: 22, height: 22)
 
-            Text(row.symbol)
-                .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(row.symbol)
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if let name = row.name, !name.isEmpty, name != row.symbol {
+                        Text(name)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .layoutPriority(-1)
+                    }
+                }
+                HStack(spacing: 4) {
+                    Text(amountFormatter.largeNumber(row.amount.uiAmount))
+                        .foregroundStyle(.secondary)
+                    Text("×")
+                        .foregroundStyle(.tertiary)
+                    Text(priceText)
+                        .foregroundStyle(.secondary)
+                }
+                .font(.caption)
+                .monospacedDigit()
                 .lineLimit(1)
-
-            if let name = row.name, !name.isEmpty, name != row.symbol {
-                Text(name)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .layoutPriority(-1)
             }
 
-            Text(amountFormatter.string(row.amount, symbol: nil))
-                .font(.system(size: 10.5))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            Spacer(minLength: 8)
 
-            Text("×")
-                .font(.system(size: 10.5))
-                .foregroundStyle(.tertiary)
-
-            Text(priceText)
-                .font(.system(size: 10.5))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            Spacer(minLength: 6)
-
-            Text(valueText)
-                .font(.system(size: 11.5, weight: .semibold))
-                .monospacedDigit()
-                .foregroundStyle(hasValue ? .primary : .tertiary)
-                .lineLimit(1)
-                .contentTransition(.numericText())
-
-            Text(shareText)
-                .font(.system(size: 10.5))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .frame(width: 44, alignment: .trailing)
-                .lineLimit(1)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(valueText)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(hasValue ? .primary : .tertiary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                Text(shareText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(Color.primary.opacity(isHovered ? 0.05 : 0))
@@ -99,10 +99,10 @@ struct AssetRowView: View {
     private var icon: some View {
         if row.isNative {
             ZStack {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(.secondary.opacity(0.18))
                 Text("◎")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
         } else if let url = row.imageURL {
@@ -118,14 +118,14 @@ struct AssetRowView: View {
                     placeholder
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         } else {
             placeholder
         }
     }
 
     private var placeholder: some View {
-        RoundedRectangle(cornerRadius: 4, style: .continuous)
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
             .fill(.secondary.opacity(0.18))
     }
 }

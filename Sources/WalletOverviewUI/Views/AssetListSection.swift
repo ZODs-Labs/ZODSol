@@ -1,21 +1,22 @@
 import SwiftUI
 
 /// Flat, chromeless list of compact portfolio rows. Caps at `displayCap`
-/// holdings; the remainder collapses to a tail counter so the panel stays
+/// holdings; the remainder (plus any unpriced spam tokens passed in
+/// `hiddenCount`) collapses to a single tail counter so the panel stays
 /// short and the list never scrolls past the popover edge.
 struct AssetListSection: View {
     let rows: [PortfolioRow]
+    var hiddenCount: Int = 0
     let totalUSD: Decimal?
     var displayCap: Int = 12
 
     var body: some View {
-        if rows.isEmpty {
+        if rows.isEmpty && hiddenCount == 0 {
             Text("No holdings")
-                .font(.system(size: 11.5))
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 8)
+                .padding(.vertical, 6)
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(visible) { row in
@@ -23,11 +24,10 @@ struct AssetListSection: View {
                 }
                 if overflow > 0 {
                     Text("+ \(overflow) smaller")
-                        .font(.system(size: 10.5))
-                        .monospacedDigit()
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.top, 2)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 6)
                 }
             }
         }
@@ -38,7 +38,7 @@ struct AssetListSection: View {
     }
 
     private var overflow: Int {
-        max(0, rows.count - visible.count)
+        max(0, rows.count - visible.count) + hiddenCount
     }
 
     private func share(for row: PortfolioRow) -> Double {

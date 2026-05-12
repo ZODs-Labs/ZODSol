@@ -55,14 +55,12 @@ public struct WalletPanelView: View {
         case .loaded(let overview, _):
             WalletOverviewContentView(
                 viewModel: viewModel,
-                overview: overview,
-                isPartial: false
+                overview: overview
             )
         case .partial(let overview, _):
             WalletOverviewContentView(
                 viewModel: viewModel,
-                overview: overview,
-                isPartial: true
+                overview: overview
             )
         case .failed(let error):
             ErrorView(error: error, viewModel: viewModel)

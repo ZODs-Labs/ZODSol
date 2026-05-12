@@ -8,6 +8,19 @@ public struct TokenAmountFormatter: Sendable {
         self.locale = locale
     }
 
+    /// Compact balance rendering that matches the web tool's `formatLargeNumber`:
+    /// `Intl.NumberFormat("en-US", { notation: "compact", min: 0, max: 2 })`.
+    /// Used by the portfolio row's balance column where space is tight and the
+    /// precise count never matters more than the value/share next to it.
+    public func largeNumber(_ ui: Decimal) -> String {
+        ui.formatted(
+            .number
+                .notation(.compactName)
+                .precision(.fractionLength(0 ... 2))
+                .locale(Locale(identifier: "en_US"))
+        )
+    }
+
     public func string(_ amount: TokenAmount, symbol: String?) -> String {
         let ui = amount.uiAmount
         let suffix = (symbol.map { $0.isEmpty ? nil : $0 } ?? nil).map { " \($0)" } ?? ""
