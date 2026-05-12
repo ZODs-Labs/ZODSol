@@ -18,8 +18,7 @@ struct SendConfirmView: View {
                 amountToken: self.tokenDisplay,
                 amountFiat: self.fiatDisplay,
                 assetSymbol: self.assetSymbol,
-                recipientFull: self.quote.request.recipient.base58,
-                recipientShort: self.shortAddress)
+                recipient: self.quote.request.recipient)
 
             DisclosureGroup("Details", isExpanded: self.$viewModel.detailsExpanded) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -76,12 +75,6 @@ struct SendConfirmView: View {
         case .sol: "SOL"
         case let .splToken(_, _, symbol, _): symbol ?? "token"
         }
-    }
-
-    private var shortAddress: String {
-        let b58 = self.quote.request.recipient.base58
-        guard b58.count > 12 else { return b58 }
-        return "\(b58.prefix(4))...\(b58.suffix(4))"
     }
 
     private var tokenDisplay: String {
@@ -177,8 +170,7 @@ private struct YouSendCard: View {
     let amountToken: String
     let amountFiat: String?
     let assetSymbol: String
-    let recipientFull: String
-    let recipientShort: String
+    let recipient: WalletAddress
 
     var body: some View {
         self.cardContent
@@ -217,16 +209,7 @@ private struct YouSendCard: View {
                 Spacer(minLength: 0)
             }
             Divider()
-            HStack(spacing: 8) {
-                Text("To")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(self.recipientShort)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.primary)
-                Spacer()
-                CopyButton(text: self.recipientFull)
-            }
+            AddressView(address: self.recipient, size: .standard, caption: "To")
         }
         .padding(14)
 
@@ -327,8 +310,7 @@ extension SolanaNetwork {
         amountToken: "0.25",
         amountFiat: "$37.50",
         assetSymbol: "SOL",
-        recipientFull: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq",
-        recipientShort: "5x38…45Wq")
+        recipient: try! WalletAddress(base58: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq"))
         .padding(16)
         .frame(width: 380)
 }
@@ -338,8 +320,7 @@ extension SolanaNetwork {
         amountToken: "12.5",
         amountFiat: "$12.50",
         assetSymbol: "Wrapped Solana Stablecoin V2",
-        recipientFull: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq",
-        recipientShort: "5x38…45Wq")
+        recipient: try! WalletAddress(base58: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq"))
         .padding(16)
         .frame(width: 380)
 }

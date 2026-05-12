@@ -11,11 +11,11 @@ struct WalletSwitcherView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            navBar
+            self.navBar
             Divider().opacity(0.4)
-            list
+            self.list
             Divider().opacity(0.4)
-            footer
+            self.footer
         }
     }
 
@@ -23,7 +23,7 @@ struct WalletSwitcherView: View {
 
     private var navBar: some View {
         HStack(spacing: 6) {
-            Button(action: back) {
+            Button(action: self.back) {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left")
                     Text("Overview")
@@ -54,9 +54,9 @@ struct WalletSwitcherView: View {
     private var list: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(viewModel.wallets) { wallet in
-                    row(for: wallet)
-                    if wallet.id != viewModel.wallets.last?.id {
+                ForEach(self.viewModel.wallets) { wallet in
+                    self.row(for: wallet)
+                    if wallet.id != self.viewModel.wallets.last?.id {
                         Divider().padding(.leading, 16).opacity(0.35)
                     }
                 }
@@ -66,7 +66,7 @@ struct WalletSwitcherView: View {
     }
 
     private func row(for wallet: WalletIdentity) -> some View {
-        Button(action: { select(wallet) }) {
+        Button(action: { self.select(wallet) }) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(wallet.label)
@@ -79,7 +79,7 @@ struct WalletSwitcherView: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                if wallet.id == viewModel.activeWalletId {
+                if wallet.id == self.viewModel.activeWalletId {
                     Image(systemName: "checkmark")
                         .font(.callout.weight(.semibold))
                         .foregroundStyle(.tint)
@@ -90,12 +90,17 @@ struct WalletSwitcherView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Copy Address") {
+                WalletPasteboard.copy(wallet.address.base58)
+            }
+        }
     }
 
     // MARK: - Footer
 
     private var footer: some View {
-        Button(action: openManage) {
+        Button(action: self.openManage) {
             HStack(spacing: 8) {
                 Image(systemName: "slider.horizontal.3")
                 Text("Manage wallets")
@@ -116,20 +121,20 @@ struct WalletSwitcherView: View {
     // MARK: - Actions
 
     private func back() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-            viewModel.route = .overview
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .overview
         }
     }
 
     private func openManage() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-            viewModel.route = .manage
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .manage
         }
     }
 
     private func select(_ wallet: WalletIdentity) {
         Task {
-            await viewModel.selectWallet(wallet.id)
+            await self.viewModel.selectWallet(wallet.id)
         }
     }
 }

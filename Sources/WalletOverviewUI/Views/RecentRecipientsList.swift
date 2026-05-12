@@ -67,6 +67,11 @@ private struct RecentRecipientRow: View {
         .buttonStyle(.plain)
         .onHover { self.isHovered = $0 }
         .accessibilityLabel("Recipient \(self.recent.address.base58)")
+        .contextMenu {
+            Button("Copy Address") {
+                WalletPasteboard.copy(self.recent.address.base58)
+            }
+        }
     }
 }
 

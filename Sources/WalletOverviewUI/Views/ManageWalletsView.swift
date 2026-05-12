@@ -13,21 +13,20 @@ struct ManageWalletsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            navBar
+            self.navBar
             Divider().opacity(0.4)
-            content
+            self.content
             Divider().opacity(0.4)
-            footer
+            self.footer
         }
-        .alert(item: $pendingDeletion) { wallet in
+        .alert(item: self.$pendingDeletion) { wallet in
             Alert(
                 title: Text("Delete “\(wallet.label)”?"),
                 message: Text("The signing key and wallet address will be removed from this Mac."),
                 primaryButton: .destructive(Text("Delete")) {
-                    Task { await viewModel.removeWallet(wallet.id) }
+                    Task { await self.viewModel.removeWallet(wallet.id) }
                 },
-                secondaryButton: .cancel()
-            )
+                secondaryButton: .cancel())
         }
     }
 
@@ -35,7 +34,7 @@ struct ManageWalletsView: View {
 
     private var navBar: some View {
         HStack(spacing: 6) {
-            Button(action: back) {
+            Button(action: self.back) {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left")
                     Text("Wallets")
@@ -64,14 +63,14 @@ struct ManageWalletsView: View {
 
     @ViewBuilder
     private var content: some View {
-        if viewModel.wallets.isEmpty {
-            emptyState
+        if self.viewModel.wallets.isEmpty {
+            self.emptyState
         } else {
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(viewModel.wallets) { wallet in
-                        row(for: wallet)
-                        if wallet.id != viewModel.wallets.last?.id {
+                    ForEach(self.viewModel.wallets) { wallet in
+                        self.row(for: wallet)
+                        if wallet.id != self.viewModel.wallets.last?.id {
                             Divider().padding(.leading, 16).opacity(0.35)
                         }
                     }
@@ -95,8 +94,8 @@ struct ManageWalletsView: View {
             }
             Spacer()
             Menu {
-                Button("Rename…") { startRename(wallet) }
-                Button("Delete", role: .destructive) { pendingDeletion = wallet }
+                Button("Rename…") { self.startRename(wallet) }
+                Button("Delete", role: .destructive) { self.pendingDeletion = wallet }
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.callout)
@@ -108,6 +107,11 @@ struct ManageWalletsView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
+        .contextMenu {
+            Button("Copy Address") {
+                WalletPasteboard.copy(wallet.address.base58)
+            }
+        }
     }
 
     private var emptyState: some View {
@@ -125,7 +129,7 @@ struct ManageWalletsView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        Button(action: openAddWallet) {
+        Button(action: self.openAddWallet) {
             HStack(spacing: 8) {
                 Image(systemName: "plus.circle.fill")
                 Text("Add wallet")
@@ -146,20 +150,20 @@ struct ManageWalletsView: View {
     // MARK: - Actions
 
     private func back() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-            viewModel.route = .switcher
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .switcher
         }
     }
 
     private func startRename(_ wallet: WalletIdentity) {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-            viewModel.route = .rename(walletId: wallet.id)
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .rename(walletId: wallet.id)
         }
     }
 
     private func openAddWallet() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-            viewModel.route = .addWallet
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .addWallet
         }
     }
 }

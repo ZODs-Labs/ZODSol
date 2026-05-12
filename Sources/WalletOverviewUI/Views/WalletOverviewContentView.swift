@@ -130,7 +130,7 @@ struct WalletOverviewContentView: View {
     // MARK: - Hero
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(self.currencyFormatter.displayValue(usd: self.overview.totalUSD ?? 0))
                 .font(.system(size: 30, weight: .bold))
                 .tracking(-0.6)
@@ -140,6 +140,8 @@ struct WalletOverviewContentView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             self.subtitle
+            AddressView(address: self.overview.address, size: .prominent, caption: "Address")
+                .padding(.top, 4)
         }
     }
 
