@@ -3,7 +3,7 @@ import SolanaKit
 import SwiftUI
 
 struct AddressView: View {
-    enum Size: Sendable, Equatable {
+    enum Size: Equatable {
         case compact
         case standard
         case metadata

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct CopyButton: View {
-    enum Style: Sendable, Equatable {
+    enum Style: Equatable {
         case icon
         case iconLabel
         case prominent
@@ -21,8 +21,8 @@ struct CopyButton: View {
         text: String,
         label: String = "Copy",
         style: Style = .icon,
-        onCopy: (@MainActor () -> Void)? = nil
-    ) {
+        onCopy: (@MainActor () -> Void)? = nil)
+    {
         self.text = text
         self.label = label
         self.style = style

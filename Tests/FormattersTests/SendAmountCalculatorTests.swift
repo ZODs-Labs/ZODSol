@@ -4,13 +4,12 @@ import XCTest
 @testable import Formatters
 
 final class SendAmountCalculatorTests: XCTestCase {
-
     // MARK: - Helpers
 
     private func solInput(
         balance: UInt64,
         priceUSD: Decimal? = Decimal(string: "150"),
-        feeReserve: UInt64 = 5_200,
+        feeReserve: UInt64 = 5200,
         rentReserve: UInt64 = 890_880) -> SendAmountInput
     {
         SendAmountInput(
@@ -31,7 +30,7 @@ final class SendAmountCalculatorTests: XCTestCase {
             balanceBaseUnits: balance,
             decimals: decimals,
             priceUSD: priceUSD,
-            feeReserveLamports: Lamports(rawValue: 5_200),
+            feeReserveLamports: Lamports(rawValue: 5200),
             rentReserveLamports: Lamports(rawValue: 0),
             isNativeSOL: false)
     }
@@ -56,7 +55,7 @@ final class SendAmountCalculatorTests: XCTestCase {
         let calc = SendAmountCalculator()
         let balance: UInt64 = 1_000_000_000
         let result = calc.compute(.percentage(1.0), input: self.solInput(balance: balance))
-        XCTAssertEqual(result.baseUnits, balance - 5_200 - 890_880)
+        XCTAssertEqual(result.baseUnits, balance - 5200 - 890_880)
     }
 
     func test_percentage_half_floorsNeverRoundsUp() {
@@ -83,7 +82,7 @@ final class SendAmountCalculatorTests: XCTestCase {
     func test_maxSpendable_solSubtractsFeeAndRent() {
         let calc = SendAmountCalculator()
         let max = calc.maxSpendable(input: self.solInput(balance: 1_000_000_000))
-        XCTAssertEqual(max, 1_000_000_000 - 5_200 - 890_880)
+        XCTAssertEqual(max, 1_000_000_000 - 5200 - 890_880)
     }
 
     func test_maxSpendable_splTokenIsFullBalance() {

@@ -280,7 +280,7 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertEqual(vm.state, .confirming(signature))
     }
 
-    func test_consumeSolanaPayURI_withDifferentSplToken_switchesEffectiveAsset() async throws {
+    func test_consumeSolanaPayURI_withDifferentSplToken_switchesEffectiveAsset() throws {
         let usdc = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
         let other = try Mint(base58: "So11111111111111111111111111111111111111112")
         let from = try WalletAddress(base58: "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le")
@@ -381,7 +381,7 @@ private actor CountingSendServiceWithQuote: SendAssetsService {
     func quote(_ request: SendRequest, tier: PriorityTier) async throws -> SendQuote {
         self.quoteCallCount += 1
         self.lastTier = tier
-        let bh = try Blockhash(bytes: Data((0 ..< 32).map { UInt8($0) }))
+        let bh = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
         let recipientReceives: SendAsset = switch request.asset {
         case let .sol(amount): .sol(amount: amount)
         case let .splToken(mint, amount, decimals):

@@ -98,13 +98,13 @@ struct PendingSendBanner: View {
 
 #if DEBUG
 
-private extension Signature {
-    static var previewBytes: Signature {
+extension Signature {
+    fileprivate static var previewBytes: Signature {
         let bytes = Data(repeating: 0xAB, count: 64)
         return (try? Signature(bytes: bytes)) ?? Signature.preview
     }
 
-    static var preview: Signature {
+    fileprivate static var preview: Signature {
         try! Signature(bytes: Data(repeating: 0x01, count: 64))
     }
 }

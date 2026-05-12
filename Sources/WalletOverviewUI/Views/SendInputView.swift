@@ -292,7 +292,9 @@ private actor PreviewNoopSendInputService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId: UUID) async -> [Signature: SendOutcome] { [:] }
+    func resync(walletId: UUID) async -> [Signature: SendOutcome] {
+        [:]
+    }
 }
 
 @MainActor
@@ -301,7 +303,8 @@ private func makeSendInputPreviewVM(
     recipient: String = "",
     amount: String = "",
     validation: InputValidation = .ok,
-    pill: SolanaPayPill? = nil) -> SendViewModel {
+    pill: SolanaPayPill? = nil) -> SendViewModel
+{
     let address = try! WalletAddress(base58: "So11111111111111111111111111111111111111112")
     let intent = SendIntent(walletId: UUID(), from: address, asset: asset)
     let vm = SendViewModel(

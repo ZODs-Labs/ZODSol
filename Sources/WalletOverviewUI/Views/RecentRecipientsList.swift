@@ -96,7 +96,9 @@ private actor PreviewNoopRecentService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId: UUID) async -> [Signature: SendOutcome] { [:] }
+    func resync(walletId: UUID) async -> [Signature: SendOutcome] {
+        [:]
+    }
 }
 
 @MainActor
@@ -123,11 +125,11 @@ private func makeRecentRecipientsPreviewVM(samples: [RecentRecipient]) -> SendVi
         RecentRecipient(
             walletId: wallet,
             address: try! WalletAddress(base58: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"),
-            lastSentAt: now.addingTimeInterval(-86_400)),
+            lastSentAt: now.addingTimeInterval(-86400)),
         RecentRecipient(
             walletId: wallet,
             address: try! WalletAddress(base58: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
-            lastSentAt: now.addingTimeInterval(-7 * 86_400)),
+            lastSentAt: now.addingTimeInterval(-7 * 86400)),
     ]
     return RecentRecipientsList(viewModel: makeRecentRecipientsPreviewVM(samples: samples))
         .padding(16)

@@ -363,11 +363,9 @@ final class SendAssetsServiceTests: XCTestCase {
         }}}
         """)
     }
-
 }
 
 extension SendAssetsServiceTests {
-
     // MARK: - quote() happy path for SOL
 
     func testSolHappyPathBuildsCorrectQuoteAndCallsRPCInOrder() async throws {
