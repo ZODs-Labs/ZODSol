@@ -4,7 +4,6 @@ import XCTest
 @testable import WalletOverviewUI
 
 final class QRCodeRendererTests: XCTestCase {
-
     private let foreground: CGColor = NSColor.black.cgColor
     private let background: CGColor = NSColor.white.cgColor
 
@@ -14,8 +13,7 @@ final class QRCodeRendererTests: XCTestCase {
             payload: address,
             foreground: self.foreground,
             background: self.background,
-            sizeInPixels: 256
-        )
+            sizeInPixels: 256)
         XCTAssertNotNil(image)
         XCTAssertGreaterThan(image?.size.width ?? 0, 0)
         XCTAssertGreaterThan(image?.size.height ?? 0, 0)
@@ -36,8 +34,7 @@ final class QRCodeRendererTests: XCTestCase {
             payload: payload,
             foreground: self.foreground,
             background: self.background,
-            sizeInPixels: 512
-        )
+            sizeInPixels: 512)
         XCTAssertNotNil(image)
     }
 
@@ -46,8 +43,7 @@ final class QRCodeRendererTests: XCTestCase {
             payload: "",
             foreground: self.foreground,
             background: self.background,
-            sizeInPixels: 256
-        )
+            sizeInPixels: 256)
         XCTAssertNil(image)
     }
 
@@ -56,8 +52,7 @@ final class QRCodeRendererTests: XCTestCase {
             payload: "hello",
             foreground: self.foreground,
             background: self.background,
-            sizeInPixels: 0
-        )
+            sizeInPixels: 0)
         XCTAssertNil(image)
     }
 
@@ -67,14 +62,12 @@ final class QRCodeRendererTests: XCTestCase {
             payload: payload,
             foreground: self.foreground,
             background: self.background,
-            sizeInPixels: 256
-        )
+            sizeInPixels: 256)
         let second = await QRCodeRenderer.render(
             payload: payload,
             foreground: self.foreground,
             background: self.background,
-            sizeInPixels: 256
-        )
+            sizeInPixels: 256)
         guard let firstTIFF = first?.tiffRepresentation,
               let secondTIFF = second?.tiffRepresentation
         else {

@@ -15,8 +15,8 @@ actor MockWalletOverviewService: WalletOverviewService {
 
     init(
         loadResult: LoadState<WalletOverview> = .idle,
-        streamStates: [LoadState<WalletOverview>] = []
-    ) {
+        streamStates: [LoadState<WalletOverview>] = [])
+    {
         self.loadResult = loadResult
         self.streamStates = streamStates
     }
@@ -30,10 +30,10 @@ actor MockWalletOverviewService: WalletOverviewService {
     }
 
     func load(for walletId: UUID, forceRevalidate: Bool) async -> LoadState<WalletOverview> {
-        loadCallCount += 1
-        lastForceRevalidate = forceRevalidate
-        lastLoadWalletId = walletId
-        return loadResult
+        self.loadCallCount += 1
+        self.lastForceRevalidate = forceRevalidate
+        self.lastLoadWalletId = walletId
+        return self.loadResult
     }
 
     nonisolated func stream(for walletId: UUID, tick: Duration) -> AsyncStream<LoadState<WalletOverview>> {
@@ -55,11 +55,11 @@ actor MockWalletOverviewService: WalletOverviewService {
     }
 
     func invalidate(walletId: UUID) async {
-        invalidateCallCount += 1
-        lastInvalidatedWalletId = walletId
+        self.invalidateCallCount += 1
+        self.lastInvalidatedWalletId = walletId
     }
 
     func invalidateAll() async {
-        invalidateAllCallCount += 1
+        self.invalidateAllCallCount += 1
     }
 }

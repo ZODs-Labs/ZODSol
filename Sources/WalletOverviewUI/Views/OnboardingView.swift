@@ -24,19 +24,19 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            header
+            self.header
 
             Group {
-                switch step {
+                switch self.step {
                 case .apiKey:
-                    apiKeyForm
+                    self.apiKeyForm
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
                 case .wallet:
-                    walletForm
+                    self.walletForm
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
                 }
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: step)
+            .animation(self.reduceMotion ? nil : .easeInOut(duration: 0.22), value: self.step)
 
             if let errorMessage {
                 Text(errorMessage)
@@ -51,8 +51,8 @@ struct OnboardingView: View {
         .padding(.vertical, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
-            if viewModel.hasAPIKey {
-                step = .wallet
+            if self.viewModel.hasAPIKey {
+                self.step = .wallet
             }
         }
     }
@@ -62,20 +62,19 @@ struct OnboardingView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Image(systemName: step == .apiKey ? "key.fill" : "wallet.pass.fill")
+                Image(systemName: self.step == .apiKey ? "key.fill" : "wallet.pass.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.tint)
                     .frame(width: 22, height: 22)
                     .background(
-                        Circle().fill(.tint.opacity(0.12))
-                    )
-                Text(step == .apiKey ? "Connect Helius" : "Import wallet")
+                        Circle().fill(.tint.opacity(0.12)))
+                Text(self.step == .apiKey ? "Connect Helius" : "Import wallet")
                     .font(.headline)
                     .foregroundStyle(.primary)
             }
-            Text(step == .apiKey
-                 ? "Paste your Helius API key. It is stored in the macOS Keychain."
-                 : "Paste your Solana signing key. It is stored in Keychain behind Touch ID or your Mac password.")
+            Text(self.step == .apiKey
+                ? "Paste your Helius API key. It is stored in the macOS Keychain."
+                : "Paste your Solana signing key. It is stored in Keychain behind Touch ID or your Mac password.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -86,24 +85,24 @@ struct OnboardingView: View {
 
     private var apiKeyForm: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SecureField("Helius API key", text: $apiKey)
+            SecureField("Helius API key", text: self.$apiKey)
                 .textFieldStyle(.roundedBorder)
                 .disableAutocorrection(true)
-                .onSubmit { saveAPIKey() }
+                .onSubmit { self.saveAPIKey() }
 
-            Button(action: saveAPIKey) {
+            Button(action: self.saveAPIKey) {
                 HStack {
-                    if isWorking {
+                    if self.isWorking {
                         ProgressView().controlSize(.small)
                     }
-                    Text(isWorking ? "Saving…" : "Save API key")
+                    Text(self.isWorking ? "Saving…" : "Save API key")
                         .frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
-            .disabled(trimmedAPIKey.isEmpty || isWorking)
+            .disabled(self.trimmedAPIKey.isEmpty || self.isWorking)
         }
     }
 
@@ -111,35 +110,35 @@ struct OnboardingView: View {
 
     private var walletForm: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("Wallet label (e.g. Main)", text: $label)
+            TextField("Wallet label (e.g. Main)", text: self.$label)
                 .textFieldStyle(.roundedBorder)
 
-            SecureField("Solana private key", text: $privateKeyText)
+            SecureField("Solana private key", text: self.$privateKeyText)
                 .font(.system(.callout, design: .monospaced))
                 .textFieldStyle(.roundedBorder)
                 .disableAutocorrection(true)
-                .onSubmit { importWallet() }
+                .onSubmit { self.importWallet() }
 
             HStack(spacing: 8) {
-                Button(action: { step = .apiKey }) {
+                Button(action: { self.step = .apiKey }) {
                     Image(systemName: "chevron.left")
                     Text("Back")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                .disabled(isWorking)
+                .disabled(self.isWorking)
 
-                Button(action: importWallet) {
+                Button(action: self.importWallet) {
                     HStack {
-                        if isWorking { ProgressView().controlSize(.small) }
-                        Text(isWorking ? "Importing…" : "Import wallet")
+                        if self.isWorking { ProgressView().controlSize(.small) }
+                        Text(self.isWorking ? "Importing…" : "Import wallet")
                             .frame(maxWidth: .infinity)
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
-                .disabled(!canImport || isWorking)
+                .disabled(!self.canImport || self.isWorking)
             }
         }
     }
@@ -147,46 +146,46 @@ struct OnboardingView: View {
     // MARK: - Helpers
 
     private var trimmedAPIKey: String {
-        apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var canImport: Bool {
-        !privateKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !self.privateKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !self.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func saveAPIKey() {
-        let trimmed = trimmedAPIKey
-        guard !trimmed.isEmpty, !isWorking else { return }
-        isWorking = true
-        errorMessage = nil
+        let trimmed = self.trimmedAPIKey
+        guard !trimmed.isEmpty, !self.isWorking else { return }
+        self.isWorking = true
+        self.errorMessage = nil
         Task {
             do {
-                try await viewModel.setAPIKey(trimmed)
-                apiKey = ""
-                step = .wallet
+                try await self.viewModel.setAPIKey(trimmed)
+                self.apiKey = ""
+                self.step = .wallet
             } catch {
-                errorMessage = error.localizedDescription
+                self.errorMessage = error.localizedDescription
             }
-            isWorking = false
+            self.isWorking = false
         }
     }
 
     private func importWallet() {
-        let trimmedKey = privateKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedKey.isEmpty, !trimmedLabel.isEmpty, !isWorking else { return }
-        isWorking = true
-        errorMessage = nil
+        let trimmedKey = self.privateKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLabel = self.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty, !trimmedLabel.isEmpty, !self.isWorking else { return }
+        self.isWorking = true
+        self.errorMessage = nil
         Task {
             do {
-                try await viewModel.addWallet(privateKeyText: trimmedKey, label: trimmedLabel)
-                privateKeyText = ""
-                label = ""
+                try await self.viewModel.addWallet(privateKeyText: trimmedKey, label: trimmedLabel)
+                self.privateKeyText = ""
+                self.label = ""
             } catch {
-                errorMessage = error.localizedDescription
+                self.errorMessage = error.localizedDescription
             }
-            isWorking = false
+            self.isWorking = false
         }
     }
 }

@@ -14,6 +14,9 @@ struct PortfolioRow: Identifiable, Equatable {
     let usdValue: Decimal?
     let priceChange24h: Double?
     let isNative: Bool
+    /// Discriminator for the token's owning program (used to derive the
+    /// recipient ATA). `nil` for native SOL.
+    let tokenProgram: String?
 }
 
 extension PortfolioRow {
@@ -27,8 +30,8 @@ extension PortfolioRow {
             pricePerToken: asset.pricePerToken,
             usdValue: asset.usdValue,
             priceChange24h: asset.priceChange24h,
-            isNative: false
-        )
+            isNative: false,
+            tokenProgram: asset.tokenProgram)
     }
 
     static func sol(balance: Lamports, price: Decimal?, change: Double?) -> PortfolioRow {
@@ -43,20 +46,20 @@ extension PortfolioRow {
             pricePerToken: price,
             usdValue: usd,
             priceChange24h: change,
-            isNative: true
-        )
+            isNative: true,
+            tokenProgram: nil)
     }
 }
 
-extension Array where Element == PortfolioRow {
+extension [PortfolioRow] {
     /// USD-descending order, rows without a price slide to the bottom.
     func sortedByValue() -> [PortfolioRow] {
         sorted { a, b in
             switch (a.usdValue, b.usdValue) {
-            case let (l?, r?): return l > r
-            case (nil, _): return false
-            case (_, nil): return true
-            default: return false
+            case let (l?, r?): l > r
+            case (nil, _): false
+            case (_, nil): true
+            default: false
             }
         }
     }

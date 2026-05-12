@@ -14,27 +14,25 @@ struct AmountField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                TextField("0.0", text: self.$viewModel.amountText)
+                TextField("0.0", text: self.amountBinding)
                     .textFieldStyle(.plain)
                     .font(.system(.body, design: .monospaced))
                     .focused(self.$focused, equals: .amount)
-                    .onChange(of: self.viewModel.amountText) { _, _ in
-                        self.viewModel.scheduleQuote()
-                    }
                     .accessibilityLabel("Amount")
 
                 Text(self.unitLabel)
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.quaternary))
+                    .fill(Color(nsColor: .controlBackgroundColor)))
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+                    .strokeBorder(self.borderColor, lineWidth: self.borderWidth))
 
             if let echo = self.viewModel.echoText {
                 Text(echo)
@@ -45,6 +43,52 @@ struct AmountField: View {
                     .accessibilityLabel("Equivalent: \(echo)")
             }
         }
+    }
+
+    private var amountBinding: Binding<String> {
+        Binding(
+            get: { self.viewModel.amountText },
+            set: { newValue in
+                let filtered = Self.filterNumeric(newValue)
+                guard filtered != self.viewModel.amountText else { return }
+                self.viewModel.amountText = filtered
+                self.viewModel.consumeAmountChange()
+            })
+    }
+
+    /// Drop anything that is not a digit or a single decimal separator. Allow
+    /// thousands commas because the parser already strips them. Keeps the
+    /// field free of obvious garbage without rewriting the parse rules.
+    private static func filterNumeric(_ text: String) -> String {
+        var result = ""
+        var sawDecimal = false
+        for character in text {
+            if character.isNumber || character == "," {
+                result.append(character)
+            } else if character == "." || character == Character(Locale.current.decimalSeparator ?? ".") {
+                if !sawDecimal {
+                    result.append(".")
+                    sawDecimal = true
+                }
+            }
+        }
+        return result
+    }
+
+    private var borderColor: Color {
+        let validation = self.viewModel.inputValidation
+        switch validation {
+        case .amountExceedsBalance, .amountTooSmall, .decimalsExceedMint, .belowFeeReserve:
+            return Color.red.opacity(0.55)
+        default:
+            return self.focused == .amount
+                ? Color.accentColor.opacity(0.55)
+                : Color(nsColor: .separatorColor)
+        }
+    }
+
+    private var borderWidth: CGFloat {
+        self.focused == .amount ? 1.0 : 0.5
     }
 
     private var unitLabel: String {

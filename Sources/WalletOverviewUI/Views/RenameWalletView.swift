@@ -16,24 +16,24 @@ struct RenameWalletView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            navBar
+            self.navBar
             Divider().opacity(0.4)
-            form
+            self.form
             Spacer(minLength: 0)
         }
         .onAppear {
-            if let wallet { label = wallet.label }
-            fieldFocused = true
+            if let wallet { self.label = wallet.label }
+            self.fieldFocused = true
         }
     }
 
     private var wallet: WalletIdentity? {
-        viewModel.wallets.first(where: { $0.id == walletId })
+        self.viewModel.wallets.first(where: { $0.id == self.walletId })
     }
 
     private var navBar: some View {
         HStack(spacing: 6) {
-            Button(action: back) {
+            Button(action: self.back) {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left")
                     Text("Manage")
@@ -62,10 +62,10 @@ struct RenameWalletView: View {
             Text("Wallet label")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            TextField("Label", text: $label)
+            TextField("Label", text: self.$label)
                 .textFieldStyle(.roundedBorder)
-                .focused($fieldFocused)
-                .onSubmit { save() }
+                .focused(self.$fieldFocused)
+                .onSubmit { self.save() }
 
             if let errorMessage {
                 Text(errorMessage)
@@ -73,9 +73,9 @@ struct RenameWalletView: View {
                     .foregroundStyle(.red)
             }
 
-            Button(action: save) {
+            Button(action: self.save) {
                 HStack {
-                    if isWorking { ProgressView().controlSize(.small) }
+                    if self.isWorking { ProgressView().controlSize(.small) }
                     Text("Save")
                         .frame(maxWidth: .infinity)
                 }
@@ -83,32 +83,32 @@ struct RenameWalletView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
-            .disabled(trimmed.isEmpty || isWorking)
+            .disabled(self.trimmed.isEmpty || self.isWorking)
         }
         .padding(.horizontal, 16)
         .padding(.top, 14)
     }
 
     private var trimmed: String {
-        label.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.label.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func back() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-            viewModel.route = .manage
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .manage
         }
     }
 
     private func save() {
-        let value = trimmed
-        guard !value.isEmpty, !isWorking else { return }
-        isWorking = true
-        errorMessage = nil
+        let value = self.trimmed
+        guard !value.isEmpty, !self.isWorking else { return }
+        self.isWorking = true
+        self.errorMessage = nil
         Task {
-            await viewModel.renameWallet(walletId, to: value)
-            isWorking = false
-            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-                viewModel.route = .manage
+            await self.viewModel.renameWallet(self.walletId, to: value)
+            self.isWorking = false
+            withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                self.viewModel.route = .manage
             }
         }
     }

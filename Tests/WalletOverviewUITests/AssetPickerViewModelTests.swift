@@ -138,8 +138,8 @@ final class AssetPickerViewModelTests: XCTestCase {
     @MainActor
     private func waitUntil(
         timeout: TimeInterval = 2.0,
-        _ condition: @MainActor () -> Bool
-    ) async {
+        _ condition: @MainActor () -> Bool) async
+    {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition(), Date() < deadline {
             try? await Task.sleep(for: .milliseconds(10))

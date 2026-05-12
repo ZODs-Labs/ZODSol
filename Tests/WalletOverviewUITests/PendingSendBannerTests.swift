@@ -1,17 +1,15 @@
 import Foundation
-import XCTest
 import SolanaKit
 import WalletOverviewDomain
+import XCTest
 @testable import WalletOverviewUI
 
 final class PendingSendBannerTests: XCTestCase {
-
     func testViewModelConfirmedShowsConfirmedTitle() throws {
         let signature = try Self.makeSignature()
         let info = PendingSendDisplayInfo(
             signature: signature,
-            outcome: .confirmed(signature, slot: 100)
-        )
+            outcome: .confirmed(signature, slot: 100))
 
         let model = PendingSendBannerViewModel(info: info)
 
@@ -23,8 +21,7 @@ final class PendingSendBannerTests: XCTestCase {
         let signature = try Self.makeSignature()
         let info = PendingSendDisplayInfo(
             signature: signature,
-            outcome: .failed(signature, error: "runtime")
-        )
+            outcome: .failed(signature, error: "runtime"))
 
         let model = PendingSendBannerViewModel(info: info)
 
@@ -36,8 +33,7 @@ final class PendingSendBannerTests: XCTestCase {
         let signature = try Self.makeSignature()
         let info = PendingSendDisplayInfo(
             signature: signature,
-            outcome: .expired(signature)
-        )
+            outcome: .expired(signature))
 
         let model = PendingSendBannerViewModel(info: info)
 
@@ -58,8 +54,7 @@ final class PendingSendBannerTests: XCTestCase {
         let signature = try Self.makeSignature()
         let info = PendingSendDisplayInfo(
             signature: signature,
-            outcome: .confirmed(signature, slot: 100)
-        )
+            outcome: .confirmed(signature, slot: 100))
 
         let model = PendingSendBannerViewModel(info: info)
         let base58 = signature.base58

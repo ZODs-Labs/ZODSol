@@ -14,17 +14,17 @@ struct AddWalletView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            navBar
+            self.navBar
             Divider().opacity(0.4)
-            form
+            self.form
             Spacer(minLength: 0)
         }
-        .onAppear { labelFocused = true }
+        .onAppear { self.labelFocused = true }
     }
 
     private var navBar: some View {
         HStack(spacing: 6) {
-            Button(action: back) {
+            Button(action: self.back) {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left")
                     Text("Manage")
@@ -50,15 +50,15 @@ struct AddWalletView: View {
 
     private var form: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("Wallet label (e.g. Main)", text: $label)
+            TextField("Wallet label (e.g. Main)", text: self.$label)
                 .textFieldStyle(.roundedBorder)
-                .focused($labelFocused)
+                .focused(self.$labelFocused)
 
-            SecureField("Solana private key", text: $privateKeyText)
+            SecureField("Solana private key", text: self.$privateKeyText)
                 .font(.system(.callout, design: .monospaced))
                 .textFieldStyle(.roundedBorder)
                 .disableAutocorrection(true)
-                .onSubmit { importWallet() }
+                .onSubmit { self.importWallet() }
 
             if let errorMessage {
                 Text(errorMessage)
@@ -66,51 +66,51 @@ struct AddWalletView: View {
                     .foregroundStyle(.red)
             }
 
-            Button(action: importWallet) {
+            Button(action: self.importWallet) {
                 HStack {
-                    if isWorking { ProgressView().controlSize(.small) }
-                    Text(isWorking ? "Importing…" : "Import wallet")
+                    if self.isWorking { ProgressView().controlSize(.small) }
+                    Text(self.isWorking ? "Importing…" : "Import wallet")
                         .frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
-            .disabled(!canImport || isWorking)
+            .disabled(!self.canImport || self.isWorking)
         }
         .padding(.horizontal, 16)
         .padding(.top, 14)
     }
 
     private var canImport: Bool {
-        !privateKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !self.privateKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !self.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func back() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-            viewModel.route = .manage
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .manage
         }
     }
 
     private func importWallet() {
-        let trimmedKey = privateKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedKey.isEmpty, !trimmedLabel.isEmpty, !isWorking else { return }
-        isWorking = true
-        errorMessage = nil
+        let trimmedKey = self.privateKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLabel = self.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty, !trimmedLabel.isEmpty, !self.isWorking else { return }
+        self.isWorking = true
+        self.errorMessage = nil
         Task {
             do {
-                try await viewModel.addWallet(privateKeyText: trimmedKey, label: trimmedLabel)
-                privateKeyText = ""
-                label = ""
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-                    viewModel.route = .overview
+                try await self.viewModel.addWallet(privateKeyText: trimmedKey, label: trimmedLabel)
+                self.privateKeyText = ""
+                self.label = ""
+                withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                    self.viewModel.route = .overview
                 }
             } catch {
-                errorMessage = error.localizedDescription
+                self.errorMessage = error.localizedDescription
             }
-            isWorking = false
+            self.isWorking = false
         }
     }
 }

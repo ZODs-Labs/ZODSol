@@ -10,7 +10,7 @@ struct WalletSwitcherChip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button(action: openSwitcher) {
+        Button(action: self.openSwitcher) {
             HStack(spacing: 8) {
                 Circle()
                     .fill(.tint)
@@ -44,13 +44,13 @@ struct WalletSwitcherChip: View {
     }
 
     private func openSwitcher() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-            viewModel.route = .switcher
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .switcher
         }
     }
 
     private var currentIdentity: WalletIdentity? {
         guard let activeId = viewModel.activeWalletId else { return nil }
-        return viewModel.wallets.first { $0.id == activeId }
+        return self.viewModel.wallets.first { $0.id == activeId }
     }
 }

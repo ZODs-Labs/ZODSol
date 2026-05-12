@@ -1,6 +1,6 @@
-import SwiftUI
-import SolanaKit
 import Formatters
+import SolanaKit
+import SwiftUI
 
 /// Chromeless NFT tile strip. The section label and total count live on the
 /// parent view's header (matching the macOS popover pattern of labelled
@@ -13,7 +13,7 @@ struct NFTSummaryCard: View {
     private let maxTiles: Int = 6
 
     var body: some View {
-        if summary.isEmpty {
+        if self.summary.isEmpty {
             Text("No NFTs in this wallet")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -21,13 +21,13 @@ struct NFTSummaryCard: View {
                 .padding(.vertical, 6)
         } else {
             HStack(spacing: 6) {
-                let previews = Array(summary.collectionPreviews.prefix(maxTiles))
+                let previews = Array(summary.collectionPreviews.prefix(self.maxTiles))
                 ForEach(Array(previews.enumerated()), id: \.offset) { _, url in
-                    tile(url: url)
+                    self.tile(url: url)
                 }
-                let remaining = summary.count - previews.count
+                let remaining = self.summary.count - previews.count
                 if remaining > 0 {
-                    overflowTile(extra: remaining)
+                    self.overflowTile(extra: remaining)
                 }
                 Spacer(minLength: 0)
             }
@@ -37,7 +37,7 @@ struct NFTSummaryCard: View {
     private func tile(url: URL) -> some View {
         AsyncImage(url: url) { phase in
             switch phase {
-            case .success(let image):
+            case let .success(image):
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -47,12 +47,11 @@ struct NFTSummaryCard: View {
                 Rectangle().fill(.secondary.opacity(0.12))
             }
         }
-        .frame(width: tileSize, height: tileSize)
+        .frame(width: self.tileSize, height: self.tileSize)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(.secondary.opacity(0.12), lineWidth: 0.5)
-        )
+                .strokeBorder(.secondary.opacity(0.12), lineWidth: 0.5))
     }
 
     private func overflowTile(extra: Int) -> some View {
@@ -64,6 +63,6 @@ struct NFTSummaryCard: View {
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
         }
-        .frame(width: tileSize, height: tileSize)
+        .frame(width: self.tileSize, height: self.tileSize)
     }
 }

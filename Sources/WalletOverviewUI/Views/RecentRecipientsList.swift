@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SolanaKit
 import SwiftUI
@@ -29,7 +30,7 @@ struct RecentRecipientsList: View {
 
     static func shorten(_ base58: String) -> String {
         guard base58.count > 12 else { return base58 }
-        return "\(base58.prefix(4))…\(base58.suffix(4))"
+        return "\(base58.prefix(4))\u{2026}\(base58.suffix(4))"
     }
 
     static func relative(_ date: Date) -> String {
@@ -60,12 +61,21 @@ private struct RecentRecipientRow: View {
             .padding(.vertical, 5)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(self.isHovered ? Color.accentColor.opacity(0.08) : Color.clear))
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(self.isHovered
+                        ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.18)
+                        : Color.clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { self.isHovered = $0 }
+        .onHover { hovering in
+            self.isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
         .accessibilityLabel("Recipient \(self.recent.address.base58)")
         .contextMenu {
             Button("Copy Address") {

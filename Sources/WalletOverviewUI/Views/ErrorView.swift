@@ -10,23 +10,23 @@ struct ErrorView: View {
             Image(systemName: "exclamationmark.octagon")
                 .font(.system(size: 28, weight: .regular))
                 .foregroundStyle(.secondary)
-            Text(title)
+            Text(self.title)
                 .font(.headline)
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
-            Text(detail)
+            Text(self.detail)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             VStack(spacing: 8) {
                 Button("Retry") {
-                    Task { await viewModel.refresh() }
+                    Task { await self.viewModel.refresh() }
                 }
                 .buttonStyle(.borderedProminent)
 
-                if canChangeAPIKey {
+                if self.canChangeAPIKey {
                     Button("Change API key") {
-                        Task { await viewModel.clearAPIKey() }
+                        Task { await self.viewModel.clearAPIKey() }
                     }
                     .buttonStyle(.bordered)
                 }
@@ -39,7 +39,7 @@ struct ErrorView: View {
     }
 
     private var title: String {
-        switch error {
+        switch self.error {
         case .needsSetup: "Setup required"
         case .networkUnavailable: "No connection"
         case .rateLimited: "Rate limited"
@@ -53,7 +53,7 @@ struct ErrorView: View {
     }
 
     private var detail: String {
-        switch error {
+        switch self.error {
         case .needsSetup:
             "Add a Helius API key to load your portfolio."
         case .networkUnavailable:
@@ -62,21 +62,21 @@ struct ErrorView: View {
             "Too many requests. Try again shortly."
         case .unauthorized:
             "Your API key was rejected. Verify the key and retry."
-        case .providerUnavailable(let message):
+        case let .providerUnavailable(message):
             message
-        case .malformedResponse(let message):
+        case let .malformedResponse(message):
             message
         case .biometricInvalidated:
             "Re-authenticate to access your secured keys."
         case .canceled:
             "The previous request was canceled."
-        case .unknown(let message):
+        case let .unknown(message):
             message
         }
     }
 
     private var canChangeAPIKey: Bool {
-        switch error {
+        switch self.error {
         case .needsSetup, .unauthorized:
             true
         case .networkUnavailable,

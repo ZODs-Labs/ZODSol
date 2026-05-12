@@ -11,21 +11,21 @@ struct SendNavigator: View {
     var body: some View {
         ZStack {
             switch self.viewModel.state {
-            case .input:
+            case .input, .quoting:
+                // Keep the input form mounted while quoting so the user
+                // never loses sight of what they typed. The Review button
+                // shows the spinner instead.
                 SendInputView(viewModel: self.viewModel)
                     .transition(.identity)
-            case .quoting:
-                SendQuotingView()
-                    .transition(.opacity)
             case let .readyToConfirm(quote):
                 SendConfirmView(viewModel: self.viewModel, quote: quote)
-                    .transition(.opacity)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
             case .signing, .broadcasting, .confirming, .confirmed, .expired, .failed:
                 SendStatusView(viewModel: self.viewModel)
                     .transition(.opacity)
             }
         }
-        .animation(self.reduceMotion ? nil : .easeInOut(duration: 0.18), value: self.viewModel.state)
+        .animation(self.reduceMotion ? nil : .smooth(duration: 0.22), value: self.viewModel.state)
     }
 }
 

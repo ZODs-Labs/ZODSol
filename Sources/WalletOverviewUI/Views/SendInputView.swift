@@ -7,12 +7,12 @@ import WalletOverviewDomain
 /// First step of the send flow. Combines the recipient field, recents,
 /// dual-mode amount entry, percentage chips and a validation strip. The
 /// "Review" button calls `requestQuote` which pushes the state machine into
-/// `.quoting` and from there onto the confirm view.
+/// `.quoting` and from there onto the confirm view. The form stays mounted
+/// during `.quoting` so the user never loses sight of what they typed.
 struct SendInputView: View {
     @Bindable var viewModel: SendViewModel
     @FocusState private var focused: Field?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isReviewing = false
 
     enum Field: Hashable {
         case recipient
@@ -49,6 +49,7 @@ struct SendInputView: View {
             self.footer
         }
         .padding(16)
+        .disabled(self.isQuoting)
         .task {
             await self.viewModel.loadRecents()
         }
@@ -57,12 +58,18 @@ struct SendInputView: View {
         }
     }
 
+    private var isQuoting: Bool {
+        if case .quoting = self.viewModel.state { return true }
+        return false
+    }
+
     // MARK: - Subviews
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             Text("Send \(self.viewModel.assetSymbol)")
                 .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
             Spacer()
             ClusterBadge(network: self.viewModel.cluster)
         }
@@ -97,17 +104,16 @@ struct SendInputView: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.background.opacity(0.6)))
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.regularMaterial))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5))
     }
 
     private var footer: some View {
         HStack {
             Button("Cancel") {
-                self.viewModel.cancelDebouncedQuote()
                 self.viewModel.dismiss()
             }
             .buttonStyle(.bordered)
@@ -116,21 +122,21 @@ struct SendInputView: View {
             Spacer()
 
             Button {
-                self.isReviewing = true
-                Task {
-                    await self.viewModel.requestQuote()
-                    self.isReviewing = false
-                }
+                Task { await self.viewModel.requestQuote() }
             } label: {
-                if self.isReviewing {
-                    ProgressView().controlSize(.small)
+                if self.isQuoting {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("Reviewing\u{2026}")
+                    }
                 } else {
                     Text("Review")
                 }
             }
             .keyboardShortcut(.defaultAction)
             .buttonStyle(.borderedProminent)
-            .disabled(self.isReviewing || !self.viewModel.canReview)
+            .disabled(self.isQuoting || !self.viewModel.canReview)
+            .animation(self.reduceMotion ? nil : .smooth(duration: 0.18), value: self.isQuoting)
         }
     }
 
@@ -217,7 +223,7 @@ struct ValidationStripView: View {
         switch self.style {
         case .info: "info.circle.fill"
         case .warning: "exclamationmark.triangle.fill"
-        case .error: "exclamationmark.octagon.fill"
+        case .error: "exclamationmark.triangle.fill"
         }
     }
 

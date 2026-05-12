@@ -16,7 +16,6 @@ struct PartialDataBanner: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.35), lineWidth: 0.5)
-        )
+                .strokeBorder(Color.orange.opacity(0.35), lineWidth: 0.5))
     }
 }

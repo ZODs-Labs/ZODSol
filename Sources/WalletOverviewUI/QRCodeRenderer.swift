@@ -15,8 +15,8 @@ public enum QRCodeRenderer {
         foreground: CGColor,
         background: CGColor,
         sizeInPixels: Int,
-        correctionLevel: CorrectionLevel = .high
-    ) async -> NSImage? {
+        correctionLevel: CorrectionLevel = .high) async -> NSImage?
+    {
         guard !payload.isEmpty, sizeInPixels > 0 else { return nil }
         guard let data = payload.data(using: .utf8) else { return nil }
 

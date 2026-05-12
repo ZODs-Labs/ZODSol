@@ -10,7 +10,7 @@ actor MockSendAssetsService: SendAssetsService {
     private var resyncResults: [Signature: SendOutcome] = [:]
 
     func quote(_ request: SendRequest, tier: PriorityTier) async throws -> SendQuote {
-        lastQuoteTier = tier
+        self.lastQuoteTier = tier
         throw SendError.canceled
     }
 
@@ -19,7 +19,7 @@ actor MockSendAssetsService: SendAssetsService {
     }
 
     func resync(walletId: UUID) async -> [Signature: SendOutcome] {
-        resyncResults
+        self.resyncResults
     }
 
     func setResyncResults(_ results: [Signature: SendOutcome]) {

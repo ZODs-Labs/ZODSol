@@ -197,8 +197,10 @@ private struct AssetPickerRow: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(self.isHovered ? Color.accentColor.opacity(0.08) : Color.clear))
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(self.isHovered
+                    ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.18)
+                    : Color.clear))
         .contentShape(Rectangle())
         .onHover { self.isHovered = $0 }
     }

@@ -67,14 +67,17 @@ public final class SendViewModel {
         didSet {
             guard oldValue != self.priorityTier else { return }
             UserDefaults.standard.set(self.priorityTier.rawValue, forKey: Self.priorityTierDefaultsKey)
-            Task { [weak self] in await self?.requestQuote() }
+            self.handlePriorityTierChange()
         }
     }
 
     public var feeReserveLamports: Lamports = .init(rawValue: 5200)
     public var rentReserveLamports: Lamports = .init(rawValue: 890_880)
     public var ataRentReserveLamports: Lamports = .init(rawValue: 2_039_280)
-    public var detailsExpanded: Bool = false
+    /// Fee details default to expanded so Mac users see the network fee, rent
+    /// and total cost without an extra click. macOS expects transparency for
+    /// money-moving actions.
+    public var detailsExpanded: Bool = true
     public var inputValidation: InputValidation = .ok
     public var solanaPayPill: SolanaPayPill?
     public internal(set) var lastQuote: SendQuote?
@@ -82,6 +85,10 @@ public final class SendViewModel {
 
     public var assetBalanceBaseUnits: UInt64 = 0
     public var assetPriceUSD: Decimal?
+    /// True while a re-quote is running from the Review screen (priority-tier
+    /// change). The confirm view shows a non-blocking indicator and disables
+    /// Send so the user never signs against a stale fee.
+    public private(set) var isRequoting: Bool = false
 
     public let intent: SendIntent
     public let cluster: SolanaNetwork
@@ -93,7 +100,6 @@ public final class SendViewModel {
     let onDismiss: @MainActor () -> Void
     let recentRecipientsStore: RecentRecipientsStore?
     let splTokenLookup: (@MainActor (Mint) -> (decimals: UInt8, symbol: String, name: String)?)?
-    var quoteDebounceTask: Task<Void, Never>?
     var lastChipPercentage: Double?
 
     static let priorityTierDefaultsKey = "send.priorityTier"
@@ -125,10 +131,17 @@ public final class SendViewModel {
 // MARK: - State transitions
 
 extension SendViewModel {
-    /// Build the quote. The view should call this from the "Review" button
-    /// in `SendView` after a successful input validation.
+    /// Build the quote. Driven by an explicit user action - the Review button
+    /// on `SendInputView`, or a tier change on `SendConfirmView`. Never
+    /// triggered by typing, pasting, or chip taps; the user must opt into the
+    /// network round trip.
     public func requestQuote() async {
-        guard case .input = self.state else { return }
+        switch self.state {
+        case .input, .readyToConfirm, .failed:
+            break
+        default:
+            return
+        }
         self.validationError = nil
 
         let request: SendRequest
@@ -136,9 +149,11 @@ extension SendViewModel {
             request = try self.parseRequest()
         } catch let SendInputError.message(message) {
             self.validationError = message
+            self.state = .input
             return
         } catch {
             self.validationError = "Could not parse this input."
+            self.state = .input
             return
         }
 
@@ -152,6 +167,51 @@ extension SendViewModel {
             self.state = .failed(error)
         } catch is CancellationError {
             self.state = .input
+        } catch {
+            self.state = .failed(.broadcastFailed(reason: String(describing: error)))
+        }
+    }
+
+    /// Re-quote only when the user is already on the Review screen (or the
+    /// quote just failed). On the input screen no quote exists yet, so a
+    /// tier change is a no-op until the user taps Review.
+    private func handlePriorityTierChange() {
+        switch self.state {
+        case .readyToConfirm:
+            Task { [weak self] in await self?.requote() }
+        case .failed:
+            Task { [weak self] in await self?.requestQuote() }
+        default:
+            break
+        }
+    }
+
+    /// Re-build the quote without leaving the Review screen. Used when the
+    /// user changes the priority tier on confirm - we keep `state` on
+    /// `.readyToConfirm` and flip `isRequoting` so the view can show a thin
+    /// progress indicator without unmounting the form.
+    private func requote() async {
+        guard case .readyToConfirm = self.state else { return }
+        let request: SendRequest
+        do {
+            request = try self.parseRequest()
+        } catch {
+            // Inputs that built the original quote should still parse - if
+            // they don't, fall back to the full input flow.
+            self.state = .input
+            return
+        }
+        self.isRequoting = true
+        defer { self.isRequoting = false }
+        do {
+            let quote = try await self.service.quote(request, tier: self.priorityTier)
+            self.lastQuote = quote
+            self.feeReserveLamports = quote.networkFeeLamports
+            self.state = .readyToConfirm(quote)
+        } catch let error as SendError {
+            self.state = .failed(error)
+        } catch is CancellationError {
+            return
         } catch {
             self.state = .failed(.broadcastFailed(reason: String(describing: error)))
         }
@@ -221,13 +281,15 @@ extension SendViewModel {
         let result = calc.compute(.percentage(clamped), input: input)
         self.amountText = result.displayToken
         self.validateAllLocally()
-        self.scheduleQuote()
     }
 
     public func selectPriorityTier(_ tier: PriorityTier) {
         self.priorityTier = tier
     }
 
+    /// Called when the recipient field's text changes (typing, paste, recents
+    /// tap, Solana Pay URI). Local-only - never issues a network quote. The
+    /// user must explicitly tap Review to initiate the RPC round trip.
     public func consumeRecipientText(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("solana:") {
@@ -235,6 +297,8 @@ extension SendViewModel {
                 try self.consumeSolanaPayURI(trimmed)
                 return
             } catch {
+                self.recipientText = trimmed
+                self.solanaPayPill = nil
                 self.inputValidation = .quoteError("Invalid Solana Pay link")
                 return
             }
@@ -242,9 +306,10 @@ extension SendViewModel {
         self.recipientText = trimmed
         self.solanaPayPill = nil
         self.validateRecipientLocally()
-        self.scheduleQuote()
     }
 
+    /// Apply a parsed Solana Pay URI to the form. Local-only - same network
+    /// gate as `consumeRecipientText`.
     public func consumeSolanaPayURI(_ text: String) throws {
         let expectedDecimals = Int(self.assetDecimals)
         let parsed = try SolanaPayURIParser.parse(text, expectedDecimals: expectedDecimals)
@@ -264,27 +329,18 @@ extension SendViewModel {
         }
         self.solanaPayPill = SolanaPayPill(label: parsed.label, message: parsed.message)
         self.validateAllLocally()
-        self.scheduleQuote()
+    }
+
+    /// Re-validate when the amount field changes. Local-only; pure parse
+    /// against the active mint's decimals + balance check.
+    public func consumeAmountChange() {
+        self.validateAllLocally()
     }
 
     private func resolvedSplAsset(for mint: Mint) -> SendAssetKind? {
         guard let lookup = self.splTokenLookup else { return nil }
         guard let info = lookup(mint) else { return nil }
         return .splToken(mint: mint, decimals: info.decimals, symbol: info.symbol, name: info.name)
-    }
-
-    public func scheduleQuote() {
-        self.quoteDebounceTask?.cancel()
-        self.quoteDebounceTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled, let self else { return }
-            await self.requestQuote()
-        }
-    }
-
-    public func cancelDebouncedQuote() {
-        self.quoteDebounceTask?.cancel()
-        self.quoteDebounceTask = nil
     }
 }
 

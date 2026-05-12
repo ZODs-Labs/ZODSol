@@ -163,21 +163,21 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertEqual(vm.amountText, "0")
     }
 
-    func test_scheduleQuote_rapidTyping_firesOnlyOneQuote() async throws {
+    func test_typingDoesNotTriggerNetworkQuote() async throws {
+        // Typing into the recipient/amount fields, tapping chips, and pasting
+        // Solana Pay URIs must never reach the SendAssetsService.quote(_) RPC.
+        // The user must explicitly tap Review to opt into the network round
+        // trip.
         let counter = CountingSendService()
         let vm = try makeViewModel(asset: .sol, service: counter)
-        vm.recipientText = "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le"
+        vm.assetBalanceBaseUnits = 1_000_000_000
+        vm.consumeRecipientText("5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le")
         vm.amountText = "0.1"
-
-        vm.scheduleQuote()
-        try? await Task.sleep(for: .milliseconds(50))
-        vm.scheduleQuote()
-        try? await Task.sleep(for: .milliseconds(50))
-        vm.scheduleQuote()
+        vm.consumeAmountChange()
+        vm.selectChip(0.25)
         try? await Task.sleep(for: .milliseconds(500))
-
         let count = await counter.quoteCallCount
-        XCTAssertEqual(count, 1)
+        XCTAssertEqual(count, 0)
     }
 
     func test_consumeRecipientText_solanaPayURI_populatesAddressAndAmount() throws {
@@ -218,7 +218,9 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertFalse(vm.canReview)
     }
 
-    func test_priorityTier_change_persistsAndTriggersReQuote() async throws {
+    func test_priorityTier_change_onInputState_doesNotTriggerQuote() async throws {
+        // Priority tier change while on the input screen must not run a
+        // network quote. The user hasn't tapped Review yet.
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: "send.priorityTier")
         let counter = CountingSendService()
@@ -233,9 +235,40 @@ final class SendViewModelTests: XCTestCase {
 
         try? await Task.sleep(for: .milliseconds(150))
         let count = await counter.quoteCallCount
-        XCTAssertGreaterThanOrEqual(count, 1)
+        XCTAssertEqual(count, 0)
+        defaults.removeObject(forKey: "send.priorityTier")
+    }
+
+    func test_priorityTier_change_onReadyToConfirm_triggersReQuote() async throws {
+        // Once on Review, changing the priority tier rebuilds the quote so
+        // the user sees the fee for the tier they just picked.
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "send.priorityTier")
+        let counter = CountingSendServiceWithQuote()
+        let vm = try makeViewModel(asset: .sol, service: counter)
+        vm.recipientText = "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le"
+        vm.amountText = "0.1"
+        vm.assetBalanceBaseUnits = 1_000_000_000
+
+        await vm.requestQuote()
+        guard case .readyToConfirm = vm.state else {
+            XCTFail("Expected readyToConfirm, got \(vm.state)")
+            return
+        }
+        let baseline = await counter.quoteCallCount
+        XCTAssertEqual(baseline, 1)
+
+        vm.selectPriorityTier(.turbo)
+        try? await Task.sleep(for: .milliseconds(150))
+        let count = await counter.quoteCallCount
+        XCTAssertEqual(count, 2)
         let lastTier = await counter.lastTier
         XCTAssertEqual(lastTier, .turbo)
+        // State stays on readyToConfirm so the user never leaves Review.
+        guard case .readyToConfirm = vm.state else {
+            XCTFail("Expected readyToConfirm after re-quote, got \(vm.state)")
+            return
+        }
         defaults.removeObject(forKey: "send.priorityTier")
     }
 
@@ -328,6 +361,45 @@ private actor CountingSendService: SendAssetsService {
         self.quoteCallCount += 1
         self.lastTier = tier
         throw SendError.canceled
+    }
+
+    func send(quote _: SendQuote) async throws -> SendOutcome {
+        throw SendError.canceled
+    }
+
+    func resync(walletId _: UUID) async -> [Signature: SendOutcome] {
+        [:]
+    }
+}
+
+/// Returns a synthesized `SendQuote` so the view model can reach
+/// `.readyToConfirm` and exercise the re-quote path.
+private actor CountingSendServiceWithQuote: SendAssetsService {
+    private(set) var quoteCallCount: Int = 0
+    private(set) var lastTier: PriorityTier?
+
+    func quote(_ request: SendRequest, tier: PriorityTier) async throws -> SendQuote {
+        self.quoteCallCount += 1
+        self.lastTier = tier
+        let bh = try Blockhash(bytes: Data((0 ..< 32).map { UInt8($0) }))
+        let recipientReceives: SendAsset = switch request.asset {
+        case let .sol(amount): .sol(amount: amount)
+        case let .splToken(mint, amount, decimals):
+            .splToken(mint: mint, amount: amount, decimals: decimals)
+        }
+        return SendQuote(
+            request: request,
+            networkFeeLamports: Lamports(rawValue: 5000),
+            priorityFeeMicroLamports: 0,
+            computeUnitLimit: 5000,
+            recipientAtaWillBeCreated: false,
+            rentForRecipientAta: Lamports(rawValue: 0),
+            token2022Notice: nil,
+            recipientReceives: recipientReceives,
+            cluster: .devnet,
+            simulationLogs: [],
+            signableMessage: Data(),
+            lifetime: .blockhash(bh, lastValidBlockHeight: 0))
     }
 
     func send(quote _: SendQuote) async throws -> SendOutcome {

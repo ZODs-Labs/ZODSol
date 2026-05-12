@@ -48,7 +48,7 @@ struct SendStatusView: View {
     private var actionBar: some View {
         if self.isTerminal {
             HStack {
-                Button("Send another") { self.viewModel.back() }
+                Button("Send Again") { self.viewModel.back() }
                     .buttonStyle(.bordered)
                 Spacer()
                 Button("Done") { self.viewModel.dismiss() }
@@ -60,6 +60,7 @@ struct SendStatusView: View {
                 Spacer()
                 Button("Hide") { self.viewModel.dismiss() }
                     .buttonStyle(.bordered)
+                    .keyboardShortcut(.cancelAction)
             }
         }
     }
@@ -78,9 +79,9 @@ struct SendStatusView: View {
 
     private var statusTitle: String {
         switch self.viewModel.state {
-        case .signing: "Waiting for signature..."
-        case .broadcasting: "Sending..."
-        case .confirming: "Confirming..."
+        case .signing: "Waiting for signature\u{2026}"
+        case .broadcasting: "Sending\u{2026}"
+        case .confirming: "Confirming\u{2026}"
         case .confirmed: "Send confirmed"
         case .expired: "Transaction expired"
         case .failed: "Send failed"
@@ -275,16 +276,16 @@ private struct SignatureCard: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.background.opacity(0.6)))
+                .fill(.regularMaterial))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5))
     }
 
     private var shortened: String {
         let b58 = self.signature.base58
         guard b58.count > 16 else { return b58 }
-        return "\(b58.prefix(8))...\(b58.suffix(6))"
+        return "\(b58.prefix(8))\u{2026}\(b58.suffix(6))"
     }
 }
 

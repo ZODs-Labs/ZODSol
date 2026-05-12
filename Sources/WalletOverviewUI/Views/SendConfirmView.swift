@@ -14,13 +14,15 @@ struct SendConfirmView: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            self.header
+
             YouSendCard(
                 amountToken: self.tokenDisplay,
                 amountFiat: self.fiatDisplay,
                 assetSymbol: self.assetSymbol,
                 recipient: self.quote.request.recipient)
 
-            DisclosureGroup("Details", isExpanded: self.$viewModel.detailsExpanded) {
+            DisclosureGroup(isExpanded: self.$viewModel.detailsExpanded) {
                 VStack(alignment: .leading, spacing: 8) {
                     DetailRow("Network fee", value: self.feeDisplay)
                     if self.quote.recipientAtaWillBeCreated {
@@ -28,14 +30,28 @@ struct SendConfirmView: View {
                     }
                     PriorityTierPicker(selection: self.$viewModel.priorityTier)
                         .padding(.vertical, 4)
+                        .disabled(self.viewModel.isRequoting)
                     DetailRow("Total cost", value: self.totalDisplay)
                     if let transferFee = self.transferFeeDisplay {
                         DetailRow("Transfer fee", value: transferFee)
                     }
                 }
                 .padding(.top, 4)
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Details")
+                        .font(.callout.weight(.medium))
+                    if self.viewModel.isRequoting {
+                        ProgressView()
+                            .controlSize(.small)
+                            .scaleEffect(0.7)
+                        Text("Recalculating fee\u{2026}")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
-            .animation(self.reduceMotion ? nil : .easeInOut(duration: 0.22), value: self.viewModel.detailsExpanded)
+            .animation(self.reduceMotion ? nil : .smooth(duration: 0.22), value: self.viewModel.detailsExpanded)
 
             if let notice = self.quote.token2022Notice {
                 if let bps = notice.transferFeeBasisPoints, bps > 500 {
@@ -55,19 +71,31 @@ struct SendConfirmView: View {
             HStack(spacing: 8) {
                 Button("Back") { self.viewModel.back() }
                     .buttonStyle(.bordered)
-                ClusterBadge(network: self.viewModel.cluster)
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(self.viewModel.isRequoting)
                 Spacer()
                 Button {
                     Task { await self.viewModel.confirmSend() }
                 } label: {
-                    Text("Send on \(self.viewModel.cluster.displayName)")
+                    Text("Send \(self.viewModel.cluster.displayName)")
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
                 .tint(self.viewModel.cluster == .mainnet ? .red : .accentColor)
+                .disabled(self.viewModel.isRequoting)
             }
         }
         .padding(16)
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Review send")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
+            Spacer()
+            ClusterBadge(network: self.viewModel.cluster)
+        }
     }
 
     private var assetSymbol: String {

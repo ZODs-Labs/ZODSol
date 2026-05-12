@@ -20,11 +20,10 @@ enum TestWalletStoreFactory {
     }
 
     static func makeWithWallet() async throws -> (WalletStore, WalletIdentity) {
-        let store = makeEmpty()
+        let store = self.makeEmpty()
         let identity = try await store.add(
             address: WalletAddress(base58: "11111111111111111111111111111111"),
-            label: "Main"
-        )
+            label: "Main")
         await store.setSelectedWallet(identity.id)
         return (store, identity)
     }
