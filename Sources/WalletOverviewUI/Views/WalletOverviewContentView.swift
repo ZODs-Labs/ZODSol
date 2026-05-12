@@ -87,7 +87,9 @@ struct WalletOverviewContentView: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut("s", modifiers: .command)
-        .help("Send (⌘S)")
+        .disabled(!self.viewModel.canSendOrReceive)
+        .opacity(self.viewModel.canSendOrReceive ? 1.0 : 0.4)
+        .help(self.viewModel.canSendOrReceive ? "Send (⌘S)" : "Waiting for wallet...")
         .accessibilityLabel("Send")
     }
 
@@ -103,7 +105,9 @@ struct WalletOverviewContentView: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut("r", modifiers: [.command, .shift])
-        .help("Receive (⌘⇧R)")
+        .disabled(!self.viewModel.canSendOrReceive)
+        .opacity(self.viewModel.canSendOrReceive ? 1.0 : 0.4)
+        .help(self.viewModel.canSendOrReceive ? "Receive (⌘⇧R)" : "Waiting for wallet...")
         .accessibilityLabel("Receive")
     }
 

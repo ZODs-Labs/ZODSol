@@ -1,5 +1,5 @@
-import Foundation
 import Formatters
+import Foundation
 import SolanaKit
 import WalletOverviewDomain
 import XCTest
@@ -10,19 +10,17 @@ import XCTest
 /// any RPC call.
 @MainActor
 final class SendViewModelTests: XCTestCase {
-
     private func makeIntent(asset: SendAssetKind) throws -> SendIntent {
         let from = try WalletAddress(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
         return SendIntent(walletId: UUID(), from: from, asset: asset)
     }
 
     private func makeViewModel(asset: SendAssetKind) throws -> SendViewModel {
-        SendViewModel(
-            intent: try makeIntent(asset: asset),
+        try SendViewModel(
+            intent: self.makeIntent(asset: asset),
             cluster: .devnet,
             service: AlwaysFailService(),
-            onDismiss: {}
-        )
+            onDismiss: {})
     }
 
     // MARK: - Empty / whitespace
@@ -59,7 +57,7 @@ final class SendViewModelTests: XCTestCase {
         let usdc = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
         let vm = try makeViewModel(asset: .splToken(mint: usdc, decimals: 6, symbol: "USDC", name: nil))
         vm.recipientText = "So11111111111111111111111111111111111111112"
-        vm.amountText = "1.1234567"  // 7 fraction digits, USDC allows 6
+        vm.amountText = "1.1234567" // 7 fraction digits, USDC allows 6
         await vm.requestQuote()
         XCTAssertNotNil(vm.validationError)
         XCTAssertTrue(vm.validationError?.contains("decimal") ?? false)
@@ -70,7 +68,7 @@ final class SendViewModelTests: XCTestCase {
         // service then rejects (no RPC enqueued), but the parse should pass.
         let vm = try makeViewModel(asset: .sol)
         vm.recipientText = "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le"
-        vm.amountText = "0.123456789"  // 9 decimals = SOL precision
+        vm.amountText = "0.123456789" // 9 decimals = SOL precision
         await vm.requestQuote()
         // After parse, the state moves into .quoting and the AlwaysFailService
         // throws .canceled, which we map to .failed(.broadcastFailed) per
@@ -109,18 +107,17 @@ final class SendViewModelTests: XCTestCase {
     private func makeViewModel(
         asset: SendAssetKind,
         service: any SendAssetsService,
-        store: RecentRecipientsStore? = nil
-    ) throws -> SendViewModel {
-        SendViewModel(
-            intent: try makeIntent(asset: asset),
+        store: RecentRecipientsStore? = nil) throws -> SendViewModel
+    {
+        try SendViewModel(
+            intent: self.makeIntent(asset: asset),
             cluster: .devnet,
             service: service,
             onDismiss: {},
-            recentRecipientsStore: store
-        )
+            recentRecipientsStore: store)
     }
 
-    func test_toggleFiatMode_flipsBetweenTokenAndFiat() async throws {
+    func test_toggleFiatMode_flipsBetweenTokenAndFiat() throws {
         let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
         vm.assetPriceUSD = Decimal(string: "100")
         XCTAssertEqual(vm.fiatMode, .token)
@@ -130,7 +127,7 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertEqual(vm.fiatMode, .token)
     }
 
-    func test_toggleFiatMode_isNoOpWhenPriceUSDNil() async throws {
+    func test_toggleFiatMode_isNoOpWhenPriceUSDNil() throws {
         let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
         vm.assetPriceUSD = nil
         XCTAssertEqual(vm.fiatMode, .token)
@@ -138,10 +135,10 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertEqual(vm.fiatMode, .token)
     }
 
-    func test_selectChip_50_withBootstrap_producesFlooredHalf() async throws {
+    func test_selectChip_50_withBootstrap_producesFlooredHalf() throws {
         let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
         vm.assetBalanceBaseUnits = 1_000_000_000
-        vm.feeReserveLamports = Lamports(rawValue: 5_200)
+        vm.feeReserveLamports = Lamports(rawValue: 5200)
         vm.rentReserveLamports = Lamports(rawValue: 890_880)
         vm.selectChip(0.5)
 
@@ -150,18 +147,17 @@ final class SendViewModelTests: XCTestCase {
             balanceBaseUnits: 1_000_000_000,
             decimals: 9,
             priceUSD: nil,
-            feeReserveLamports: Lamports(rawValue: 5_200),
+            feeReserveLamports: Lamports(rawValue: 5200),
             rentReserveLamports: Lamports(rawValue: 890_880),
-            isNativeSOL: true
-        )
+            isNativeSOL: true)
         let expected = calc.compute(.percentage(0.5), input: input).displayToken
         XCTAssertEqual(vm.amountText, expected)
     }
 
-    func test_selectChip_max_withInsufficientSOL_produces0() async throws {
+    func test_selectChip_max_withInsufficientSOL_produces0() throws {
         let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
         vm.assetBalanceBaseUnits = 100
-        vm.feeReserveLamports = Lamports(rawValue: 5_200)
+        vm.feeReserveLamports = Lamports(rawValue: 5200)
         vm.rentReserveLamports = Lamports(rawValue: 890_880)
         vm.selectChip(1.0)
         XCTAssertEqual(vm.amountText, "0")
@@ -184,7 +180,7 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
-    func test_consumeRecipientText_solanaPayURI_populatesAddressAndAmount() async throws {
+    func test_consumeRecipientText_solanaPayURI_populatesAddressAndAmount() throws {
         let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
         let address = "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le"
         let uri = "solana:\(address)?amount=2.5&label=Cafe&message=Latte"
@@ -196,13 +192,13 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertEqual(vm.solanaPayPill?.message, "Latte")
     }
 
-    func test_validateRecipientLocally_emptyText() async throws {
+    func test_validateRecipientLocally_emptyText() throws {
         let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
         vm.consumeRecipientText("")
         XCTAssertFalse(vm.canReview)
     }
 
-    func test_validateRecipientLocally_invalidBase58() async throws {
+    func test_validateRecipientLocally_invalidBase58() throws {
         let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
         vm.amountText = "1"
         vm.assetBalanceBaseUnits = 1_000_000_000
@@ -215,7 +211,7 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertFalse(vm.canReview)
     }
 
-    func test_validateRecipientLocally_sendingToSelf() async throws {
+    func test_validateRecipientLocally_sendingToSelf() throws {
         let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
         vm.consumeRecipientText(vm.intent.from.base58)
         XCTAssertEqual(vm.inputValidation, .sendingToSelf)
@@ -243,12 +239,46 @@ final class SendViewModelTests: XCTestCase {
         defaults.removeObject(forKey: "send.priorityTier")
     }
 
-    func test_preloadConfirming_setsStateToConfirming() async throws {
+    func test_preloadConfirming_setsStateToConfirming() throws {
         let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
         let bytes = Data(repeating: 0xAB, count: 64)
         let signature = try Signature(bytes: bytes)
         vm.preloadConfirming(signature: signature)
         XCTAssertEqual(vm.state, .confirming(signature))
+    }
+
+    func test_consumeSolanaPayURI_withDifferentSplToken_switchesEffectiveAsset() async throws {
+        let usdc = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+        let other = try Mint(base58: "So11111111111111111111111111111111111111112")
+        let from = try WalletAddress(base58: "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le")
+        let intent = SendIntent(
+            walletId: UUID(),
+            from: from,
+            asset: .splToken(mint: usdc, decimals: 6, symbol: "USDC", name: "USD Coin"))
+        let lookup: @MainActor (Mint) -> (decimals: UInt8, symbol: String, name: String)? = { mint in
+            if mint == other { return (decimals: 9, symbol: "WSOL", name: "Wrapped SOL") }
+            return nil
+        }
+        let vm = SendViewModel(
+            intent: intent,
+            cluster: .devnet,
+            service: MockSendAssetsService(),
+            onDismiss: {},
+            recentRecipientsStore: nil,
+            splTokenLookup: lookup)
+
+        let recipient = "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le"
+        vm.consumeRecipientText("solana:\(recipient)?spl-token=\(other.base58)")
+
+        guard case let .splToken(mint, decimals, symbol, name) = vm.effectiveAsset else {
+            return XCTFail("Expected effectiveAsset to switch to SPL token, got \(vm.effectiveAsset)")
+        }
+        XCTAssertEqual(mint, other)
+        XCTAssertEqual(decimals, 9)
+        XCTAssertEqual(symbol, "WSOL")
+        XCTAssertEqual(name, "Wrapped SOL")
+        XCTAssertEqual(vm.assetSymbol, "WSOL")
+        XCTAssertEqual(vm.assetDecimals, 9)
     }
 
     func test_loadRecents_populatesFromStore() async throws {
@@ -265,8 +295,7 @@ final class SendViewModelTests: XCTestCase {
             cluster: .devnet,
             service: MockSendAssetsService(),
             onDismiss: {},
-            recentRecipientsStore: store
-        )
+            recentRecipientsStore: store)
         await vm.loadRecents()
         XCTAssertEqual(vm.recents.count, 1)
         XCTAssertEqual(vm.recents.first?.address.base58, address.base58)

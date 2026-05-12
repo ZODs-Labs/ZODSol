@@ -22,7 +22,7 @@ public struct WalletPanelView: View {
         if !self.viewModel.hasAPIKey || self.viewModel.wallets.isEmpty {
             OnboardingView(viewModel: self.viewModel)
         } else {
-            // Inline routes — the panel is the navigation surface. No
+            // Inline routes - the panel is the navigation surface. No
             // sheets, no popovers; every screen is rendered into the same
             // panel window.
             ZStack {
@@ -76,12 +76,18 @@ public struct WalletPanelView: View {
     }
 
     private func makeSendViewModel(intent: SendIntent) -> SendViewModel {
+        let parent = self.viewModel
+        let lookup: @MainActor (Mint) -> (decimals: UInt8, symbol: String, name: String)? = { [weak parent] mint in
+            guard let parent else { return nil }
+            return Self.splInfo(for: mint, in: parent.state)
+        }
         let sendVM = SendViewModel(
             intent: intent,
             cluster: viewModel.network,
             service: self.viewModel.sendService,
             onDismiss: { [viewModel] in viewModel.route = .overview },
-            recentRecipientsStore: self.viewModel.recentRecipientsStore)
+            recentRecipientsStore: self.viewModel.recentRecipientsStore,
+            splTokenLookup: lookup)
         if let row = findPortfolioRow(for: intent.asset) {
             sendVM.assetBalanceBaseUnits = row.amount.amount
             sendVM.assetPriceUSD = row.pricePerToken
@@ -91,6 +97,22 @@ public struct WalletPanelView: View {
             self.viewModel.preloadConfirmingSignature = nil
         }
         return sendVM
+    }
+
+    private static func splInfo(
+        for mint: Mint,
+        in state: LoadState<WalletOverview>) -> (decimals: UInt8, symbol: String, name: String)?
+    {
+        let overview: WalletOverview
+        switch state {
+        case let .loaded(value, _): overview = value
+        case let .partial(value, _): overview = value
+        default: return nil
+        }
+        guard let asset = overview.tokens.first(where: { $0.id == mint }) else { return nil }
+        let symbol = asset.symbol ?? "token"
+        let name = asset.name ?? symbol
+        return (decimals: asset.amount.decimals, symbol: symbol, name: name)
     }
 
     private func findPortfolioRow(for asset: SendAssetKind) -> PortfolioRow? {
@@ -132,7 +154,7 @@ public struct WalletPanelView: View {
 }
 
 extension AnyTransition {
-    /// Pushed-onto-stack style for deeper routes — slides from trailing edge.
+    /// Pushed-onto-stack style for deeper routes - slides from trailing edge.
     fileprivate static var push: AnyTransition {
         .asymmetric(
             insertion: .move(edge: .trailing).combined(with: .opacity),

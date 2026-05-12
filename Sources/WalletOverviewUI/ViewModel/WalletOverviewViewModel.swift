@@ -242,13 +242,22 @@ public final class WalletOverviewViewModel {
         return self.wallets.first(where: { $0.id == walletId })?.address
     }
 
+    /// `true` once both an address is selected and the overview has loaded
+    /// (`loaded` or `partial`). Header send/receive buttons gate on this so
+    /// taps during initial load are not silently dropped.
+    public var canSendOrReceive: Bool {
+        if self.activeWalletAddress == nil { return false }
+        switch self.state {
+        case .loaded, .partial: return true
+        case .idle, .loading, .failed: return false
+        }
+    }
+
     private func resyncPendingSends(walletId: UUID) async {
         let outcomes = await self.sendService.resync(walletId: walletId)
         if let (signature, outcome) = outcomes.first(where: { _, outcome in
             Self.isNonTerminalOutcome(outcome)
         }) {
-            self.pendingSendBanner = PendingSendDisplayInfo(signature: signature, outcome: outcome)
-        } else if let (signature, outcome) = outcomes.first {
             self.pendingSendBanner = PendingSendDisplayInfo(signature: signature, outcome: outcome)
         } else {
             self.pendingSendBanner = nil

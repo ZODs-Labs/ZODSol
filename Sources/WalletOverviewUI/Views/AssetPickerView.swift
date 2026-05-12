@@ -23,13 +23,27 @@ struct AssetPickerView: View {
 
             ScrollView {
                 LazyVStack(spacing: 2) {
-                    if self.pickerRows.isEmpty {
+                    switch self.loadingState {
+                    case .loading:
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        }
+                        .padding(.vertical, 24)
+                    case .failed:
+                        Text("Could not load assets")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 24)
+                    case .empty:
                         Text(self.emptyText)
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.vertical, 24)
-                    } else {
+                    case .ready:
                         ForEach(self.pickerRows) { row in
                             Button {
                                 self.viewModel.handleAssetPicked(row)
@@ -46,6 +60,21 @@ struct AssetPickerView: View {
             }
         }
         .animation(self.reduceMotion ? nil : .default, value: self.pickerRows)
+    }
+
+    private enum LoadingDisplay {
+        case loading
+        case failed
+        case empty
+        case ready
+    }
+
+    private var loadingState: LoadingDisplay {
+        switch self.viewModel.state {
+        case .idle, .loading: .loading
+        case .failed: .failed
+        case .loaded, .partial: self.pickerRows.isEmpty ? .empty : .ready
+        }
     }
 
     private var header: some View {

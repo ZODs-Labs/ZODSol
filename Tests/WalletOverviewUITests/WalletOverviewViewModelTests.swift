@@ -278,7 +278,7 @@ final class WalletOverviewViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testPanelDidAppearSetsPendingSendBannerWhenResyncReturnsTerminalOutcome() async throws {
+    func testPanelDidAppearClearsPendingSendBannerWhenResyncReturnsOnlyTerminalOutcomes() async throws {
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
         let apiKeyStore = MockAPIKeyStore(key: "key")
         let sendService = MockSendAssetsService()
@@ -290,10 +290,47 @@ final class WalletOverviewViewModelTests: XCTestCase {
             walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService)
 
         viewModel.panelDidAppear()
-        await self.waitUntil { viewModel.pendingSendBanner != nil }
+        await self.waitUntil { viewModel.activeWalletId == identity.id }
+        try? await Task.sleep(for: .milliseconds(20))
 
-        XCTAssertEqual(viewModel.activeWalletId, identity.id)
-        XCTAssertEqual(viewModel.pendingSendBanner?.signature, signature)
+        // All `SendOutcome` cases the orchestrator returns today are terminal,
+        // so the banner must stay nil to avoid showing dead UX noise for
+        // already-resolved sends.
+        XCTAssertNil(viewModel.pendingSendBanner)
+    }
+
+    @MainActor
+    func testCanSendOrReceiveIsFalseUntilOverviewLoads() async throws {
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let apiKeyStore = MockAPIKeyStore(key: "key")
+        let overview = WalletOverview(
+            walletId: identity.id,
+            address: identity.address,
+            solBalance: Lamports(rawValue: 0),
+            solPriceUSD: nil,
+            solChange24h: nil,
+            tokens: [],
+            nfts: NFTSummary(count: 0, collectionPreviews: []),
+            totalUSD: nil,
+            totalChange24h: nil,
+            asOf: Date(),
+            isPartial: false)
+        let loaded: LoadState<WalletOverview> = .loaded(overview, lastRefreshed: Date())
+        let service = MockWalletOverviewService(
+            loadResult: loaded,
+            streamStates: [loaded])
+        let viewModel = self.makeViewModel(
+            service: service, walletStore: walletStore, apiKeyStore: apiKeyStore)
+
+        XCTAssertFalse(viewModel.canSendOrReceive)
+
+        viewModel.panelDidAppear()
+        await self.waitUntil {
+            if case .loaded = viewModel.state { return viewModel.activeWalletId == identity.id }
+            return false
+        }
+
+        XCTAssertTrue(viewModel.canSendOrReceive)
     }
 
     @MainActor

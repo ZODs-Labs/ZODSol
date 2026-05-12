@@ -1,5 +1,5 @@
-import Foundation
 import Formatters
+import Foundation
 import Observation
 import SolanaKit
 import WalletOverviewDomain
@@ -37,24 +37,6 @@ public struct SolanaPayPill: Sendable, Equatable {
     }
 }
 
-/// Local-only validation outcome surfaced before any RPC quote is requested.
-/// Drives both the colour of the recipient/amount borders and the disabled
-/// state of the Review button.
-public enum InputValidation: Sendable, Equatable {
-    case ok
-    case noBalance
-    case belowFeeReserve
-    case sendingToSelf
-    case offCurveForSol
-    case knownProgramRecipient
-    case freshRecipientATA
-    case unsupportedToken2022(reason: String)
-    case amountExceedsBalance
-    case amountTooSmall
-    case decimalsExceedMint(decimals: UInt8)
-    case quoteError(String)
-}
-
 /// State machine driving the send screens.
 ///
 /// Each transition is one-way except `readyToConfirm → input` and
@@ -63,7 +45,6 @@ public enum InputValidation: Sendable, Equatable {
 /// terminal.
 @MainActor @Observable
 public final class SendViewModel {
-
     public enum State: Sendable, Equatable {
         case input
         case quoting
@@ -89,9 +70,10 @@ public final class SendViewModel {
             Task { [weak self] in await self?.requestQuote() }
         }
     }
-    public var feeReserveLamports: Lamports = Lamports(rawValue: 5_200)
-    public var rentReserveLamports: Lamports = Lamports(rawValue: 890_880)
-    public var ataRentReserveLamports: Lamports = Lamports(rawValue: 2_039_280)
+
+    public var feeReserveLamports: Lamports = .init(rawValue: 5200)
+    public var rentReserveLamports: Lamports = .init(rawValue: 890_880)
+    public var ataRentReserveLamports: Lamports = .init(rawValue: 2_039_280)
     public var detailsExpanded: Bool = false
     public var inputValidation: InputValidation = .ok
     public var solanaPayPill: SolanaPayPill?
@@ -103,9 +85,14 @@ public final class SendViewModel {
 
     public let intent: SendIntent
     public let cluster: SolanaNetwork
+    /// Asset actually being sent. Starts identical to `intent.asset`; mutates
+    /// when the user pastes a Solana Pay URI whose `spl-token` parameter
+    /// points at a different mint than the one the picker selected.
+    public private(set) var effectiveAsset: SendAssetKind
     let service: any SendAssetsService
     let onDismiss: @MainActor () -> Void
     let recentRecipientsStore: RecentRecipientsStore?
+    let splTokenLookup: (@MainActor (Mint) -> (decimals: UInt8, symbol: String, name: String)?)?
     var quoteDebounceTask: Task<Void, Never>?
     var lastChipPercentage: Double?
 
@@ -116,16 +103,20 @@ public final class SendViewModel {
         cluster: SolanaNetwork,
         service: any SendAssetsService,
         onDismiss: @MainActor @escaping () -> Void,
-        recentRecipientsStore: RecentRecipientsStore? = nil
-    ) {
+        recentRecipientsStore: RecentRecipientsStore? = nil,
+        splTokenLookup: (@MainActor (Mint) -> (decimals: UInt8, symbol: String, name: String)?)? = nil)
+    {
         self.intent = intent
+        self.effectiveAsset = intent.asset
         self.cluster = cluster
         self.service = service
         self.onDismiss = onDismiss
         self.recentRecipientsStore = recentRecipientsStore
+        self.splTokenLookup = splTokenLookup
 
         if let raw = UserDefaults.standard.string(forKey: Self.priorityTierDefaultsKey),
-           let tier = PriorityTier(rawValue: raw) {
+           let tier = PriorityTier(rawValue: raw)
+        {
             self.priorityTier = tier
         }
     }
@@ -134,7 +125,6 @@ public final class SendViewModel {
 // MARK: - State transitions
 
 extension SendViewModel {
-
     /// Build the quote. The view should call this from the "Review" button
     /// in `SendView` after a successful input validation.
     public func requestQuote() async {
@@ -218,7 +208,6 @@ extension SendViewModel {
 // MARK: - Input editing
 
 extension SendViewModel {
-
     public func toggleFiatMode() {
         guard self.assetPriceUSD != nil else { return }
         self.fiatMode = (self.fiatMode == .token) ? .fiat : .token
@@ -264,9 +253,24 @@ extension SendViewModel {
             let plain = (amount as NSDecimalNumber).description(withLocale: Locale(identifier: "en_US_POSIX"))
             self.amountText = plain
         }
+        if let splTokenMint = parsed.splToken {
+            if !self.effectiveAsset.matches(mint: splTokenMint) {
+                if let switched = self.resolvedSplAsset(for: splTokenMint) {
+                    self.effectiveAsset = switched
+                }
+            }
+        } else if !self.effectiveAsset.isNativeSOL {
+            self.effectiveAsset = .sol
+        }
         self.solanaPayPill = SolanaPayPill(label: parsed.label, message: parsed.message)
         self.validateAllLocally()
         self.scheduleQuote()
+    }
+
+    private func resolvedSplAsset(for mint: Mint) -> SendAssetKind? {
+        guard let lookup = self.splTokenLookup else { return nil }
+        guard let info = lookup(mint) else { return nil }
+        return .splToken(mint: mint, decimals: info.decimals, symbol: info.symbol, name: info.name)
     }
 
     public func scheduleQuote() {
@@ -287,7 +291,6 @@ extension SendViewModel {
 // MARK: - Recents
 
 extension SendViewModel {
-
     public func loadRecents() async {
         guard let store = self.recentRecipientsStore else {
             self.recents = []
@@ -305,30 +308,29 @@ extension SendViewModel {
 // MARK: - Derived display values
 
 extension SendViewModel {
-
     public var assetSymbol: String {
-        switch self.intent.asset {
-        case .sol: return "SOL"
-        case let .splToken(_, _, symbol, _): return symbol ?? "token"
+        switch self.effectiveAsset {
+        case .sol: "SOL"
+        case let .splToken(_, _, symbol, _): symbol ?? "token"
         }
     }
 
     public var assetName: String {
-        switch self.intent.asset {
-        case .sol: return "Solana"
-        case let .splToken(_, _, _, name): return name ?? self.assetSymbol
+        switch self.effectiveAsset {
+        case .sol: "Solana"
+        case let .splToken(_, _, _, name): name ?? self.assetSymbol
         }
     }
 
     public var assetDecimals: UInt8 {
-        switch self.intent.asset {
-        case .sol: return 9
-        case let .splToken(_, decimals, _, _): return decimals
+        switch self.effectiveAsset {
+        case .sol: 9
+        case let .splToken(_, decimals, _, _): decimals
         }
     }
 
     public var isNativeAsset: Bool {
-        if case .sol = self.intent.asset { return true }
+        if case .sol = self.effectiveAsset { return true }
         return false
     }
 
@@ -353,7 +355,7 @@ extension SendViewModel {
         let result = calc.compute(.manual(text: self.amountText, mode: self.fiatMode), input: input)
         switch self.fiatMode {
         case .token: return result.displayFiat
-        case .fiat:  return result.displayToken
+        case .fiat: return result.displayToken
         }
     }
 
@@ -366,7 +368,7 @@ extension SendViewModel {
         return result.baseUnits > 0 && !result.exceedsBalance && !result.decimalsError
     }
 
-    internal func amountInputForChips() -> SendAmountInput {
+    func amountInputForChips() -> SendAmountInput {
         self.amountInput()
     }
 }
@@ -374,7 +376,6 @@ extension SendViewModel {
 // MARK: - Local validation + parsing
 
 extension SendViewModel {
-
     enum SendInputError: Error {
         case message(String)
     }
@@ -396,7 +397,7 @@ extension SendViewModel {
             throw SendInputError.message("Enter an amount to send.")
         }
 
-        switch self.intent.asset {
+        switch self.effectiveAsset {
         case .sol:
             let decimals: UInt8 = 9
             let baseUnits = try Self.parseAmount(amountRaw, decimals: decimals)
@@ -407,8 +408,7 @@ extension SendViewModel {
                 walletId: self.intent.walletId,
                 from: self.intent.from,
                 recipient: recipient,
-                asset: .sol(amount: Lamports(rawValue: baseUnits))
-            )
+                asset: .sol(amount: Lamports(rawValue: baseUnits)))
         case let .splToken(mint, decimals, _, _):
             let baseUnits = try Self.parseAmount(amountRaw, decimals: decimals)
             guard baseUnits > 0 else {
@@ -419,8 +419,7 @@ extension SendViewModel {
                 walletId: self.intent.walletId,
                 from: self.intent.from,
                 recipient: recipient,
-                asset: .splToken(mint: mintAddress, amount: baseUnits, decimals: decimals)
-            )
+                asset: .splToken(mint: mintAddress, amount: baseUnits, decimals: decimals))
         }
     }
 
@@ -470,8 +469,7 @@ extension SendViewModel {
             priceUSD: self.assetPriceUSD,
             feeReserveLamports: fee,
             rentReserveLamports: rent,
-            isNativeSOL: self.isNativeAsset
-        )
+            isNativeSOL: self.isNativeAsset)
     }
 
     func validateAllLocally() {
@@ -547,23 +545,16 @@ extension SendViewModel {
     }
 }
 
-// MARK: - User-facing validation copy
+extension SendAssetKind {
+    fileprivate var isNativeSOL: Bool {
+        if case .sol = self { return true }
+        return false
+    }
 
-public extension InputValidation {
-    var userMessage: String {
-        switch self {
-        case .ok: return ""
-        case .noBalance: return "This wallet has no balance for this asset."
-        case .belowFeeReserve: return "Not enough SOL to cover the network fee."
-        case .sendingToSelf: return "You are sending to your own address."
-        case .offCurveForSol: return "SOL cannot be sent to a program-derived address."
-        case .knownProgramRecipient: return "That address is a Solana program, not a wallet."
-        case .freshRecipientATA: return "Recipient does not have a token account yet. The transfer will create one."
-        case let .unsupportedToken2022(reason): return reason
-        case .amountExceedsBalance: return "Amount exceeds available balance."
-        case .amountTooSmall: return "Amount is too small to send."
-        case let .decimalsExceedMint(decimals): return "This token allows at most \(decimals) decimal places."
-        case let .quoteError(message): return message
+    fileprivate func matches(mint: Mint) -> Bool {
+        if case let .splToken(m, _, _, _) = self {
+            return m == mint
         }
+        return false
     }
 }
