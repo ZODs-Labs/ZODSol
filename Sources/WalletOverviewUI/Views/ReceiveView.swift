@@ -1,4 +1,5 @@
 import AppKit
+import SolanaKit
 import SwiftUI
 
 struct ReceiveView: View {
@@ -53,9 +54,31 @@ struct ReceiveView: View {
     }
 
     private var qrCard: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.secondary.opacity(0.08))
+        self.qrCardBody
+            .frame(width: 256, height: 256)
+            .frame(maxWidth: .infinity)
+            .onDrag {
+                let provider = NSItemProvider()
+                if let image = self.viewModel.qrImage {
+                    provider.registerObject(image, visibility: .all)
+                }
+                return provider
+            } preview: {
+                if let image = self.viewModel.qrImage {
+                    Image(nsImage: image)
+                        .resizable()
+                        .frame(width: 64, height: 64)
+                } else {
+                    Image(systemName: "qrcode")
+                        .frame(width: 64, height: 64)
+                }
+            }
+            .accessibilityLabel("QR code for \(self.viewModel.qrPayload)")
+    }
+
+    @ViewBuilder
+    private var qrCardBody: some View {
+        let content = ZStack {
             if let image = self.viewModel.qrImage {
                 Image(nsImage: image)
                     .interpolation(.none)
@@ -66,31 +89,25 @@ struct ReceiveView: View {
                 ProgressView()
             }
         }
-        .frame(width: 256, height: 256)
-        .frame(maxWidth: .infinity)
-        .onDrag {
-            let provider = NSItemProvider()
-            if let image = self.viewModel.qrImage {
-                provider.registerObject(image, visibility: .all)
-            }
-            return provider
-        } preview: {
-            if let image = self.viewModel.qrImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .frame(width: 64, height: 64)
-            } else {
-                Image(systemName: "qrcode")
-                    .frame(width: 64, height: 64)
-            }
+
+        if #available(macOS 26.0, *) {
+            content.glassEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.background.opacity(0.6)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
         }
-        .accessibilityLabel("QR code for \(self.viewModel.qrPayload)")
     }
 
     private var addressCard: some View {
         HStack(spacing: 8) {
             Text(self.viewModel.qrPayload)
                 .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.primary)
                 .lineLimit(2)
                 .truncationMode(.middle)
                 .textSelection(.enabled)
@@ -100,11 +117,16 @@ struct ReceiveView: View {
             }
             ShareButton(items: [self.viewModel.qrPayload])
         }
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.background.opacity(0.6)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
         .overlay {
             if self.viewModel.copyToastVisible {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.accentColor.opacity(0.85))
                     .overlay {
                         Text("Copied")
@@ -130,6 +152,9 @@ struct ReceiveView: View {
                     HStack {
                         if case let .requesting(asset, _) = self.viewModel.amountRequest {
                             Text(asset.symbol)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         } else {
                             Text("Select asset")
                                 .foregroundStyle(.secondary)
@@ -153,6 +178,7 @@ struct ReceiveView: View {
                         self.viewModel.clearAmountRequest()
                     }
                     .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
                     .controlSize(.small)
                 }
             }
@@ -160,6 +186,7 @@ struct ReceiveView: View {
         } label: {
             Text("Request specific amount")
                 .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
         }
     }
 
@@ -172,3 +199,115 @@ struct ReceiveView: View {
         return self.viewModel.intent.address.shortened()
     }
 }
+
+#if DEBUG
+
+/// Static visual approximation of the receive screen used for previews. The
+/// real `ReceiveView` requires `ReceiveViewModel` and `WalletOverviewViewModel`,
+/// both of which need heavy scaffolding (Keychain, services). This mirror
+/// composes the same subviews with literal values so Xcode previews stay
+/// responsive without spinning up production stores.
+private struct ReceivePreviewMirror: View {
+    let address: String
+    let cluster: SolanaNetwork
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Main wallet")
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+                ClusterBadge(network: self.cluster)
+            }
+
+            self.qr
+
+            self.addressCard
+
+            DisclosureGroup {
+                Text("Request specific amount controls go here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 6)
+            } label: {
+                Text("Request specific amount")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+            }
+
+            Spacer(minLength: 0)
+            HStack {
+                Spacer()
+                Button("Done") {}
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(16)
+    }
+
+    @ViewBuilder
+    private var qr: some View {
+        let content = ZStack {
+            Image(systemName: "qrcode")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .padding(40)
+                .foregroundStyle(.primary)
+        }
+        if #available(macOS 26.0, *) {
+            content
+                .frame(width: 256, height: 256)
+                .frame(maxWidth: .infinity)
+                .glassEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            content
+                .frame(width: 256, height: 256)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.background.opacity(0.6)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        }
+    }
+
+    private var addressCard: some View {
+        HStack(spacing: 8) {
+            Text(self.address)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            CopyButton(text: self.address)
+            ShareButton(items: [self.address])
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.background.opacity(0.6)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+    }
+}
+
+#Preview("Receive - devnet") {
+    ReceivePreviewMirror(
+        address: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq",
+        cluster: .devnet)
+        .frame(width: 380, height: 560)
+}
+
+#Preview("Receive - mainnet") {
+    ReceivePreviewMirror(
+        address: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+        cluster: .mainnet)
+        .frame(width: 380, height: 560)
+}
+
+#endif

@@ -19,10 +19,12 @@ struct SendStatusView: View {
             VStack(spacing: 4) {
                 Text(self.statusTitle)
                     .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
                 Text(self.statusSubtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
             }
 
             if let signature = self.currentSignature {
@@ -68,49 +70,49 @@ struct SendStatusView: View {
         switch self.viewModel.state {
         case let .broadcasting(sig), let .confirming(sig), let .confirmed(sig, _),
              let .expired(sig):
-            return sig
+            sig
         default:
-            return nil
+            nil
         }
     }
 
     private var statusTitle: String {
         switch self.viewModel.state {
-        case .signing:      return "Waiting for signature..."
-        case .broadcasting: return "Sending..."
-        case .confirming:   return "Confirming..."
-        case .confirmed:    return "Send confirmed"
-        case .expired:      return "Transaction expired"
-        case .failed:       return "Send failed"
-        default:            return ""
+        case .signing: "Waiting for signature..."
+        case .broadcasting: "Sending..."
+        case .confirming: "Confirming..."
+        case .confirmed: "Send confirmed"
+        case .expired: "Transaction expired"
+        case .failed: "Send failed"
+        default: ""
         }
     }
 
     private var statusSubtitle: String {
         switch self.viewModel.state {
         case .signing:
-            return "Approve with Touch ID to broadcast."
+            "Approve with Touch ID to broadcast."
         case .broadcasting:
-            return "Submitting the signed transaction to the cluster."
+            "Submitting the signed transaction to the cluster."
         case .confirming:
-            return "Waiting for cluster confirmation."
+            "Waiting for cluster confirmation."
         case let .confirmed(_, slot):
-            return "Reached confirmed commitment in slot \(slot)."
+            "Reached confirmed commitment in slot \(slot)."
         case .expired:
-            return "The blockhash window closed before confirmation. Try again."
+            "The blockhash window closed before confirmation. Try again."
         case let .failed(error):
-            return self.errorMessage(error)
+            self.errorMessage(error)
         default:
-            return ""
+            ""
         }
     }
 
     private var isTerminal: Bool {
         switch self.viewModel.state {
         case .confirmed, .expired, .failed:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 
@@ -127,9 +129,9 @@ struct SendStatusView: View {
         switch error {
         case let .invalidRecipient(reason):
             switch reason {
-            case .offCurveForSol:       return "Cannot send SOL to a program-derived address."
-            case .knownProgramAddress:  return "Recipient is a known program - refusing."
-            case .malformed:            return "Recipient address is not valid."
+            case .offCurveForSol: return "Cannot send SOL to a program-derived address."
+            case .knownProgramAddress: return "Recipient is a known program - refusing."
+            case .malformed: return "Recipient address is not valid."
             }
         case let .insufficientSolForFee(required, available):
             return "Need \(self.formatSol(required)) for fees; wallet has \(self.formatSol(available))."
@@ -184,8 +186,7 @@ private struct StateRing: View {
                     .trim(from: 0, to: 0.28)
                     .stroke(
                         Color.accentColor,
-                        style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                    )
+                        style: StrokeStyle(lineWidth: 6, lineCap: .round))
                     .rotationEffect(.degrees(self.reduceMotion ? 0 : self.rotation))
 
                 if self.reduceMotion {
@@ -210,35 +211,35 @@ private struct StateRing: View {
 
     private var isInFlight: Bool {
         switch self.state {
-        case .signing, .broadcasting, .confirming: return true
-        default:                                   return false
+        case .signing, .broadcasting, .confirming: true
+        default: false
         }
     }
 
     private var inFlightIcon: String {
         switch self.state {
-        case .signing:      return "touchid"
-        case .broadcasting: return "paperplane.fill"
-        case .confirming:   return "hourglass"
-        default:            return "circle"
+        case .signing: "touchid"
+        case .broadcasting: "paperplane.fill"
+        case .confirming: "hourglass"
+        default: "circle"
         }
     }
 
     private var terminalIcon: String {
         switch self.state {
-        case .confirmed: return "checkmark.circle.fill"
-        case .expired:   return "clock.badge.exclamationmark.fill"
-        case .failed:    return "xmark.circle.fill"
-        default:         return "circle"
+        case .confirmed: "checkmark.circle.fill"
+        case .expired: "clock.badge.exclamationmark.fill"
+        case .failed: "xmark.circle.fill"
+        default: "circle"
         }
     }
 
     private var terminalColor: Color {
         switch self.state {
-        case .confirmed: return .green
-        case .expired:   return .orange
-        case .failed:    return .red
-        default:         return .secondary
+        case .confirmed: .green
+        case .expired: .orange
+        case .failed: .red
+        default: .secondary
         }
     }
 }
@@ -257,6 +258,7 @@ private struct SignatureCard: View {
                     .foregroundStyle(.secondary)
                 Text(self.shortened)
                     .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.primary)
                     .textSelection(.enabled)
             }
             Spacer(minLength: 8)
@@ -266,14 +268,17 @@ private struct SignatureCard: View {
                     .font(.system(size: 13, weight: .medium))
             }
             .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
             .accessibilityLabel("View on Solscan")
             .help("View on Solscan")
         }
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
+                .fill(.background.opacity(0.6)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
     }
 
     private var shortened: String {
@@ -282,3 +287,78 @@ private struct SignatureCard: View {
         return "\(b58.prefix(8))...\(b58.suffix(6))"
     }
 }
+
+#if DEBUG
+
+private actor PreviewNoopSendStatusService: SendAssetsService {
+    func quote(_ request: SendRequest, tier: PriorityTier) async throws -> SendQuote {
+        throw SendError.canceled
+    }
+
+    func send(quote: SendQuote) async throws -> SendOutcome {
+        throw SendError.canceled
+    }
+
+    func resync(walletId: UUID) async -> [Signature: SendOutcome] { [:] }
+}
+
+@MainActor
+private func makeSendStatusPreviewVM() -> SendViewModel {
+    let address = try! WalletAddress(base58: "So11111111111111111111111111111111111111112")
+    let intent = SendIntent(walletId: UUID(), from: address, asset: .sol)
+    let vm = SendViewModel(
+        intent: intent,
+        cluster: .devnet,
+        service: PreviewNoopSendStatusService(),
+        onDismiss: {})
+    let signature = try! Signature(bytes: Data(repeating: 0xAB, count: 64))
+    vm.preloadConfirming(signature: signature)
+    return vm
+}
+
+private func previewSignature() -> Signature {
+    try! Signature(bytes: Data(repeating: 0xCD, count: 64))
+}
+
+#Preview("Confirming") {
+    SendStatusView(viewModel: makeSendStatusPreviewVM())
+        .frame(width: 380, height: 480)
+}
+
+#Preview("StateRing - signing") {
+    StateRing(state: .signing, reduceMotion: false)
+        .frame(width: 80, height: 80)
+        .padding(32)
+}
+
+#Preview("StateRing - broadcasting") {
+    StateRing(state: .broadcasting(previewSignature()), reduceMotion: true)
+        .frame(width: 80, height: 80)
+        .padding(32)
+}
+
+#Preview("StateRing - confirmed") {
+    StateRing(state: .confirmed(previewSignature(), slot: 247_198_023), reduceMotion: false)
+        .frame(width: 80, height: 80)
+        .padding(32)
+}
+
+#Preview("StateRing - expired") {
+    StateRing(state: .expired(previewSignature()), reduceMotion: false)
+        .frame(width: 80, height: 80)
+        .padding(32)
+}
+
+#Preview("StateRing - failed") {
+    StateRing(state: .failed(.canceled), reduceMotion: false)
+        .frame(width: 80, height: 80)
+        .padding(32)
+}
+
+#Preview("SignatureCard") {
+    SignatureCard(signature: previewSignature(), network: .devnet)
+        .padding(16)
+        .frame(width: 380)
+}
+
+#endif

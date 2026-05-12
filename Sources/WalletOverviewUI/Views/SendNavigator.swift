@@ -1,4 +1,6 @@
+import SolanaKit
 import SwiftUI
+import WalletOverviewDomain
 
 /// Host for the send flow. Owns one `SendViewModel` whose state drives which
 /// sub-screen is rendered (input -> confirm -> status).
@@ -26,3 +28,35 @@ struct SendNavigator: View {
         .animation(self.reduceMotion ? nil : .easeInOut(duration: 0.18), value: self.viewModel.state)
     }
 }
+
+#if DEBUG
+
+private actor PreviewNoopNavigatorService: SendAssetsService {
+    func quote(_ request: SendRequest, tier: PriorityTier) async throws -> SendQuote {
+        throw SendError.canceled
+    }
+
+    func send(quote: SendQuote) async throws -> SendOutcome {
+        throw SendError.canceled
+    }
+
+    func resync(walletId: UUID) async -> [Signature: SendOutcome] { [:] }
+}
+
+@MainActor
+private func makeNavigatorPreviewVM() -> SendViewModel {
+    let address = try! WalletAddress(base58: "So11111111111111111111111111111111111111112")
+    let intent = SendIntent(walletId: UUID(), from: address, asset: .sol)
+    return SendViewModel(
+        intent: intent,
+        cluster: .devnet,
+        service: PreviewNoopNavigatorService(),
+        onDismiss: {})
+}
+
+#Preview("SendNavigator - input state") {
+    SendNavigator(viewModel: makeNavigatorPreviewVM())
+        .frame(width: 380, height: 520)
+}
+
+#endif

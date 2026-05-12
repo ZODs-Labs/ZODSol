@@ -25,12 +25,14 @@ struct AssetPickerView: View {
                 LazyVStack(spacing: 2) {
                     switch self.loadingState {
                     case .loading:
-                        HStack {
-                            Spacer()
+                        VStack(spacing: 8) {
                             ProgressView()
-                            Spacer()
+                            Text("Loading assets...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .padding(.vertical, 24)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
                     case .failed:
                         Text("Could not load assets")
                             .font(.callout)
@@ -155,6 +157,8 @@ private struct AssetPickerRow: View {
     private let amountFormatter = TokenAmountFormatter(locale: Locale(identifier: "en_US"))
     private let currencyFormatter = CurrencyFormatter(locale: Locale(identifier: "en_US"))
 
+    @State private var isHovered = false
+
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             self.icon
@@ -165,6 +169,7 @@ private struct AssetPickerRow: View {
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .truncationMode(.middle)
                 if let name = self.row.name, !name.isEmpty, name != self.row.symbol {
                     Text(name)
                         .font(.caption)
@@ -192,9 +197,10 @@ private struct AssetPickerRow: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.primary.opacity(0)))
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(self.isHovered ? Color.accentColor.opacity(0.08) : Color.clear))
         .contentShape(Rectangle())
+        .onHover { self.isHovered = $0 }
     }
 
     private var valueText: String {
@@ -236,3 +242,63 @@ private struct AssetPickerRow: View {
             .fill(.secondary.opacity(0.18))
     }
 }
+
+#if DEBUG
+
+private enum AssetPickerPreviewSamples {
+    static let sol = PortfolioRow.sol(balance: Lamports(rawValue: 2_500_000_000), price: 150, change: 1.2)
+
+    static let usdc = PortfolioRow(
+        id: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        symbol: "USDC",
+        name: "USD Coin",
+        imageURL: nil,
+        amount: TokenAmount(amount: 12_500_000, decimals: 6),
+        pricePerToken: 1,
+        usdValue: 12.5,
+        priceChange24h: 0,
+        isNative: false,
+        tokenProgram: nil)
+
+    static let longName = PortfolioRow(
+        id: "DUSTawucrTsGU8hcqRdHDCbuYhCPADMLM2VcCb8VnFnQ",
+        symbol: "DUST",
+        name: "Wrapped Solana Stablecoin V2 Extended Long Name",
+        imageURL: nil,
+        amount: TokenAmount(amount: 9_000_000_000, decimals: 9),
+        pricePerToken: 0.125,
+        usdValue: 1.125,
+        priceChange24h: -3.4,
+        isNative: false,
+        tokenProgram: nil)
+}
+
+#Preview("AssetPickerRow - SOL") {
+    AssetPickerRow(row: AssetPickerPreviewSamples.sol)
+        .padding(16)
+        .frame(width: 380)
+}
+
+#Preview("AssetPickerRow - USDC") {
+    AssetPickerRow(row: AssetPickerPreviewSamples.usdc)
+        .padding(16)
+        .frame(width: 380)
+}
+
+#Preview("AssetPickerRow - long name truncation") {
+    AssetPickerRow(row: AssetPickerPreviewSamples.longName)
+        .padding(16)
+        .frame(width: 380)
+}
+
+#Preview("AssetPickerRow stack") {
+    VStack(spacing: 2) {
+        AssetPickerRow(row: AssetPickerPreviewSamples.sol)
+        AssetPickerRow(row: AssetPickerPreviewSamples.usdc)
+        AssetPickerRow(row: AssetPickerPreviewSamples.longName)
+    }
+    .padding(16)
+    .frame(width: 380)
+}
+
+#endif

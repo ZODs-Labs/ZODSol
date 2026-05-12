@@ -29,7 +29,18 @@ struct CopyButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
         .accessibilityLabel("Copy")
         .help("Copy to clipboard")
     }
 }
+
+#if DEBUG
+
+#Preview("CopyButton") {
+    CopyButton(text: "So11111111111111111111111111111111111111112")
+        .padding()
+        .frame(width: 120)
+}
+
+#endif

@@ -19,8 +19,7 @@ struct SendConfirmView: View {
                 amountFiat: self.fiatDisplay,
                 assetSymbol: self.assetSymbol,
                 recipientFull: self.quote.request.recipient.base58,
-                recipientShort: self.shortAddress
-            )
+                recipientShort: self.shortAddress)
 
             DisclosureGroup("Details", isExpanded: self.$viewModel.detailsExpanded) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -43,24 +42,21 @@ struct SendConfirmView: View {
                 if let bps = notice.transferFeeBasisPoints, bps > 500 {
                     WarningBanner(
                         text: "High transfer fee - \(self.formatBasisPoints(bps)) of the amount stays with the issuer.",
-                        style: .amber
-                    )
+                        style: .amber)
                 }
                 if notice.permanentDelegate {
                     WarningBanner(
                         text: "This token has a permanent delegate - the issuer can move it at any time.",
-                        style: .red
-                    )
+                        style: .red)
                 }
             }
 
-            ClusterBadge(network: self.viewModel.cluster)
-
             Spacer(minLength: 0)
 
-            HStack {
+            HStack(spacing: 8) {
                 Button("Back") { self.viewModel.back() }
                     .buttonStyle(.bordered)
+                ClusterBadge(network: self.viewModel.cluster)
                 Spacer()
                 Button {
                     Task { await self.viewModel.confirmSend() }
@@ -77,8 +73,8 @@ struct SendConfirmView: View {
 
     private var assetSymbol: String {
         switch self.viewModel.intent.asset {
-        case .sol: return "SOL"
-        case let .splToken(_, _, symbol, _): return symbol ?? "token"
+        case .sol: "SOL"
+        case let .splToken(_, _, symbol, _): symbol ?? "token"
         }
     }
 
@@ -152,15 +148,15 @@ struct SendConfirmView: View {
 
     private func assetDecimals(of asset: SendAsset) -> UInt8 {
         switch asset {
-        case .sol: return 9
-        case let .splToken(_, _, decimals): return decimals
+        case .sol: 9
+        case let .splToken(_, _, decimals): decimals
         }
     }
 
     private func baseUnits(of asset: SendAsset) -> UInt64 {
         switch asset {
-        case let .sol(amount): return amount.rawValue
-        case let .splToken(_, amount, _): return amount
+        case let .sol(amount): amount.rawValue
+        case let .splToken(_, amount, _): amount
         }
     }
 
@@ -185,7 +181,12 @@ private struct YouSendCard: View {
     let recipientShort: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        self.cardContent
+    }
+
+    @ViewBuilder
+    private var cardContent: some View {
+        let inner = VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("You send")
                     .font(.caption)
@@ -198,8 +199,15 @@ private struct YouSendCard: View {
                     .foregroundStyle(Color.accentColor.opacity(0.85))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(self.amountToken)
-                        .font(.title3)
-                        .monospacedDigit()
+                        .font(.title3.monospacedDigit())
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(self.assetSymbol)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                     if let fiat = self.amountFiat {
                         Text(fiat)
                             .font(.caption)
@@ -215,15 +223,24 @@ private struct YouSendCard: View {
                     .foregroundStyle(.secondary)
                 Text(self.recipientShort)
                     .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.primary)
                 Spacer()
                 CopyButton(text: self.recipientFull)
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.secondary.opacity(0.06))
-        )
+        .padding(14)
+
+        if #available(macOS 26.0, *) {
+            inner.glassEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            inner
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.background.opacity(0.6)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        }
     }
 }
 
@@ -242,7 +259,9 @@ private struct DetailRow: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Text(self.value)
+                .foregroundStyle(.primary)
                 .monospacedDigit()
+                .lineLimit(1)
         }
         .font(.callout)
     }
@@ -270,31 +289,85 @@ private struct WarningBanner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(self.backgroundColor.opacity(0.12))
-        )
+                .fill(self.backgroundColor.opacity(0.12)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(self.backgroundColor.opacity(0.30), lineWidth: 0.5))
     }
 
     private var iconColor: Color {
         switch self.style {
-        case .amber: return .yellow
-        case .red:   return .red
+        case .amber: .yellow
+        case .red: .red
         }
     }
 
     private var backgroundColor: Color {
         switch self.style {
-        case .amber: return .yellow
-        case .red:   return .red
+        case .amber: .yellow
+        case .red: .red
         }
     }
 }
 
-private extension SolanaNetwork {
-    var displayName: String {
+extension SolanaNetwork {
+    fileprivate var displayName: String {
         switch self {
-        case .mainnet: return "Mainnet"
-        case .devnet:  return "Devnet"
-        case .testnet: return "Testnet"
+        case .mainnet: "Mainnet"
+        case .devnet: "Devnet"
+        case .testnet: "Testnet"
         }
     }
 }
+
+#if DEBUG
+
+#Preview("YouSendCard - SOL devnet") {
+    YouSendCard(
+        amountToken: "0.25",
+        amountFiat: "$37.50",
+        assetSymbol: "SOL",
+        recipientFull: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq",
+        recipientShort: "5x38…45Wq")
+        .padding(16)
+        .frame(width: 380)
+}
+
+#Preview("YouSendCard - long token name") {
+    YouSendCard(
+        amountToken: "12.5",
+        amountFiat: "$12.50",
+        assetSymbol: "Wrapped Solana Stablecoin V2",
+        recipientFull: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq",
+        recipientShort: "5x38…45Wq")
+        .padding(16)
+        .frame(width: 380)
+}
+
+#Preview("WarningBanner - amber") {
+    WarningBanner(
+        text: "High transfer fee - 6.00% of the amount stays with the issuer.",
+        style: .amber)
+        .padding(16)
+        .frame(width: 380)
+}
+
+#Preview("WarningBanner - red") {
+    WarningBanner(
+        text: "This token has a permanent delegate - the issuer can move it at any time.",
+        style: .red)
+        .padding(16)
+        .frame(width: 380)
+}
+
+#Preview("DetailRow") {
+    VStack(alignment: .leading, spacing: 8) {
+        DetailRow("Network fee", value: "0.000005 SOL")
+        DetailRow("Recipient account rent", value: "0.002 SOL")
+        DetailRow("Total cost", value: "0.250 SOL + 0.002 SOL")
+    }
+    .padding(16)
+    .frame(width: 380)
+}
+
+#endif

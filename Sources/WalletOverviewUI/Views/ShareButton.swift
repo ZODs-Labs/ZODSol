@@ -23,6 +23,7 @@ struct ShareButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
         .accessibilityLabel("Share")
         .help("Share")
         .background(SharePickerHost(itemsProvider: self.itemsProvider, isPresented: self.$present))
@@ -47,3 +48,13 @@ private struct SharePickerHost: NSViewRepresentable {
         }
     }
 }
+
+#if DEBUG
+
+#Preview("ShareButton") {
+    ShareButton(items: ["So11111111111111111111111111111111111111112"])
+        .padding()
+        .frame(width: 120)
+}
+
+#endif

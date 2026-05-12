@@ -9,3 +9,16 @@ struct ReceiveNavigator: View {
             .task { self.viewModel.onAppear() }
     }
 }
+
+#if DEBUG
+
+#Preview("ReceiveNavigator - placeholder") {
+    Text("ReceiveNavigator preview requires WalletOverviewViewModel scaffolding. See ReceiveView previews.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+        .padding()
+        .frame(width: 380, height: 200)
+}
+
+#endif

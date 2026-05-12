@@ -19,3 +19,21 @@ struct PriorityTierPicker: View {
         }
     }
 }
+
+#if DEBUG
+
+private struct PriorityTierPickerPreviewHost: View {
+    @State private var tier: PriorityTier = .fast
+
+    var body: some View {
+        PriorityTierPicker(selection: self.$tier)
+            .padding(16)
+            .frame(width: 380)
+    }
+}
+
+#Preview("PriorityTierPicker") {
+    PriorityTierPickerPreviewHost()
+}
+
+#endif

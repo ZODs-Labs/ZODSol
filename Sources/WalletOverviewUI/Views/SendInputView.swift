@@ -2,6 +2,7 @@ import AppKit
 import Formatters
 import SolanaKit
 import SwiftUI
+import WalletOverviewDomain
 
 /// First step of the send flow. Combines the recipient field, recents,
 /// dual-mode amount entry, percentage chips and a validation strip. The
@@ -20,8 +21,8 @@ struct SendInputView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            header
-            assetHeaderCard
+            self.header
+            self.assetHeaderCard
 
             RecipientField(viewModel: self.viewModel, focused: self.$focused)
 
@@ -40,14 +41,12 @@ struct SendInputView: View {
             }
 
             if let legacy = self.viewModel.validationError {
-                Text(legacy)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                ValidationStripView(text: legacy, style: .error)
             }
 
             Spacer(minLength: 0)
 
-            footer
+            self.footer
         }
         .padding(16)
         .task {
@@ -74,6 +73,9 @@ struct SendInputView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(self.viewModel.assetName)
                     .font(.callout.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                 Text("Balance")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -82,19 +84,24 @@ struct SendInputView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(self.viewModel.balanceDisplay)
                     .font(.callout.weight(.medium))
+                    .foregroundStyle(.primary)
                     .monospacedDigit()
+                    .lineLimit(1)
                 if let usd = self.viewModel.balanceUSDDisplay {
                     Text(usd)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
             }
         }
-        .padding(10)
+        .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(.gray.opacity(0.08))
-        )
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.background.opacity(0.6)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
     }
 
     private var footer: some View {
@@ -151,11 +158,15 @@ struct SolanaPayPillView: View {
                 if let label = self.pill.label, !label.isEmpty {
                     Text(label)
                         .font(.caption.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
                 if let message = self.pill.message, !message.isEmpty {
                     Text(message)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
             }
             Spacer(minLength: 0)
@@ -164,8 +175,10 @@ struct SolanaPayPillView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(.blue.opacity(0.08))
-        )
+                .fill(Color.accentColor.opacity(0.10)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.25), lineWidth: 0.5))
     }
 }
 
@@ -193,34 +206,36 @@ struct ValidationStripView: View {
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(self.tint.opacity(0.08))
-        )
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(self.tint.opacity(0.10)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(self.tint.opacity(0.25), lineWidth: 0.5))
     }
 
     private var iconName: String {
         switch self.style {
-        case .info: return "info.circle"
-        case .warning: return "exclamationmark.triangle"
-        case .error: return "exclamationmark.octagon"
+        case .info: "info.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        case .error: "exclamationmark.octagon.fill"
         }
     }
 
     private var tint: Color {
         switch self.style {
-        case .info: return .accentColor
-        case .warning: return .yellow
-        case .error: return .red
+        case .info: .accentColor
+        case .warning: .yellow
+        case .error: .red
         }
     }
 }
 
-private extension InputValidation {
-    var stripStyle: ValidationStripView.Style {
+extension InputValidation {
+    fileprivate var stripStyle: ValidationStripView.Style {
         switch self {
-        case .ok: return .info
-        case .freshRecipientATA, .sendingToSelf: return .warning
-        default: return .error
+        case .ok: .info
+        case .freshRecipientATA, .sendingToSelf: .warning
+        default: .error
         }
     }
 }
@@ -231,23 +246,19 @@ struct ClusterBadge: View {
     let network: SolanaNetwork
 
     var body: some View {
-        let (label, color): (String, Color) = {
-            switch self.network {
-            case .mainnet: return ("Mainnet", .red)
-            case .devnet: return ("Devnet", .green)
-            case .testnet: return ("Testnet", .yellow)
-            }
-        }()
+        let (label, color): (String, Color) = switch self.network {
+        case .mainnet: ("Mainnet", .red)
+        case .devnet: ("Devnet", .green)
+        case .testnet: ("Testnet", .yellow)
+        }
         Text(label)
             .font(.caption.weight(.medium))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(
-                Capsule().fill(color.opacity(0.16))
-            )
+                Capsule().fill(color.opacity(0.16)))
             .overlay(
-                Capsule().strokeBorder(color.opacity(0.55), lineWidth: 0.5)
-            )
+                Capsule().strokeBorder(color.opacity(0.55), lineWidth: 0.5))
             .foregroundStyle(color)
     }
 }
@@ -263,3 +274,62 @@ struct SendQuotingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+
+#if DEBUG
+
+private actor PreviewNoopSendInputService: SendAssetsService {
+    func quote(_ request: SendRequest, tier: PriorityTier) async throws -> SendQuote {
+        throw SendError.canceled
+    }
+
+    func send(quote: SendQuote) async throws -> SendOutcome {
+        throw SendError.canceled
+    }
+
+    func resync(walletId: UUID) async -> [Signature: SendOutcome] { [:] }
+}
+
+@MainActor
+private func makeSendInputPreviewVM(
+    asset: SendAssetKind = .sol,
+    recipient: String = "",
+    amount: String = "",
+    validation: InputValidation = .ok,
+    pill: SolanaPayPill? = nil) -> SendViewModel {
+    let address = try! WalletAddress(base58: "So11111111111111111111111111111111111111112")
+    let intent = SendIntent(walletId: UUID(), from: address, asset: asset)
+    let vm = SendViewModel(
+        intent: intent,
+        cluster: .devnet,
+        service: PreviewNoopSendInputService(),
+        onDismiss: {})
+    vm.recipientText = recipient
+    vm.amountText = amount
+    vm.inputValidation = validation
+    vm.solanaPayPill = pill
+    vm.assetBalanceBaseUnits = 2_500_000_000
+    vm.assetPriceUSD = 150
+    return vm
+}
+
+#Preview("Empty") {
+    SendInputView(viewModel: makeSendInputPreviewVM())
+        .frame(width: 380, height: 520)
+}
+
+#Preview("With recipient") {
+    SendInputView(viewModel: makeSendInputPreviewVM(
+        recipient: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq",
+        amount: "0.25"))
+        .frame(width: 380, height: 520)
+}
+
+#Preview("With validation error") {
+    SendInputView(viewModel: makeSendInputPreviewVM(
+        recipient: "bogus",
+        amount: "1.0",
+        validation: .quoteError("Invalid address")))
+        .frame(width: 380, height: 520)
+}
+
+#endif

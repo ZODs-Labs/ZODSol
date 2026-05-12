@@ -1,5 +1,7 @@
 import AppKit
+import SolanaKit
 import SwiftUI
+import WalletOverviewDomain
 
 /// Recipient input row used by `SendInputView`. Combines a text field, a quick
 /// paste affordance and an inline clear button. Border colour reflects the
@@ -45,23 +47,22 @@ struct RecipientField: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.secondary.opacity(0.06))
-        )
+                .fill(.quaternary))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(self.borderColor, lineWidth: 1)
-        )
+                .strokeBorder(self.borderColor, lineWidth: 0.5))
     }
 
     private var recipientBinding: Binding<String> {
         Binding(
             get: { self.viewModel.recipientText },
-            set: { self.viewModel.consumeRecipientText($0) }
-        )
+            set: { self.viewModel.consumeRecipientText($0) })
     }
 
     private var borderColor: Color {
-        if self.viewModel.recipientText.isEmpty { return .clear }
+        if self.viewModel.recipientText.isEmpty {
+            return Color(nsColor: .separatorColor)
+        }
         switch self.viewModel.inputValidation {
         case .ok, .freshRecipientATA:
             return .green.opacity(0.55)
@@ -78,3 +79,64 @@ struct RecipientField: View {
         }
     }
 }
+
+#if DEBUG
+
+private actor PreviewNoopSendService: SendAssetsService {
+    func quote(_ request: SendRequest, tier: PriorityTier) async throws -> SendQuote {
+        throw SendError.canceled
+    }
+
+    func send(quote: SendQuote) async throws -> SendOutcome {
+        throw SendError.canceled
+    }
+
+    func resync(walletId: UUID) async -> [Signature: SendOutcome] { [:] }
+}
+
+@MainActor
+private func makePreviewSendVMRecipient(text: String, validation: InputValidation) -> SendViewModel {
+    let address = try! WalletAddress(base58: "So11111111111111111111111111111111111111112")
+    let intent = SendIntent(walletId: UUID(), from: address, asset: .sol)
+    let vm = SendViewModel(
+        intent: intent,
+        cluster: .devnet,
+        service: PreviewNoopSendService(),
+        onDismiss: {})
+    vm.recipientText = text
+    vm.inputValidation = validation
+    return vm
+}
+
+private struct RecipientFieldPreviewHost: View {
+    @State private var model: SendViewModel
+    @FocusState private var focus: SendInputView.Field?
+
+    init(prepopulated text: String = "", validation: InputValidation = .ok) {
+        self._model = State(initialValue: makePreviewSendVMRecipient(text: text, validation: validation))
+    }
+
+    var body: some View {
+        RecipientField(viewModel: self.model, focused: self.$focus)
+            .padding(16)
+            .frame(width: 380)
+    }
+}
+
+#Preview("Empty") {
+    RecipientFieldPreviewHost()
+}
+
+#Preview("Valid address") {
+    RecipientFieldPreviewHost(
+        prepopulated: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq",
+        validation: .ok)
+}
+
+#Preview("Invalid address") {
+    RecipientFieldPreviewHost(
+        prepopulated: "not-a-valid-address",
+        validation: .quoteError("Invalid address"))
+}
+
+#endif
