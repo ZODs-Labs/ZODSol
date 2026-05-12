@@ -243,6 +243,14 @@ final class SendViewModelTests: XCTestCase {
         defaults.removeObject(forKey: "send.priorityTier")
     }
 
+    func test_preloadConfirming_setsStateToConfirming() async throws {
+        let vm = try makeViewModel(asset: .sol, service: MockSendAssetsService())
+        let bytes = Data(repeating: 0xAB, count: 64)
+        let signature = try Signature(bytes: bytes)
+        vm.preloadConfirming(signature: signature)
+        XCTAssertEqual(vm.state, .confirming(signature))
+    }
+
     func test_loadRecents_populatesFromStore() async throws {
         let key = "send-viewmodel-tests-recents-\(UUID().uuidString)"
         let store = RecentRecipientsStore(defaults: .standard, key: key)
