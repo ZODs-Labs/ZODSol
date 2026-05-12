@@ -51,6 +51,9 @@ public struct WalletPanelView: View {
                 case let .receive(intent):
                     ReceiveNavigator(viewModel: self.makeReceiveViewModel(intent: intent), parent: self.viewModel)
                         .transition(.push)
+                case .security:
+                    SecuritySettingsView(viewModel: self.viewModel)
+                        .transition(.push)
                 }
             }
             .animation(self.reduceMotion ? nil : .easeInOut(duration: 0.22), value: self.viewModel.route)

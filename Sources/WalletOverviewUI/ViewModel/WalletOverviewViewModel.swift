@@ -12,6 +12,7 @@ public enum PanelRoute: Sendable, Equatable {
     case send(SendIntent)
     case assetPicker(AssetPickerIntent)
     case receive(ReceiveIntent)
+    case security
 }
 
 public struct ReceiveIntent: Sendable, Equatable {
@@ -70,6 +71,9 @@ public final class WalletOverviewViewModel {
     public let sendService: any SendAssetsService
     public let network: SolanaNetwork
     public let recentRecipientsStore: RecentRecipientsStore
+    public let session: WalletSession?
+    public let sessionPolicyStore: WalletSessionPolicyStore?
+    public private(set) var sessionPolicy: WalletSession.Policy = .default
     private let credentialsDidChange: (@Sendable () async -> Void)?
     private var refreshTask: Task<Void, Never>?
 
@@ -80,6 +84,8 @@ public final class WalletOverviewViewModel {
         sendService: any SendAssetsService,
         network: SolanaNetwork,
         recentRecipientsStore: RecentRecipientsStore = RecentRecipientsStore(),
+        session: WalletSession? = nil,
+        sessionPolicyStore: WalletSessionPolicyStore? = nil,
         credentialsDidChange: (@Sendable () async -> Void)? = nil)
     {
         self.service = service
@@ -88,6 +94,8 @@ public final class WalletOverviewViewModel {
         self.sendService = sendService
         self.network = network
         self.recentRecipientsStore = recentRecipientsStore
+        self.session = session
+        self.sessionPolicyStore = sessionPolicyStore
         self.credentialsDidChange = credentialsDidChange
     }
 
@@ -113,6 +121,26 @@ public final class WalletOverviewViewModel {
         // Reset to the default screen so the next panel open starts on the
         // overview, not on a stale switcher/manage screen.
         self.route = .overview
+        // Honor the "lock on panel close" policy. The session no-ops if the
+        // active policy uses a different trigger.
+        if let session {
+            Task { await session.handlePanelDidDisappear() }
+        }
+    }
+
+    /// Force-clear all cached seeds. Used by the "Lock now" affordance.
+    public func lockNow() {
+        guard let session else { return }
+        Task { await session.lockAll() }
+    }
+
+    /// Update and persist the auto-lock policy. The new policy takes effect
+    /// immediately - if the new trigger is `.immediately` or has a tighter
+    /// idle window than what the cache already exceeds, entries are purged.
+    public func updateSessionPolicy(_ policy: WalletSession.Policy) async {
+        self.sessionPolicy = policy
+        await self.sessionPolicyStore?.save(policy)
+        await self.session?.setPolicy(policy)
     }
 
     public func selectWallet(_ id: UUID) async {
@@ -192,6 +220,11 @@ public final class WalletOverviewViewModel {
         self.hasAPIKey = await (try? self.apiKeyStore.currentKey()) != nil
         self.wallets = await self.walletStore.wallets()
         self.activeWalletId = await self.walletStore.selectedWalletId() ?? self.wallets.first?.id
+        if let store = sessionPolicyStore {
+            self.sessionPolicy = await store.load()
+        } else if let session {
+            self.sessionPolicy = await session.currentPolicy()
+        }
         if !self.hasAPIKey || self.wallets.isEmpty {
             self.state = .idle
         } else {

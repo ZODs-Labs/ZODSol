@@ -129,22 +129,41 @@ struct ManageWalletsView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        Button(action: self.openAddWallet) {
-            HStack(spacing: 8) {
-                Image(systemName: "plus.circle.fill")
-                Text("Add wallet")
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            Button(action: self.openAddWallet) {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Add wallet")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
             }
-            .font(.callout)
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            Divider().padding(.leading, 16).opacity(0.35)
+            Button(action: self.openSecurity) {
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.shield")
+                    Text("Security")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Actions
@@ -164,6 +183,12 @@ struct ManageWalletsView: View {
     private func openAddWallet() {
         withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
             self.viewModel.route = .addWallet
+        }
+    }
+
+    private func openSecurity() {
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .security
         }
     }
 }
