@@ -159,6 +159,9 @@ struct SendStatusView: View {
         case .sendAlreadyInFlight:
             return "A previous send for this wallet is still in flight."
         case let .broadcastFailed(reason):
+            if reason == "biometricInvalidated" {
+                return "Wallet authentication failed. Remove this wallet and re-import it to keep signing."
+            }
             return "Broadcast failed: \(reason)"
         }
     }
@@ -300,7 +303,9 @@ private actor PreviewNoopSendStatusService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId: UUID) async -> [Signature: SendOutcome] { [:] }
+    func resync(walletId: UUID) async -> [Signature: SendOutcome] {
+        [:]
+    }
 }
 
 @MainActor
