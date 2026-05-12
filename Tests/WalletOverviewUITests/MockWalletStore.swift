@@ -10,12 +10,18 @@ import WalletOverviewDomain
 /// `WalletStore` with a `SecureItemStore` scoped to a unique service id and a fresh
 /// `UserDefaults` suite — the keychain has no entries under that service, so
 /// `wallets()` returns `[]` and `selectedWalletId()` returns `nil`.
+///
+/// The store is constructed with `StaticBiometricAuthenticator(.allow)` so any
+/// code path that ends up calling `secureStore.read(_:prompt:)` does not pop
+/// the developer's Touch ID dialog during `swift test`.
 enum TestWalletStoreFactory {
     static func makeEmpty() -> WalletStore {
         let suiteName = "zodsol.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defaults.removePersistentDomain(forName: suiteName)
-        let secureStore = SecureItemStore(service: "zodsol.tests.\(UUID().uuidString)")
+        let secureStore = SecureItemStore(
+            service: "zodsol.tests.\(UUID().uuidString)",
+            authenticator: StaticBiometricAuthenticator(.allow))
         return WalletStore(secureStore: secureStore, defaults: defaults)
     }
 

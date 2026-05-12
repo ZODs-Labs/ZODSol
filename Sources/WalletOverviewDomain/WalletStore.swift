@@ -6,6 +6,7 @@ import SolanaKit
 public actor WalletStore {
     private let defaults: UserDefaults
     private let secureStore: SecureItemStore
+    private let session: WalletSession?
     private let service: String
     private let selectedWalletKey: String
     private let walletsIndexKey: String
@@ -16,22 +17,29 @@ public actor WalletStore {
     private var loadInFlight: Task<[WalletIdentity], Never>?
     private var addressCache: [UUID: WalletAddress] = [:]
 
-    public init(secureStore: SecureItemStore, defaults: UserDefaults = .standard) {
+    public init(
+        secureStore: SecureItemStore,
+        defaults: UserDefaults = .standard,
+        session: WalletSession? = nil)
+    {
         self.init(
             secureStore: secureStore,
             defaults: defaults,
             service: "dev.zods.zodsol",
-            selectedWalletKey: "dev.zods.zodsol.selectedWalletId")
+            selectedWalletKey: "dev.zods.zodsol.selectedWalletId",
+            session: session)
     }
 
     init(
         secureStore: SecureItemStore,
         defaults: UserDefaults,
         service: String,
-        selectedWalletKey: String)
+        selectedWalletKey: String,
+        session: WalletSession? = nil)
     {
         self.defaults = defaults
         self.secureStore = secureStore
+        self.session = session
         self.service = service
         self.selectedWalletKey = selectedWalletKey
         self.walletsIndexKey = "\(service).wallets.index"
@@ -54,11 +62,16 @@ public actor WalletStore {
         defer { key64.resetBytes(in: 0..<key64.count) }
 
         let privateKeyItem = SecureItem(service: service, account: "wallet.\(walletId).privateKey")
-        try await secureStore.write(
-            key64,
-            to: privateKeyItem,
-            accessibility: .whenUnlockedThisDeviceOnly,
-            gate: .userPresence(prompt: "Save your Solana signing key"))
+        do {
+            try await secureStore.write(
+                key64,
+                to: privateKeyItem,
+                accessibility: .whenUnlockedThisDeviceOnly,
+                gate: .userPresence(prompt: "Save your Solana signing key"))
+        } catch {
+            self.logger.error("add(walletId=\(walletId.uuidString, privacy: .public)) keychain write failed: \(String(describing: error), privacy: .public)")
+            throw error
+        }
 
         return try await self.addStoredWallet(
             address: privateKey.publicAddress,
@@ -103,11 +116,14 @@ public actor WalletStore {
     }
 
     public func remove(walletId: UUID) async throws {
+        self.logger.info("remove start walletId=\(walletId.uuidString, privacy: .public)")
         await self.deleteKeychainItems(walletId: walletId)
+        if let session { await session.lock(walletId: walletId) }
         self.addressCache.removeValue(forKey: walletId)
 
         if self.indexCache == nil { _ = await self.ensureLoaded() }
         var updated = self.indexCache ?? []
+        let before = updated.count
         updated.removeAll { $0.id == walletId }
         self.indexCache = updated
         try await self.persistIndex(updated)
@@ -115,6 +131,8 @@ public actor WalletStore {
         if self.selectedWalletId() == walletId {
             self.setSelectedWallet(nil)
         }
+        self.logger.info(
+            "remove done walletId=\(walletId.uuidString, privacy: .public) before=\(before) after=\(updated.count)")
     }
 
     public func withPrivateKey<R: Sendable>(
@@ -122,17 +140,34 @@ public actor WalletStore {
         prompt: String,
         _ body: @Sendable (inout Data) async throws -> R) async throws -> R
     {
+        // Fast path: if a recent biometric unlock left the seed in the
+        // session vault, skip the Keychain entirely. This is what eliminates
+        // the per-send Touch ID prompt and the stale-ACL "Keychain wants
+        // access" dialogs that ad-hoc-signed builds trigger on every
+        // SecItemCopyMatching.
+        if let session, let result = try await session.withSeed(walletId: walletId, body) {
+            return result
+        }
+
         let item = SecureItem(service: service, account: "wallet.\(walletId).privateKey")
         do {
             var buffer = try await secureStore.read(item, prompt: prompt)
             defer { buffer.resetBytes(in: 0..<buffer.count) }
+            if let session {
+                await session.cache(walletId: walletId, seed: buffer)
+            }
             return try await body(&buffer)
-        } catch let error as KeychainError where
-            error == .itemNotFound ||
-            error == .biometricFailed ||
-            error == .interactionRequired ||
-            error == .userCanceled
-        {
+        } catch let error as KeychainError where error == .userCanceled || error == .biometricFailed {
+            // Transient: user pressed Cancel or biometric did not match. The
+            // stored item is fine; surface a cancellation so the UI can
+            // bounce back without wiping the wallet.
+            self.logger.debug("withPrivateKey transient auth failure: \(String(describing: error), privacy: .public)")
+            throw WalletOverviewError.canceled
+        } catch let error as KeychainError where error == .itemNotFound || error == .interactionRequired {
+            // Orphan: cdhash changed (ad-hoc rebuild) or the item was wiped
+            // by a prior cleanup. Evict the dead slot so a fresh import can
+            // reuse it, and signal the UI to onboard the user again.
+            self.logger.error("withPrivateKey orphan keychain item: \(String(describing: error), privacy: .public)")
             try? await self.secureStore.delete(item)
             throw WalletOverviewError.biometricInvalidated
         }

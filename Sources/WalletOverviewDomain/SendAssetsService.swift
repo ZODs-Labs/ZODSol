@@ -224,6 +224,11 @@ public actor DefaultSendAssetsService: SendAssetsService {
                 prompt: "Sign Solana transfer")
         } catch is CancellationError {
             throw SendError.canceled
+        } catch WalletOverviewError.canceled {
+            // User cancelled the biometric prompt or the auth failed. Treat
+            // the same as a cancellation so the UI returns to the input
+            // screen without wiping any state.
+            throw SendError.canceled
         }
 
         // 2. Build wire transaction.
