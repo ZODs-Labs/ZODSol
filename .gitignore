@@ -30,3 +30,4 @@ ZODSol.app/
 .claude/
 CLAUDE.md
 AGENTS.md
+.env*

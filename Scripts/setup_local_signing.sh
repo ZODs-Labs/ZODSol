@@ -33,7 +33,13 @@ fi
 security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
 security set-keychain-settings -lut 21600 "$KEYCHAIN" >/dev/null
 
-mapfile -t CURRENT_KEYCHAINS < <(security list-keychains -d user | sed -e 's/^[[:space:]]*//' -e 's/^"//' -e 's/"$//')
+# Portable across bash 3.2 (the macOS system /bin/bash that Xcode pre-actions
+# invoke via env, even if the user's interactive shell is a newer brew bash).
+# `mapfile` would be cleaner but it does not exist in bash 3.2.
+CURRENT_KEYCHAINS=()
+while IFS= read -r _zodsol_keychain_line; do
+    CURRENT_KEYCHAINS+=("$_zodsol_keychain_line")
+done < <(security list-keychains -d user | sed -e 's/^[[:space:]]*//' -e 's/^"//' -e 's/"$//')
 FOUND_KEYCHAIN=0
 for current in "${CURRENT_KEYCHAINS[@]}"; do
     if [[ "$current" == "$KEYCHAIN" ]]; then

@@ -40,15 +40,25 @@ which can make each build look like a different app to Keychain.
 
 ## Xcode Run
 
-The generated SwiftPM `ZODSol` scheme runs an unsigned command-line product, so
-it is not the right path for credentialed app testing. Create the local signed
-app scheme once:
-
-```bash
-make setup-xcode
-```
-
-Then open `Package.swift` in Xcode, select `ZODSol Signed App`, and press Run.
-That scheme packages a debug `ZODSol.app`, signs it with the stable local
+The auto-generated SwiftPM `ZODSol` scheme launches an unsigned command-line
+binary, which is the wrong context for credentialed app testing. The
+`ZODSol Signed App` scheme does the right thing: each Run quits any live
+ZODSol, packages a debug `ZODSol.app`, signs it with the stable local
 identity, and launches the signed bundle so Keychain items persist across
 rebuilds.
+
+One command bootstraps everything (signing identity, scheme generation, and
+opens Xcode):
+
+```bash
+make xcode
+```
+
+Select `ZODSol Signed App` from the scheme picker, then press Run (`⌘R`).
+
+If you move the repo to a different path on disk, re-run `make setup-xcode`
+to regenerate the scheme's absolute paths.
+
+Pre-action output (signing, packaging, codesign verification) is mirrored to
+`.build/xcode-preaction.log`. If Run fails with a generic Xcode error, run
+`tail -n 80 .build/xcode-preaction.log` to see the real cause.

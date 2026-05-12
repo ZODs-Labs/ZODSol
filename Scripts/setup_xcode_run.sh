@@ -10,7 +10,12 @@ PREACTION_SCRIPT="$ROOT/Scripts/xcode_package_preaction.sh"
 
 mkdir -p "$SCHEME_DIR"
 
-cat > "$SCHEME_FILE" <<XML
+# Absolute paths are baked in here because Xcode's $(SRCROOT) macro is only
+# reliably resolved for SwiftPM schemes that own a BuildableProductRunnable -
+# our launch target is a hand-built .app bundle, not a SwiftPM product, so the
+# safest path is "regenerate per machine and per repo location".
+TMP=$(mktemp)
+cat > "$TMP" <<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
    LastUpgradeVersion = "1640"
@@ -71,8 +76,15 @@ cat > "$SCHEME_FILE" <<XML
 </Scheme>
 XML
 
+if [[ -f "$SCHEME_FILE" ]] && cmp -s "$TMP" "$SCHEME_FILE"; then
+    rm "$TMP"
+    printf 'Xcode scheme up to date: %s\n' "$SCHEME_FILE"
+else
+    mv "$TMP" "$SCHEME_FILE"
+    printf 'Wrote Xcode scheme: %s\n' "$SCHEME_FILE"
+fi
+
 chmod +x "$PREACTION_SCRIPT"
 ./Scripts/setup_local_signing.sh
 
-printf 'Created Xcode scheme: %s\n' "$SCHEME_FILE"
-printf 'Open Package.swift in Xcode, select "%s", then press Run.\n' "$SCHEME_NAME"
+printf 'Ready. Open Package.swift in Xcode, select "%s", then press Run.\n' "$SCHEME_NAME"

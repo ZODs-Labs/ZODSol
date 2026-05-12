@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: build check clean format lint package run setup-signing setup-xcode test
+.PHONY: build check clean format lint package run setup-signing setup-xcode test xcode
 
 build:
 	swift build
@@ -19,6 +19,11 @@ setup-signing:
 
 setup-xcode:
 	./Scripts/setup_xcode_run.sh
+
+xcode: setup-xcode
+	@open Package.swift
+	@printf '\nXcode launched. Select scheme "ZODSol Signed App" then press Run.\n'
+	@printf 'Pre-action log lives at .build/xcode-preaction.log\n'
 
 format:
 	@if command -v swiftformat >/dev/null 2>&1; then \
