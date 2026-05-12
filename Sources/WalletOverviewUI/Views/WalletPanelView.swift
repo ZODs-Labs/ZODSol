@@ -48,7 +48,7 @@ public struct WalletPanelView: View {
                     AssetPickerView(intent: intent, viewModel: viewModel)
                         .transition(.push)
                 case let .receive(intent):
-                    ReceiveNavigator(viewModel: makeReceiveViewModel(intent: intent))
+                    ReceiveNavigator(viewModel: makeReceiveViewModel(intent: intent), parent: viewModel)
                         .transition(.push)
                 }
             }
