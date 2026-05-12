@@ -75,7 +75,7 @@ private func makeAmountFieldPreviewVM(text: String) -> SendViewModel {
     let intent = SendIntent(walletId: UUID(), from: address, asset: .sol)
     let vm = SendViewModel(
         intent: intent,
-        cluster: .devnet,
+        cluster: .mainnet,
         service: PreviewNoopAmountFieldService(),
         onDismiss: {})
     vm.amountText = text

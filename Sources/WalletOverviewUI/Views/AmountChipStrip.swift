@@ -80,7 +80,7 @@ private func makeAmountChipPreviewVM(balance: UInt64, price: Decimal?) -> SendVi
     let intent = SendIntent(walletId: UUID(), from: address, asset: .sol)
     let vm = SendViewModel(
         intent: intent,
-        cluster: .devnet,
+        cluster: .mainnet,
         service: PreviewNoopAmountChipService(),
         onDismiss: {})
     vm.assetBalanceBaseUnits = balance

@@ -90,7 +90,7 @@ private func makeRecentRecipientsPreviewVM(samples: [RecentRecipient]) -> SendVi
     let intent = SendIntent(walletId: UUID(), from: address, asset: .sol)
     let vm = SendViewModel(
         intent: intent,
-        cluster: .devnet,
+        cluster: .mainnet,
         service: PreviewNoopRecentService(),
         onDismiss: {})
     vm.recents = samples

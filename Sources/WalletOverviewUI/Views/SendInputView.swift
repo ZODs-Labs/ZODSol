@@ -300,7 +300,7 @@ private func makeSendInputPreviewVM(
     let intent = SendIntent(walletId: UUID(), from: address, asset: asset)
     let vm = SendViewModel(
         intent: intent,
-        cluster: .devnet,
+        cluster: .mainnet,
         service: PreviewNoopSendInputService(),
         onDismiss: {})
     vm.recipientText = recipient

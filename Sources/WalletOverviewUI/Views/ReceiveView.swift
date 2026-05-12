@@ -299,7 +299,7 @@ private struct ReceivePreviewMirror: View {
 #Preview("Receive - devnet") {
     ReceivePreviewMirror(
         address: "5x38Kp4hvdomTCnCrAny4UtMUt5rQBdB6px2K1Ui45Wq",
-        cluster: .devnet)
+        cluster: .mainnet)
         .frame(width: 380, height: 560)
 }
 

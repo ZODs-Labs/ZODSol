@@ -308,7 +308,7 @@ private func makeSendStatusPreviewVM() -> SendViewModel {
     let intent = SendIntent(walletId: UUID(), from: address, asset: .sol)
     let vm = SendViewModel(
         intent: intent,
-        cluster: .devnet,
+        cluster: .mainnet,
         service: PreviewNoopSendStatusService(),
         onDismiss: {})
     let signature = try! Signature(bytes: Data(repeating: 0xAB, count: 64))
@@ -356,7 +356,7 @@ private func previewSignature() -> Signature {
 }
 
 #Preview("SignatureCard") {
-    SignatureCard(signature: previewSignature(), network: .devnet)
+    SignatureCard(signature: previewSignature(), network: .mainnet)
         .padding(16)
         .frame(width: 380)
 }

@@ -49,7 +49,7 @@ private func makeNavigatorPreviewVM() -> SendViewModel {
     let intent = SendIntent(walletId: UUID(), from: address, asset: .sol)
     return SendViewModel(
         intent: intent,
-        cluster: .devnet,
+        cluster: .mainnet,
         service: PreviewNoopNavigatorService(),
         onDismiss: {})
 }

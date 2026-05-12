@@ -100,7 +100,7 @@ private func makePreviewSendVMRecipient(text: String, validation: InputValidatio
     let intent = SendIntent(walletId: UUID(), from: address, asset: .sol)
     let vm = SendViewModel(
         intent: intent,
-        cluster: .devnet,
+        cluster: .mainnet,
         service: PreviewNoopSendService(),
         onDismiss: {})
     vm.recipientText = text
