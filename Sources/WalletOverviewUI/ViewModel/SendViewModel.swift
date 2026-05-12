@@ -1,0 +1,569 @@
+import Foundation
+import Formatters
+import Observation
+import SolanaKit
+import WalletOverviewDomain
+
+/// Discriminator for the asset being sent. Carries display-only fields (symbol,
+/// name) so the views never have to look them up from the overview.
+public enum SendAssetKind: Sendable, Equatable {
+    case sol
+    case splToken(mint: Mint, decimals: UInt8, symbol: String?, name: String?)
+}
+
+/// User-supplied + context inputs the navigator hands to the send flow.
+public struct SendIntent: Sendable, Equatable {
+    public let walletId: UUID
+    public let from: WalletAddress
+    public let asset: SendAssetKind
+
+    public init(walletId: UUID, from: WalletAddress, asset: SendAssetKind) {
+        self.walletId = walletId
+        self.from = from
+        self.asset = asset
+    }
+}
+
+/// Label and message lifted from a Solana Pay URI for display next to the
+/// recipient field. Surfaced as a small pill so the user can confirm the
+/// merchant intent before signing.
+public struct SolanaPayPill: Sendable, Equatable {
+    public let label: String?
+    public let message: String?
+
+    public init(label: String?, message: String?) {
+        self.label = label
+        self.message = message
+    }
+}
+
+/// Local-only validation outcome surfaced before any RPC quote is requested.
+/// Drives both the colour of the recipient/amount borders and the disabled
+/// state of the Review button.
+public enum InputValidation: Sendable, Equatable {
+    case ok
+    case noBalance
+    case belowFeeReserve
+    case sendingToSelf
+    case offCurveForSol
+    case knownProgramRecipient
+    case freshRecipientATA
+    case unsupportedToken2022(reason: String)
+    case amountExceedsBalance
+    case amountTooSmall
+    case decimalsExceedMint(decimals: UInt8)
+    case quoteError(String)
+}
+
+/// State machine driving the send screens.
+///
+/// Each transition is one-way except `readyToConfirm → input` and
+/// `failed → input` (user backs out). Once `broadcasting` fires the
+/// signature is already on the cluster; the only remaining states are
+/// terminal.
+@MainActor @Observable
+public final class SendViewModel {
+
+    public enum State: Sendable, Equatable {
+        case input
+        case quoting
+        case readyToConfirm(SendQuote)
+        case signing
+        case broadcasting(Signature)
+        case confirming(Signature)
+        case confirmed(Signature, slot: UInt64)
+        case expired(Signature)
+        case failed(SendError)
+    }
+
+    public private(set) var state: State = .input
+    public var recipientText: String = ""
+    public var amountText: String = ""
+    public private(set) var validationError: String?
+
+    public var fiatMode: FiatMode = .token
+    public var priorityTier: PriorityTier = .fast {
+        didSet {
+            guard oldValue != self.priorityTier else { return }
+            UserDefaults.standard.set(self.priorityTier.rawValue, forKey: Self.priorityTierDefaultsKey)
+            Task { [weak self] in await self?.requestQuote() }
+        }
+    }
+    public var feeReserveLamports: Lamports = Lamports(rawValue: 5_200)
+    public var rentReserveLamports: Lamports = Lamports(rawValue: 890_880)
+    public var ataRentReserveLamports: Lamports = Lamports(rawValue: 2_039_280)
+    public var detailsExpanded: Bool = false
+    public var inputValidation: InputValidation = .ok
+    public var solanaPayPill: SolanaPayPill?
+    public internal(set) var lastQuote: SendQuote?
+    public internal(set) var recents: [RecentRecipient] = []
+
+    public var assetBalanceBaseUnits: UInt64 = 0
+    public var assetPriceUSD: Decimal?
+
+    public let intent: SendIntent
+    public let cluster: SolanaNetwork
+    let service: any SendAssetsService
+    let onDismiss: @MainActor () -> Void
+    let recentRecipientsStore: RecentRecipientsStore?
+    var quoteDebounceTask: Task<Void, Never>?
+    var lastChipPercentage: Double?
+
+    static let priorityTierDefaultsKey = "send.priorityTier"
+
+    public init(
+        intent: SendIntent,
+        cluster: SolanaNetwork,
+        service: any SendAssetsService,
+        onDismiss: @MainActor @escaping () -> Void,
+        recentRecipientsStore: RecentRecipientsStore? = nil
+    ) {
+        self.intent = intent
+        self.cluster = cluster
+        self.service = service
+        self.onDismiss = onDismiss
+        self.recentRecipientsStore = recentRecipientsStore
+
+        if let raw = UserDefaults.standard.string(forKey: Self.priorityTierDefaultsKey),
+           let tier = PriorityTier(rawValue: raw) {
+            self.priorityTier = tier
+        }
+    }
+}
+
+// MARK: - State transitions
+
+extension SendViewModel {
+
+    /// Build the quote. The view should call this from the "Review" button
+    /// in `SendView` after a successful input validation.
+    public func requestQuote() async {
+        guard case .input = self.state else { return }
+        self.validationError = nil
+
+        let request: SendRequest
+        do {
+            request = try self.parseRequest()
+        } catch let SendInputError.message(message) {
+            self.validationError = message
+            return
+        } catch {
+            self.validationError = "Could not parse this input."
+            return
+        }
+
+        self.state = .quoting
+        do {
+            let quote = try await self.service.quote(request, tier: self.priorityTier)
+            self.lastQuote = quote
+            self.feeReserveLamports = quote.networkFeeLamports
+            self.state = .readyToConfirm(quote)
+        } catch let error as SendError {
+            self.state = .failed(error)
+        } catch is CancellationError {
+            self.state = .input
+        } catch {
+            self.state = .failed(.broadcastFailed(reason: String(describing: error)))
+        }
+    }
+
+    /// Sign + broadcast. Caller is the "Send" button on `SendConfirmView`.
+    public func confirmSend() async {
+        guard case let .readyToConfirm(quote) = self.state else { return }
+        self.state = .signing
+        do {
+            let outcome = try await self.service.send(quote: quote)
+            switch outcome {
+            case let .confirmed(sig, slot):
+                self.state = .confirmed(sig, slot: slot)
+            case let .expired(sig):
+                self.state = .expired(sig)
+            case let .failed(sig, error):
+                self.state = .failed(.simulationFailed(logs: [error], error: error))
+                _ = sig
+            }
+        } catch let error as SendError {
+            self.state = .failed(error)
+        } catch is CancellationError {
+            self.state = .input
+        } catch {
+            self.state = .failed(.broadcastFailed(reason: String(describing: error)))
+        }
+    }
+
+    /// Step back from confirm or failure to the input screen so the user
+    /// can edit and re-quote. Terminal states (`confirmed`, `expired`) use
+    /// `dismiss()` instead.
+    public func back() {
+        switch self.state {
+        case .readyToConfirm, .failed:
+            self.state = .input
+        default:
+            break
+        }
+    }
+
+    public func dismiss() {
+        self.onDismiss()
+    }
+
+    /// Skip the input phase and jump straight to confirmation polling. Used
+    /// when reopening the panel mid-broadcast and the signature was carried
+    /// over via `PendingSendBanner`.
+    public func preloadConfirming(signature: Signature) {
+        self.state = .confirming(signature)
+    }
+}
+
+// MARK: - Input editing
+
+extension SendViewModel {
+
+    public func toggleFiatMode() {
+        guard self.assetPriceUSD != nil else { return }
+        self.fiatMode = (self.fiatMode == .token) ? .fiat : .token
+    }
+
+    public func selectChip(_ percentage: Double) {
+        let clamped = max(0.0, min(1.0, percentage))
+        self.lastChipPercentage = clamped
+        let calc = SendAmountCalculator()
+        let input = self.amountInput()
+        let result = calc.compute(.percentage(clamped), input: input)
+        self.amountText = result.displayToken
+        self.validateAllLocally()
+        self.scheduleQuote()
+    }
+
+    public func selectPriorityTier(_ tier: PriorityTier) {
+        self.priorityTier = tier
+    }
+
+    public func consumeRecipientText(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("solana:") {
+            do {
+                try self.consumeSolanaPayURI(trimmed)
+                return
+            } catch {
+                self.inputValidation = .quoteError("Invalid Solana Pay link")
+                return
+            }
+        }
+        self.recipientText = trimmed
+        self.solanaPayPill = nil
+        self.validateRecipientLocally()
+        self.scheduleQuote()
+    }
+
+    public func consumeSolanaPayURI(_ text: String) throws {
+        let expectedDecimals = Int(self.assetDecimals)
+        let parsed = try SolanaPayURIParser.parse(text, expectedDecimals: expectedDecimals)
+        self.recipientText = parsed.recipient.base58
+        if let amount = parsed.amount {
+            let plain = (amount as NSDecimalNumber).description(withLocale: Locale(identifier: "en_US_POSIX"))
+            self.amountText = plain
+        }
+        self.solanaPayPill = SolanaPayPill(label: parsed.label, message: parsed.message)
+        self.validateAllLocally()
+        self.scheduleQuote()
+    }
+
+    public func scheduleQuote() {
+        self.quoteDebounceTask?.cancel()
+        self.quoteDebounceTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled, let self else { return }
+            await self.requestQuote()
+        }
+    }
+
+    public func cancelDebouncedQuote() {
+        self.quoteDebounceTask?.cancel()
+        self.quoteDebounceTask = nil
+    }
+}
+
+// MARK: - Recents
+
+extension SendViewModel {
+
+    public func loadRecents() async {
+        guard let store = self.recentRecipientsStore else {
+            self.recents = []
+            return
+        }
+        self.recents = await store.list(walletId: self.intent.walletId)
+    }
+
+    public func recordRecipientOnConfirm(_ store: RecentRecipientsStore) async {
+        guard let address = try? WalletAddress(base58: self.recipientText) else { return }
+        await store.record(address, walletId: self.intent.walletId)
+    }
+}
+
+// MARK: - Derived display values
+
+extension SendViewModel {
+
+    public var assetSymbol: String {
+        switch self.intent.asset {
+        case .sol: return "SOL"
+        case let .splToken(_, _, symbol, _): return symbol ?? "token"
+        }
+    }
+
+    public var assetName: String {
+        switch self.intent.asset {
+        case .sol: return "Solana"
+        case let .splToken(_, _, _, name): return name ?? self.assetSymbol
+        }
+    }
+
+    public var assetDecimals: UInt8 {
+        switch self.intent.asset {
+        case .sol: return 9
+        case let .splToken(_, decimals, _, _): return decimals
+        }
+    }
+
+    public var isNativeAsset: Bool {
+        if case .sol = self.intent.asset { return true }
+        return false
+    }
+
+    public var balanceDisplay: String {
+        let amount = TokenAmount(amount: self.assetBalanceBaseUnits, decimals: self.assetDecimals)
+        return TokenAmountFormatter(locale: Locale(identifier: "en_US"))
+            .string(amount, symbol: self.assetSymbol)
+    }
+
+    public var balanceUSDDisplay: String? {
+        guard let price = self.assetPriceUSD else { return nil }
+        let scale = Self.power10(Int(self.assetDecimals))
+        let decimalAmount = Decimal(self.assetBalanceBaseUnits) / scale
+        let usd = decimalAmount * price
+        return CurrencyFormatter(locale: Locale(identifier: "en_US")).string(usd: usd)
+    }
+
+    public var echoText: String? {
+        guard self.assetPriceUSD != nil else { return nil }
+        let calc = SendAmountCalculator()
+        let input = self.amountInput()
+        let result = calc.compute(.manual(text: self.amountText, mode: self.fiatMode), input: input)
+        switch self.fiatMode {
+        case .token: return result.displayFiat
+        case .fiat:  return result.displayToken
+        }
+    }
+
+    public var canReview: Bool {
+        guard self.inputValidation == .ok else { return false }
+        guard !self.recipientText.isEmpty else { return false }
+        let calc = SendAmountCalculator()
+        let input = self.amountInput()
+        let result = calc.compute(.manual(text: self.amountText, mode: self.fiatMode), input: input)
+        return result.baseUnits > 0 && !result.exceedsBalance && !result.decimalsError
+    }
+
+    internal func amountInputForChips() -> SendAmountInput {
+        self.amountInput()
+    }
+}
+
+// MARK: - Local validation + parsing
+
+extension SendViewModel {
+
+    enum SendInputError: Error {
+        case message(String)
+    }
+
+    func parseRequest() throws -> SendRequest {
+        let recipientRaw = self.recipientText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !recipientRaw.isEmpty else {
+            throw SendInputError.message("Paste a recipient address.")
+        }
+        let recipient: WalletAddress
+        do {
+            recipient = try WalletAddress(base58: recipientRaw)
+        } catch {
+            throw SendInputError.message("Recipient address is not a valid Solana address.")
+        }
+
+        let amountRaw = self.amountText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !amountRaw.isEmpty else {
+            throw SendInputError.message("Enter an amount to send.")
+        }
+
+        switch self.intent.asset {
+        case .sol:
+            let decimals: UInt8 = 9
+            let baseUnits = try Self.parseAmount(amountRaw, decimals: decimals)
+            guard baseUnits > 0 else {
+                throw SendInputError.message("Amount must be greater than zero.")
+            }
+            return SendRequest(
+                walletId: self.intent.walletId,
+                from: self.intent.from,
+                recipient: recipient,
+                asset: .sol(amount: Lamports(rawValue: baseUnits))
+            )
+        case let .splToken(mint, decimals, _, _):
+            let baseUnits = try Self.parseAmount(amountRaw, decimals: decimals)
+            guard baseUnits > 0 else {
+                throw SendInputError.message("Amount must be greater than zero.")
+            }
+            let mintAddress = try WalletAddress(base58: mint.base58)
+            return SendRequest(
+                walletId: self.intent.walletId,
+                from: self.intent.from,
+                recipient: recipient,
+                asset: .splToken(mint: mintAddress, amount: baseUnits, decimals: decimals)
+            )
+        }
+    }
+
+    /// Convert a user-typed decimal string into base units, rejecting any
+    /// inputs with more fractional digits than `decimals` allows.
+    static func parseAmount(_ text: String, decimals: UInt8) throws -> UInt64 {
+        let cleaned = text.replacingOccurrences(of: ",", with: "")
+        let parts = cleaned.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+        guard !parts.isEmpty else {
+            throw SendInputError.message("Amount is not a valid number.")
+        }
+        let wholeText = String(parts[0])
+        let fractionText = parts.count > 1 ? String(parts[1]) : ""
+
+        guard wholeText.isEmpty || wholeText.allSatisfy(\.isNumber) else {
+            throw SendInputError.message("Amount contains non-numeric characters.")
+        }
+        guard fractionText.allSatisfy(\.isNumber) else {
+            throw SendInputError.message("Amount contains non-numeric characters.")
+        }
+        guard fractionText.count <= Int(decimals) else {
+            throw SendInputError.message("This token allows at most \(decimals) decimal places.")
+        }
+
+        let paddedFraction = fractionText.padding(toLength: Int(decimals), withPad: "0", startingAt: 0)
+        let combined = (wholeText.isEmpty ? "0" : wholeText) + paddedFraction
+        guard let baseUnits = UInt64(combined) else {
+            throw SendInputError.message("Amount is out of range.")
+        }
+        return baseUnits
+    }
+
+    func amountInput() -> SendAmountInput {
+        let fee = self.feeReserveLamports
+        var rent = self.rentReserveLamports
+        if !self.isNativeAsset {
+            if let quote = self.lastQuote, quote.recipientAtaWillBeCreated == false {
+                // Recipient ATA already exists - no rent surcharge needed.
+            } else {
+                let combined = rent.rawValue &+ self.ataRentReserveLamports.rawValue
+                rent = Lamports(rawValue: combined)
+            }
+        }
+        return SendAmountInput(
+            balanceBaseUnits: self.assetBalanceBaseUnits,
+            decimals: self.assetDecimals,
+            priceUSD: self.assetPriceUSD,
+            feeReserveLamports: fee,
+            rentReserveLamports: rent,
+            isNativeSOL: self.isNativeAsset
+        )
+    }
+
+    func validateAllLocally() {
+        self.validateRecipientLocally()
+        guard self.inputValidation == .ok else { return }
+        let calc = SendAmountCalculator()
+        let input = self.amountInput()
+        let result = calc.compute(.manual(text: self.amountText, mode: self.fiatMode), input: input)
+        if result.decimalsError {
+            self.inputValidation = .decimalsExceedMint(decimals: self.assetDecimals)
+            return
+        }
+        if result.exceedsBalance {
+            self.inputValidation = .amountExceedsBalance
+            return
+        }
+        if !self.amountText.isEmpty, result.baseUnits == 0 {
+            self.inputValidation = .amountTooSmall
+            return
+        }
+        self.inputValidation = .ok
+    }
+
+    func validateRecipientLocally() {
+        let text = self.recipientText
+        if text.isEmpty {
+            self.inputValidation = .quoteError("")
+            return
+        }
+        let address: WalletAddress
+        do {
+            address = try WalletAddress(base58: text)
+        } catch {
+            self.inputValidation = .quoteError("Invalid address")
+            return
+        }
+        if address == self.intent.from {
+            self.inputValidation = .sendingToSelf
+            return
+        }
+        if Self.isKnownProgramAddress(address) {
+            self.inputValidation = .knownProgramRecipient
+            return
+        }
+        if self.isNativeAsset, !Ed25519Curve.isOnCurve(address) {
+            self.inputValidation = .offCurveForSol
+            return
+        }
+        self.inputValidation = .ok
+    }
+
+    static func isKnownProgramAddress(_ address: WalletAddress) -> Bool {
+        let known: [WalletAddress] = [
+            ProgramAddresses.system,
+            ProgramAddresses.token,
+            ProgramAddresses.token2022,
+            ProgramAddresses.associatedToken,
+            ProgramAddresses.computeBudget,
+        ]
+        return known.contains(address)
+    }
+
+    static func power10(_ exponent: Int) -> Decimal {
+        var result = Decimal(1)
+        var base = Decimal(10)
+        var remaining = exponent
+        while remaining > 0 {
+            if remaining & 1 == 1 { result *= base }
+            remaining >>= 1
+            if remaining > 0 { base *= base }
+        }
+        return result
+    }
+}
+
+// MARK: - User-facing validation copy
+
+public extension InputValidation {
+    var userMessage: String {
+        switch self {
+        case .ok: return ""
+        case .noBalance: return "This wallet has no balance for this asset."
+        case .belowFeeReserve: return "Not enough SOL to cover the network fee."
+        case .sendingToSelf: return "You are sending to your own address."
+        case .offCurveForSol: return "SOL cannot be sent to a program-derived address."
+        case .knownProgramRecipient: return "That address is a Solana program, not a wallet."
+        case .freshRecipientATA: return "Recipient does not have a token account yet. The transfer will create one."
+        case let .unsupportedToken2022(reason): return reason
+        case .amountExceedsBalance: return "Amount exceeds available balance."
+        case .amountTooSmall: return "Amount is too small to send."
+        case let .decimalsExceedMint(decimals): return "This token allows at most \(decimals) decimal places."
+        case let .quoteError(message): return message
+        }
+    }
+}
