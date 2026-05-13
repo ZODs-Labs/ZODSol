@@ -114,17 +114,22 @@ extension HeliusSolanaProvider {
             tokenProgram: tokenInfo?.token_program)
     }
 
-    /// Helius's `cdn_uri` wraps the source through Cloudflare image resizing
-    /// (`https://cdn.helius-rpc.com/cdn-cgi/image/<opts>/<source>`). The wrapper
-    /// frequently 404s or returns the wrong content for IPFS sources, so prefer
-    /// the raw `uri` and fall back to the underlying source extracted from the
-    /// wrapper only if `uri` is missing.
     private static func pickLogoURL(_ files: [HeliusAssetsByOwnerResult.HeliusFile]?) -> URL? {
         guard let first = files?.first else { return nil }
-        if let uri = first.uri, let url = URL(string: uri) { return url }
-        guard let cdn = first.cdn_uri else { return nil }
-        if let underlying = dewrapCDN(cdn), let url = URL(string: underlying) { return url }
-        return URL(string: cdn)
+        if let cdn = first.cdn_uri, let url = URL(string: cdn), ImageURLPolicy.isPermitted(url) {
+            return url
+        }
+        if let uri = first.uri, let url = URL(string: uri), ImageURLPolicy.isPermitted(url) {
+            return url
+        }
+        if let cdn = first.cdn_uri,
+           let underlying = dewrapCDN(cdn),
+           let url = URL(string: underlying),
+           ImageURLPolicy.isPermitted(url)
+        {
+            return url
+        }
+        return nil
     }
 
     private static func dewrapCDN(_ s: String) -> String? {
