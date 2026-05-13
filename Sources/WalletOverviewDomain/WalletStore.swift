@@ -140,15 +140,19 @@ public actor WalletStore {
         prompt: String,
         _ body: @Sendable (inout Data) async throws -> R) async throws -> R
     {
+        self.logger.notice("withPrivateKey start wallet=\(walletId.uuidString, privacy: .public)")
         // Fast path: if a recent biometric unlock left the seed in the
         // session vault, skip the Keychain entirely. This is what eliminates
         // the per-send Touch ID prompt and the stale-ACL "Keychain wants
         // access" dialogs that ad-hoc-signed builds trigger on every
         // SecItemCopyMatching.
         if let session, let result = try await session.withSeed(walletId: walletId, body) {
+            self.logger.notice("withPrivateKey done (cache hit) wallet=\(walletId.uuidString, privacy: .public)")
             return result
         }
 
+        self.logger.notice(
+            "withPrivateKey prompting biometric wallet=\(walletId.uuidString, privacy: .public)")
         let item = SecureItem(service: service, account: "wallet.\(walletId).privateKey")
         do {
             var buffer = try await secureStore.read(item, prompt: prompt)
@@ -156,7 +160,10 @@ public actor WalletStore {
             if let session {
                 await session.cache(walletId: walletId, seed: buffer)
             }
-            return try await body(&buffer)
+            let result = try await body(&buffer)
+            self.logger.notice(
+                "withPrivateKey done (Keychain read) wallet=\(walletId.uuidString, privacy: .public)")
+            return result
         } catch let error as KeychainError where error == .userCanceled || error == .biometricFailed {
             // Transient: user pressed Cancel or biometric did not match. The
             // stored item is fine; surface a cancellation so the UI can
