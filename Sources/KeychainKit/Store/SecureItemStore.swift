@@ -18,13 +18,11 @@ public actor SecureItemStore {
         self.logger = logger
     }
 
-    /// Fresh `LAContext` per call. `interactionNotAllowed = true` suppresses
-    /// the biometric/`SecAccessControl` prompt path. The legacy login-keychain
-    /// "Always Allow / Deny" ACL prompt that ad-hoc rebuilds trigger is a
-    /// separate UI path - `kSecUseAuthenticationUI: kSecUseAuthenticationUIFail`
-    /// (applied alongside this context on every query) is what suppresses
-    /// that one, returning `errSecInteractionNotAllowed` so the stale-ACL
-    /// case can be handled in code.
+    /// Fresh non-interactive `LAContext`. `interactionNotAllowed = true`
+    /// guarantees we never let any auth UI escape past the `evaluatePolicy`
+    /// call we already made: a stale-ACL slot resolves to
+    /// `errSecInteractionNotAllowed` and the caller treats it as orphan
+    /// instead of popping the "Always Allow / Deny" sheet.
     private func nonInteractiveContext() -> LAContext {
         let context = LAContext()
         context.interactionNotAllowed = true
@@ -46,7 +44,6 @@ public actor SecureItemStore {
             kSecAttrAccount: item.account,
             kSecValueData: data,
             kSecUseAuthenticationContext: silent,
-            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
         try self.apply(accessibility, to: &addQuery)
 
@@ -56,7 +53,6 @@ public actor SecureItemStore {
             kSecAttrAccount: item.account,
             kSecMatchLimit: kSecMatchLimitOne,
             kSecUseAuthenticationContext: silent,
-            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
 
         var unused: AnyObject?
@@ -118,7 +114,6 @@ public actor SecureItemStore {
             kSecReturnData: true,
             kSecMatchLimit: kSecMatchLimitOne,
             kSecUseAuthenticationContext: self.nonInteractiveContext(),
-            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
 
         var result: AnyObject?
@@ -142,7 +137,6 @@ public actor SecureItemStore {
             kSecAttrService: item.service,
             kSecAttrAccount: item.account,
             kSecUseAuthenticationContext: self.nonInteractiveContext(),
-            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
 
         let status = SecItemDelete(query as CFDictionary)
@@ -165,18 +159,22 @@ public actor SecureItemStore {
             kSecAttrAccount: item.account,
             kSecMatchLimit: kSecMatchLimitOne,
             kSecUseAuthenticationContext: self.nonInteractiveContext(),
-            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail,
         ]
 
         let status = SecItemCopyMatching(query as CFDictionary, nil)
         return status == errSecSuccess
     }
 
-    /// Rename a Keychain entry we are not authorized to mutate so the account
-    /// slot can be reused. Ad-hoc rebuilds change the binary's signing hash,
-    /// which leaves prior items "owned" by a defunct identity. We rename them
-    /// out of the way (the data is still encrypted under the prior ACL and
-    /// cannot be read) so the next add does not collide.
+    /// Rename a Keychain entry the current binary is not authorized to
+    /// mutate so its account slot can be reused. The legacy file keychain
+    /// binds an item's ACL to the Designated Requirement of the binary that
+    /// wrote it: when the DR changes (cdhash drift under ad-hoc signing,
+    /// signing-identity change between dev and packaged builds) the existing
+    /// item becomes opaque to us and a fresh `add` would collide. We rename
+    /// the dead slot out of the way - the data is still encrypted under the
+    /// prior ACL and unreadable - so the next add succeeds. The repo's
+    /// `Scripts/setup_local_signing.sh` keeps the DR stable across rebuilds,
+    /// so in normal operation this path is dead.
     private func evictOrphan(matching searchQuery: [CFString: Any]) throws {
         let suffix = "orphan.\(UUID().uuidString)"
         let originalAccount = (searchQuery[kSecAttrAccount] as? String) ?? ""
