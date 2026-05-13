@@ -23,7 +23,7 @@ final class PendingRetentionClassifierTests: XCTestCase {
     }
 
     func test_jsonRpcRejection_dropsPending() {
-        let rpc = JSONRPCError(code: -32_002, message: "Transaction simulation failed", data: nil)
+        let rpc = JSONRPCError(code: -32002, message: "Transaction simulation failed", data: nil)
         XCTAssertFalse(DefaultSendAssetsService.shouldRetainPending(after: .rpc(rpc)))
     }
 

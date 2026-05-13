@@ -63,13 +63,15 @@ public actor WalletStore {
 
         let privateKeyItem = SecureItem(service: service, account: "wallet.\(walletId).privateKey")
         do {
-            try await secureStore.write(
+            try await self.secureStore.write(
                 key64,
                 to: privateKeyItem,
                 accessibility: .whenUnlockedThisDeviceOnly,
                 gate: .userPresence(prompt: "Save your Solana signing key"))
         } catch {
-            self.logger.error("add(walletId=\(walletId.uuidString, privacy: .public)) keychain write failed: \(String(describing: error), privacy: .public)")
+            self.logger
+                .error(
+                    "add(walletId=\(walletId.uuidString, privacy: .public)) keychain write failed: \(String(describing: error), privacy: .public)")
             throw error
         }
 

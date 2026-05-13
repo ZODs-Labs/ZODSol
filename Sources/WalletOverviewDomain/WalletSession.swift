@@ -241,9 +241,9 @@ extension WalletSession.Policy: Codable {
         case trigger
         case lockOnSystemSleep
         case lockOnScreenLock
-        // Pre-rename key. Read-only fallback so any policy persisted under
-        // the old name keeps the user's choice on the next launch. New writes
-        // use `lockOnScreenLock`.
+        /// Pre-rename key. Read-only fallback so any policy persisted under
+        /// the old name keeps the user's choice on the next launch. New writes
+        /// use `lockOnScreenLock`.
         case lockOnScreensaver
     }
 

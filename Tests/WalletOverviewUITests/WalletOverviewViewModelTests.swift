@@ -298,7 +298,9 @@ final class WalletOverviewViewModelTests: XCTestCase {
         await self.waitUntil { viewModel.activeWalletId == identity.id }
         try? await Task.sleep(for: .milliseconds(20))
 
-        XCTAssertEqual(viewModel.pendingSendBanner, PendingSendDisplayInfo(signature: signature, outcome: .confirmed(signature, slot: 100)))
+        XCTAssertEqual(
+            viewModel.pendingSendBanner,
+            PendingSendDisplayInfo(signature: signature, outcome: .confirmed(signature, slot: 100)))
     }
 
     @MainActor
@@ -326,7 +328,9 @@ final class WalletOverviewViewModelTests: XCTestCase {
         await self.waitUntil { viewModel.activeWalletId == identity.id }
         try? await Task.sleep(for: .milliseconds(20))
 
-        XCTAssertEqual(viewModel.pendingSendBanner, PendingSendDisplayInfo(signature: older, outcome: .confirmed(older, slot: 100)))
+        XCTAssertEqual(
+            viewModel.pendingSendBanner,
+            PendingSendDisplayInfo(signature: older, outcome: .confirmed(older, slot: 100)))
     }
 
     @MainActor

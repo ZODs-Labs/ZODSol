@@ -371,7 +371,6 @@ final class URLSessionTransportTests: XCTestCase {
         XCTAssertEqual(counter.value, 2)
     }
 
-
     /// Non-stale URLErrors are NOT consumed by the stale retry — they fall
     /// straight to policy handling (and for sendOnce, that means immediate
     /// failure on the first attempt).

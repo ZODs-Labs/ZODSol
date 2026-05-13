@@ -17,8 +17,8 @@ struct PanelScaffold<Header: View, Content: View, Footer: View>: View {
     init(
         @ViewBuilder header: () -> Header,
         @ViewBuilder content: () -> Content,
-        @ViewBuilder footer: () -> Footer
-    ) {
+        @ViewBuilder footer: () -> Footer)
+    {
         self.header = header()
         self.content = content()
         self.footer = footer()

@@ -270,12 +270,12 @@ final class SendAssetsServiceTests: XCTestCase {
         let transport = MockSendTransport()
         let bh = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
 
-        await enqueueSolQuote(
+        await self.enqueueSolQuote(
             transport: transport,
             blockhash: bh,
             prioritizationFee: 1000,
             senderLamports: 10_000_000)
-        await enqueueSolQuote(
+        await self.enqueueSolQuote(
             transport: transport,
             blockhash: bh,
             prioritizationFee: 2000,
@@ -313,7 +313,7 @@ final class SendAssetsServiceTests: XCTestCase {
         let mint = try WalletAddress(base58: Base58.encode(mintBytes))
         let fromBytes = try Base58.decode(from.base58)
         let mintAccount = Self.mintAccountData(decimals: 6)
-        let senderTokenAccount = Self.tokenAccountData(mint: mintBytes, owner: fromBytes, amount: 10_000)
+        let senderTokenAccount = Self.tokenAccountData(mint: mintBytes, owner: fromBytes, amount: 10000)
 
         await self.enqueueSplQuote(
             transport: transport,
@@ -543,7 +543,7 @@ final class SendAssetsServiceTests: XCTestCase {
 
     private static func writeU64(_ value: UInt64, into data: inout Data, at offset: Int) {
         for index in 0..<8 {
-            data[offset + index] = UInt8((value >> (8 * index)) & 0xff)
+            data[offset + index] = UInt8((value >> (8 * index)) & 0xFF)
         }
     }
 
@@ -747,10 +747,10 @@ extension SendAssetsServiceTests {
         let walletId = UUID()
         let transport = MockSendTransport()
         let bh = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
-        await enqueueSolQuote(
+        await self.enqueueSolQuote(
             transport: transport,
             blockhash: bh,
-            prioritizationFee: 10_000,
+            prioritizationFee: 10000,
             senderLamports: 10_000_000)
 
         let service = self.makeService(
@@ -759,12 +759,12 @@ extension SendAssetsServiceTests {
             walletId: walletId,
             from: from,
             fixture: fixture,
-            priorityFeeCapMicroLamports: 1_500)
+            priorityFeeCapMicroLamports: 1500)
         let request = self.makeSolRequest(walletId: walletId, from: from, to: to, lamports: 1_000_000)
         let quote = try await service.quote(request)
 
-        XCTAssertEqual(quote.priorityFeeMicroLamports, 1_500)
-        XCTAssertEqual(quote.reviewDetails.priorityFeeCapMicroLamports, 1_500)
+        XCTAssertEqual(quote.priorityFeeMicroLamports, 1500)
+        XCTAssertEqual(quote.reviewDetails.priorityFeeCapMicroLamports, 1500)
         XCTAssertTrue(quote.reviewDetails.priorityFeeWasCapped)
     }
 }

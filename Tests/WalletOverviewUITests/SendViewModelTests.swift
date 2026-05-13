@@ -336,7 +336,9 @@ final class SendViewModelTests: XCTestCase {
         let recipient = "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le"
         let reference = "So11111111111111111111111111111111111111112"
 
-        vm.consumeRecipientText("solana:\(recipient)?amount=0.5&reference=\(reference)&label=Shop&message=Order&memo=abc123")
+        vm
+            .consumeRecipientText(
+                "solana:\(recipient)?amount=0.5&reference=\(reference)&label=Shop&message=Order&memo=abc123")
         let request = try vm.parseRequest()
 
         XCTAssertEqual(request.recipient.base58, recipient)

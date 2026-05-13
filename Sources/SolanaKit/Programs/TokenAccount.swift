@@ -63,7 +63,7 @@ public enum TokenAccount {
     }
 
     public static func parse(_ accountData: Data) throws -> TokenAccountProfile {
-        guard accountData.count >= Self.baseSize else { throw ParseError.tooShort }
+        guard accountData.count >= self.baseSize else { throw ParseError.tooShort }
         let mint = try self.readAddress(accountData, at: 0)
         let owner = try self.readAddress(accountData, at: 32)
         let amount = self.readU64(accountData, at: 64)
@@ -89,7 +89,7 @@ public enum TokenAccount {
     }
 
     private static func parseCompatibility(_ accountData: Data) throws -> TokenAccountProfile.Compatibility {
-        guard accountData.count > Self.accountTypeOffset else { return .ok }
+        guard accountData.count > self.accountTypeOffset else { return .ok }
         let accountType = self.byte(accountData, at: Self.accountTypeOffset)
         guard accountType == 2 else { throw ParseError.notAccount(accountType: accountType) }
         var offset = Self.extensionStart
@@ -142,13 +142,13 @@ public enum TokenAccount {
     }
 
     private static func readU16(_ data: Data, at offset: Int) -> UInt16 {
-        UInt16(byte(data, at: offset)) | (UInt16(byte(data, at: offset + 1)) << 8)
+        UInt16(self.byte(data, at: offset)) | (UInt16(self.byte(data, at: offset + 1)) << 8)
     }
 
     private static func readU32(_ data: Data, at offset: Int) -> UInt32 {
         var value: UInt32 = 0
         for index in 0..<4 {
-            value |= UInt32(byte(data, at: offset + index)) << (8 * index)
+            value |= UInt32(self.byte(data, at: offset + index)) << (8 * index)
         }
         return value
     }
@@ -156,7 +156,7 @@ public enum TokenAccount {
     private static func readU64(_ data: Data, at offset: Int) -> UInt64 {
         var value: UInt64 = 0
         for index in 0..<8 {
-            value |= UInt64(byte(data, at: offset + index)) << (8 * index)
+            value |= UInt64(self.byte(data, at: offset + index)) << (8 * index)
         }
         return value
     }

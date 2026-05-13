@@ -22,7 +22,7 @@ public enum TokenMint {
     public static let size = 82
 
     public static func parse(_ accountData: Data) throws -> TokenMintProfile {
-        guard accountData.count >= Self.size else { throw ParseError.tooShort }
+        guard accountData.count >= self.size else { throw ParseError.tooShort }
         let decimals = accountData[accountData.startIndex + 44]
         let initialized = accountData[accountData.startIndex + 45] == 1
         guard initialized else { throw ParseError.uninitialized }
@@ -31,7 +31,7 @@ public enum TokenMint {
     }
 
     private static func parseAuthorityOption(_ data: Data, optionOffset: Int, keyOffset: Int) throws -> WalletAddress? {
-        let option = readU32(data, at: optionOffset)
+        let option = self.readU32(data, at: optionOffset)
         guard option != 0 else { return nil }
         guard option == 1 else { throw ParseError.malformedAuthority }
         let key = data.subdata(in: keyOffset..<(keyOffset + 32))
@@ -46,4 +46,3 @@ public enum TokenMint {
         return value
     }
 }
-

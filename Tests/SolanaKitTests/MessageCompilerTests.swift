@@ -160,7 +160,7 @@ final class MessageCompilerTests: XCTestCase {
     func testCompileRejectsTooManySigners() throws {
         let feePayer = try makeRandomAddress(seed: 0x10)
         let program = try makeRandomAddress(seed: 0x11)
-        let signers = try (0..<12).map { try makeRandomAddress(seed: UInt8(0x20 + $0)) }
+        let signers = try (0..<12).map { try self.makeRandomAddress(seed: UInt8(0x20 + $0)) }
         let instruction = Instruction(
             programAddress: program,
             accounts: signers.map { AccountMeta(pubkey: $0, isSigner: true, isWritable: false) },

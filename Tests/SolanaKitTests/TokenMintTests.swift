@@ -27,6 +27,6 @@ final class TokenMintTests: XCTestCase {
 
 private func writeU32(_ value: UInt32, into data: inout Data, at offset: Int) {
     for index in 0..<4 {
-        data[offset + index] = UInt8((value >> (8 * index)) & 0xff)
+        data[offset + index] = UInt8((value >> (8 * index)) & 0xFF)
     }
 }

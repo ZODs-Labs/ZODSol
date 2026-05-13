@@ -7,4 +7,3 @@ public enum MemoProgram {
         Instruction(programAddress: self.id, accounts: [], data: Data(text.utf8))
     }
 }
-

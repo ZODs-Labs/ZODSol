@@ -9,4 +9,3 @@ public struct RPCContext: Decodable, Sendable, Equatable {
         self.apiVersion = apiVersion
     }
 }
-

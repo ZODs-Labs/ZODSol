@@ -57,11 +57,11 @@ final class TokenAccountTests: XCTestCase {
 
 private func writeU64(_ value: UInt64, into data: inout Data, at offset: Int) {
     for index in 0..<8 {
-        data[offset + index] = UInt8((value >> (8 * index)) & 0xff)
+        data[offset + index] = UInt8((value >> (8 * index)) & 0xFF)
     }
 }
 
 private func appendU16(_ value: UInt16, to data: inout Data) {
-    data.append(UInt8(value & 0xff))
-    data.append(UInt8((value >> 8) & 0xff))
+    data.append(UInt8(value & 0xFF))
+    data.append(UInt8((value >> 8) & 0xFF))
 }

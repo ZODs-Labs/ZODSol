@@ -39,10 +39,10 @@ public struct SolanaPayPill: Sendable, Equatable {
 
 /// State machine driving the send screens.
 ///
-    /// Each transition is one-way except `readyToConfirm → input` and
-    /// `failed → input` (user backs out). Once `broadcasting` fires the
-    /// signature is already on the cluster; later states either resolve or keep
-    /// a pending signature for resync.
+/// Each transition is one-way except `readyToConfirm → input` and
+/// `failed → input` (user backs out). Once `broadcasting` fires the
+/// signature is already on the cluster; later states either resolve or keep
+/// a pending signature for resync.
 @MainActor @Observable
 public final class SendViewModel {
     public enum State: Sendable, Equatable {

@@ -161,7 +161,9 @@ public actor DefaultSendAssetsService: SendAssetsService {
         defer { inFlight.remove(walletId) }
 
         let prepared = try await self.prepare(request: quote.request, tier: quote.priorityTier)
-        let recipientReceives = self.computeRecipientReceives(asset: quote.request.asset, context: prepared.tokenContext)
+        let recipientReceives = self.computeRecipientReceives(
+            asset: quote.request.asset,
+            context: prepared.tokenContext)
         let freshShape = self.makeQuoteShapeDigest(
             request: quote.request,
             tokenContext: prepared.tokenContext,
@@ -361,12 +363,11 @@ extension DefaultSendAssetsService {
         let currentSender = try await self.walletLookup.address(for: request.walletId)
         guard currentSender == request.from else { throw SendError.walletAddressMismatch }
 
-        let tokenContext: TokenSendContext?
-        switch request.asset {
+        let tokenContext: TokenSendContext? = switch request.asset {
         case .sol:
-            tokenContext = nil
+            nil
         case let .splToken(mint, amount, decimals):
-            tokenContext = try await self.resolveTokenContext(
+            try await self.resolveTokenContext(
                 mint: mint,
                 amount: amount,
                 decimals: decimals,
@@ -435,7 +436,7 @@ extension DefaultSendAssetsService {
 
     static func computeUnitLimit(from unitsConsumed: UInt64) -> UInt32 {
         let padded = (unitsConsumed * 11 + 9) / 10
-        let clamped = min(max(padded, 25_000), 1_400_000)
+        let clamped = min(max(padded, 25000), 1_400_000)
         return UInt32(clamped)
     }
 
@@ -740,22 +741,21 @@ extension DefaultSendAssetsService {
     }
 
     static func summarizeInstruction(_ instruction: Instruction) -> TransactionReviewDetails.InstructionSummary {
-        let name: String
-        switch instruction.programAddress {
+        let name: String = switch instruction.programAddress {
         case ProgramAddresses.computeBudget:
-            name = instruction.data.first == 2 ? "Set compute unit limit" : "Set compute unit price"
+            instruction.data.first == 2 ? "Set compute unit limit" : "Set compute unit price"
         case ProgramAddresses.system:
-            name = "Transfer SOL"
+            "Transfer SOL"
         case ProgramAddresses.associatedToken:
-            name = "Create recipient token account"
+            "Create recipient token account"
         case ProgramAddresses.token:
-            name = "Transfer token"
+            "Transfer token"
         case ProgramAddresses.token2022:
-            name = "Transfer Token-2022"
+            "Transfer Token-2022"
         case ProgramAddresses.memo:
-            name = "Attach memo"
+            "Attach memo"
         default:
-            name = "Invoke program"
+            "Invoke program"
         }
         return TransactionReviewDetails.InstructionSummary(program: instruction.programAddress, name: name)
     }
@@ -857,7 +857,10 @@ extension DefaultSendAssetsService {
         return outcome.unitsConsumed ?? 200_000
     }
 
-    private func simulateForSafety(_ compiled: CompiledMessage, minContextSlot: UInt64) async throws -> SimulationOutcome {
+    private func simulateForSafety(
+        _ compiled: CompiledMessage,
+        minContextSlot: UInt64) async throws -> SimulationOutcome
+    {
         let placeholder = try MessageCompiler.placeholderTransaction(for: compiled)
         let base64 = placeholder.wireBytes.base64EncodedString()
         return try await self.runSimulation(base64: base64, minContextSlot: minContextSlot)
@@ -978,26 +981,26 @@ extension DefaultSendAssetsService {
     static func shouldRetainPending(after error: RPCError) -> Bool {
         switch error {
         case .canceled:
-            return false
+            false
         case let .http(status, _):
-            return (500..<600).contains(status)
+            (500..<600).contains(status)
         case let .transport(code):
             switch code {
             case .userAuthenticationRequired, .userCancelledAuthentication:
-                return false
+                false
             default:
-                return true
+                true
             }
         case .decoding:
-            return true
+            true
         case .rpc:
-            return false
+            false
         }
     }
 }
 
-private extension UInt64 {
-    func saturatingMultiplied(by rhs: UInt64) -> UInt64 {
+extension UInt64 {
+    fileprivate func saturatingMultiplied(by rhs: UInt64) -> UInt64 {
         let product = self.multipliedFullWidth(by: rhs)
         return product.high == 0 ? product.low : UInt64.max
     }
