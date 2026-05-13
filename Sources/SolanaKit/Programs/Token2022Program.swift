@@ -16,13 +16,15 @@ public enum Token2022Program {
         destination: WalletAddress,
         owner: WalletAddress,
         amount: UInt64,
-        decimals: UInt8) -> Instruction
+        decimals: UInt8,
+        references: [WalletAddress] = []) -> Instruction
     {
         var data = Data()
         data.reserveCapacity(10)
         data.append(0x0C)
         LittleEndianEncoder.appendUInt64(amount, to: &data)
         data.append(decimals)
+        let referenceMetas = references.map { AccountMeta(pubkey: $0, isSigner: false, isWritable: false) }
         return Instruction(
             programAddress: self.id,
             accounts: [
@@ -30,7 +32,7 @@ public enum Token2022Program {
                 AccountMeta(pubkey: mint, isSigner: false, isWritable: false),
                 AccountMeta(pubkey: destination, isSigner: false, isWritable: true),
                 AccountMeta(pubkey: owner, isSigner: true, isWritable: false),
-            ],
+            ] + referenceMetas,
             data: data)
     }
 
@@ -51,7 +53,8 @@ public enum Token2022Program {
         owner: WalletAddress,
         amount: UInt64,
         decimals: UInt8,
-        fee: UInt64) -> Instruction
+        fee: UInt64,
+        references: [WalletAddress] = []) -> Instruction
     {
         var data = Data()
         data.reserveCapacity(19)
@@ -60,6 +63,7 @@ public enum Token2022Program {
         LittleEndianEncoder.appendUInt64(amount, to: &data)
         data.append(decimals)
         LittleEndianEncoder.appendUInt64(fee, to: &data)
+        let referenceMetas = references.map { AccountMeta(pubkey: $0, isSigner: false, isWritable: false) }
         return Instruction(
             programAddress: self.id,
             accounts: [
@@ -67,7 +71,7 @@ public enum Token2022Program {
                 AccountMeta(pubkey: mint, isSigner: false, isWritable: false),
                 AccountMeta(pubkey: destination, isSigner: false, isWritable: true),
                 AccountMeta(pubkey: owner, isSigner: true, isWritable: false),
-            ],
+            ] + referenceMetas,
             data: data)
     }
 }

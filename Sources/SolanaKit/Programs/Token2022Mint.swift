@@ -170,7 +170,6 @@ public enum Token2022Mint {
 
                 case .defaultAccountState:
                     let state = body.first ?? 0
-                    // 2 == Frozen. A new ATA created idempotently would be frozen.
                     if state == 2 {
                         refusal = "Recipients of this token are frozen by default."
                     }
@@ -184,12 +183,11 @@ public enum Token2022Mint {
                 case .uninitialized, .mintCloseAuthority, .interestBearingConfig,
                      .metadataPointer, .tokenMetadata, .groupPointer, .tokenGroup,
                      .groupMemberPointer, .tokenGroupMember:
-                    // Allowed; do not affect transfer semantics for our pipeline.
                     break
                 }
+            } else {
+                refusal = "This token uses an unknown Token-2022 extension."
             }
-            // Unknown extension types are ignored: forward-compat for new
-            // extensions that don't affect transfers.
 
             offset = dataEnd
         }

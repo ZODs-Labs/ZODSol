@@ -13,4 +13,6 @@ public enum ProgramAddresses {
         try! WalletAddress(base58: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
     public static let computeBudget: WalletAddress =
         try! WalletAddress(base58: "ComputeBudget111111111111111111111111111111")
+    public static let memo: WalletAddress =
+        try! WalletAddress(base58: "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
 }

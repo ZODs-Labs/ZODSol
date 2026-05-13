@@ -157,6 +157,38 @@ final class MessageCompilerTests: XCTestCase {
             signatures: [Signature(bytes: Data(count: 64)), Signature(bytes: Data(count: 64))]))
     }
 
+    func testCompileRejectsTooManySigners() throws {
+        let feePayer = try makeRandomAddress(seed: 0x10)
+        let program = try makeRandomAddress(seed: 0x11)
+        let signers = try (0..<12).map { try makeRandomAddress(seed: UInt8(0x20 + $0)) }
+        let instruction = Instruction(
+            programAddress: program,
+            accounts: signers.map { AccountMeta(pubkey: $0, isSigner: true, isWritable: false) },
+            data: Data())
+        let message = TransactionMessage(
+            feePayer: feePayer,
+            instructions: [instruction],
+            lifetime: .blockhash(self.testBlockhash, lastValidBlockHeight: 1))
+
+        XCTAssertThrowsError(try MessageCompiler.compile(message)) { error in
+            XCTAssertEqual(error as? MessageCompiler.CompileError, .tooManySigners(13))
+        }
+    }
+
+    func testCompileRejectsTooManyInstructions() throws {
+        let feePayer = try makeRandomAddress(seed: 0x30)
+        let program = try makeRandomAddress(seed: 0x31)
+        let instructions = Array(repeating: Instruction(programAddress: program, accounts: [], data: Data()), count: 65)
+        let message = TransactionMessage(
+            feePayer: feePayer,
+            instructions: instructions,
+            lifetime: .blockhash(self.testBlockhash, lastValidBlockHeight: 1))
+
+        XCTAssertThrowsError(try MessageCompiler.compile(message)) { error in
+            XCTAssertEqual(error as? MessageCompiler.CompileError, .tooManyInstructions(65))
+        }
+    }
+
     // MARK: - Helpers
 
     /// Build a deterministic 32-byte address from a single seed byte.

@@ -11,18 +11,20 @@ public enum SystemProgram {
     public static func transferSol(
         from: WalletAddress,
         to: WalletAddress,
-        lamports: Lamports) -> Instruction
+        lamports: Lamports,
+        references: [WalletAddress] = []) -> Instruction
     {
         var data = Data()
         data.reserveCapacity(12)
         LittleEndianEncoder.appendUInt32(2, to: &data)
         LittleEndianEncoder.appendUInt64(lamports.rawValue, to: &data)
+        let referenceMetas = references.map { AccountMeta(pubkey: $0, isSigner: false, isWritable: false) }
         return Instruction(
             programAddress: self.id,
             accounts: [
                 AccountMeta(pubkey: from, isSigner: true, isWritable: true),
                 AccountMeta(pubkey: to, isSigner: false, isWritable: true),
-            ],
+            ] + referenceMetas,
             data: data)
     }
 }

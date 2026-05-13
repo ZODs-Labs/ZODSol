@@ -237,15 +237,16 @@ final class Token2022MintTests: XCTestCase {
         XCTAssertFalse(profile.permanentDelegate)
     }
 
-    func testUnknownExtensionsAreSkipped() throws {
-        // Type 9999 isn't in our enum; parser should skip and continue.
+    func testUnknownExtensionsAreRefused() throws {
+        // Unknown mint extensions are fail-closed.
         let mint = self.makeMint(decimals: 6, extensions: [
             (type: 9999, body: Data(repeating: 0xAA, count: 16)),
             (type: 12, body: Data(repeating: 0x11, count: 32)),
         ])
         let profile = try Token2022Mint.parse(mint, currentEpoch: 0)
-        XCTAssertEqual(profile.compatibility, .ok)
-        XCTAssertTrue(profile.permanentDelegate)
+        XCTAssertEqual(
+            profile.compatibility,
+            .refused(reason: "This token uses an unknown Token-2022 extension."))
     }
 
     func testMalformedExtensionLengthThrows() {

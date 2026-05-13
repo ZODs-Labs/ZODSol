@@ -5,9 +5,11 @@ import Foundation
 /// short_vec length prefixes, empty address-table-lookup slot).
 public enum MessageCompiler {
     public enum CompileError: Error, Sendable, Equatable {
-        /// Account count exceeded 255 — the wire format addresses accounts by u8.
+        /// Account count exceeded the current v0 static-account limit.
         case tooManyAccounts(Int)
-        /// Instruction count exceeded UInt16.max.
+        /// Signer count exceeded the packet-level signature limit.
+        case tooManySigners(Int)
+        /// Instruction count exceeded the runtime instruction trace limit.
         case tooManyInstructions(Int)
         /// An instruction's `accounts` list exceeded UInt16.max.
         case tooManyAccountsInInstruction(Int)
@@ -35,10 +37,17 @@ public enum MessageCompiler {
         let accountKeys = groups.writableSigners + groups.readonlySigners
             + groups.writableNonSigners + groups.readonlyNonSigners
 
-        guard accountKeys.count <= 255 else {
+        // App cap, below the u8 wire limit, keeps signed packets under Solana's 1232-byte MTU budget.
+        guard accountKeys.count <= 64 else {
             throw CompileError.tooManyAccounts(accountKeys.count)
         }
-        guard message.instructions.count <= Int(UInt16.max) else {
+        let signerCount = groups.writableSigners.count + groups.readonlySigners.count
+        // Each signer adds a 64-byte signature, so this cap protects the same packet budget.
+        guard signerCount <= 12 else {
+            throw CompileError.tooManySigners(signerCount)
+        }
+        // Instruction count is capped with the static-account limit so pathological messages fail early.
+        guard message.instructions.count <= 64 else {
             throw CompileError.tooManyInstructions(message.instructions.count)
         }
 
