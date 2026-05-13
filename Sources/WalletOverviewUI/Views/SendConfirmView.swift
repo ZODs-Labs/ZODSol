@@ -13,45 +13,34 @@ struct SendConfirmView: View {
     private let currencyFormatter = CurrencyFormatter(locale: Locale(identifier: "en_US"))
 
     var body: some View {
-        VStack(spacing: 12) {
+        PanelScaffold {
             self.header
+        } content: {
+            self.contentBody
+        } footer: {
+            self.footerBar
+        }
+    }
 
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Review send")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
+            Spacer()
+            ClusterBadge(network: self.viewModel.cluster)
+        }
+    }
+
+    private var contentBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
             YouSendCard(
                 amountToken: self.tokenDisplay,
                 amountFiat: self.fiatDisplay,
                 assetSymbol: self.assetSymbol,
                 recipient: self.quote.request.recipient)
 
-            DisclosureGroup(isExpanded: self.$viewModel.detailsExpanded) {
-                VStack(alignment: .leading, spacing: 8) {
-                    DetailRow("Network fee", value: self.feeDisplay)
-                    if self.quote.recipientAtaWillBeCreated {
-                        DetailRow("Recipient account rent", value: self.rentDisplay)
-                    }
-                    PriorityTierPicker(selection: self.$viewModel.priorityTier)
-                        .padding(.vertical, 4)
-                        .disabled(self.viewModel.isRequoting)
-                    DetailRow("Total cost", value: self.totalDisplay)
-                    if let transferFee = self.transferFeeDisplay {
-                        DetailRow("Transfer fee", value: transferFee)
-                    }
-                }
-                .padding(.top, 4)
-            } label: {
-                HStack(spacing: 6) {
-                    Text("Details")
-                        .font(.callout.weight(.medium))
-                    if self.viewModel.isRequoting {
-                        ProgressView()
-                            .controlSize(.small)
-                            .scaleEffect(0.7)
-                        Text("Recalculating fee\u{2026}")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .animation(self.reduceMotion ? nil : .smooth(duration: 0.22), value: self.viewModel.detailsExpanded)
+            self.detailsDisclosure
 
             if let notice = self.quote.token2022Notice {
                 if let bps = notice.transferFeeBasisPoints, bps > 500 {
@@ -65,36 +54,75 @@ struct SendConfirmView: View {
                         style: .red)
                 }
             }
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 8) {
-                Button("Back") { self.viewModel.back() }
-                    .buttonStyle(.bordered)
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(self.viewModel.isRequoting)
-                Spacer()
-                Button {
-                    Task { await self.viewModel.confirmSend() }
-                } label: {
-                    Text("Send \(self.viewModel.cluster.displayName)")
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .tint(self.viewModel.cluster == .mainnet ? .red : .accentColor)
-                .disabled(self.viewModel.isRequoting)
-            }
         }
-        .padding(16)
     }
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Review send")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.primary)
+    private var detailsDisclosure: some View {
+        DisclosureGroup(isExpanded: self.$viewModel.detailsExpanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                DetailRow("Network fee", value: self.feeDisplay)
+                if self.quote.recipientAtaWillBeCreated {
+                    DetailRow("Recipient account rent", value: self.rentDisplay)
+                }
+                PriorityTierPicker(selection: self.$viewModel.priorityTier)
+                    .padding(.vertical, 4)
+                    .disabled(self.viewModel.isRequoting)
+                DetailRow("Total cost", value: self.totalDisplay)
+                if let transferFee = self.transferFeeDisplay {
+                    DetailRow("Transfer fee", value: transferFee)
+                }
+                DetailRow("Base fee", value: self.solString(self.quote.reviewDetails.baseFeeLamports))
+                DetailRow("Priority fee", value: self.solString(self.quote.reviewDetails.priorityFeeLamports))
+                if self.quote.reviewDetails.priorityFeeWasCapped {
+                    DetailRow(
+                        "Priority fee cap",
+                        value: "\(self.quote.reviewDetails.priorityFeeCapMicroLamports) uLamports/CU applied")
+                }
+                DetailRow("Compute limit", value: "\(self.quote.reviewDetails.computeUnitLimit) CU")
+                DetailRow("Valid through block", value: "\(self.quote.reviewDetails.lastValidBlockHeight)")
+                DetailRow("Simulation", value: self.quote.reviewDetails.simulationStatus)
+                if let tokenProgram = self.quote.reviewDetails.tokenProgram {
+                    DetailRow("Token program", value: self.shortAddress(tokenProgram))
+                }
+                if let pay = self.quote.reviewDetails.solanaPay {
+                    self.solanaPayDetails(pay)
+                }
+                self.instructionList
+            }
+            .padding(.top, 4)
+        } label: {
+            HStack(spacing: 6) {
+                Text("Details")
+                    .font(.callout.weight(.medium))
+                if self.viewModel.isRequoting {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
+                    Text("Recalculating fee\u{2026}")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .animation(self.reduceMotion ? nil : .smooth(duration: 0.22), value: self.viewModel.detailsExpanded)
+    }
+
+    private var footerBar: some View {
+        HStack(spacing: 8) {
+            Button("Back") { self.viewModel.back() }
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.cancelAction)
+                .disabled(self.viewModel.isRequoting)
             Spacer()
-            ClusterBadge(network: self.viewModel.cluster)
+            Button {
+                Task { await self.viewModel.confirmSend() }
+            } label: {
+                Text("Send \(self.viewModel.cluster.displayName)")
+            }
+            .keyboardShortcut(.defaultAction)
+            .buttonStyle(.borderedProminent)
+            .tint(self.viewModel.cluster == .mainnet ? .red : .accentColor)
+            .disabled(self.viewModel.isRequoting)
         }
     }
 
@@ -155,6 +183,39 @@ struct SendConfirmView: View {
     private func solString(_ lamports: Lamports) -> String {
         let sol = Decimal(lamports.rawValue) / Self.power10(9)
         return "\(self.amountFormatter.largeNumber(sol)) SOL"
+    }
+
+    private func shortAddress(_ address: WalletAddress) -> String {
+        let text = address.base58
+        guard text.count > 12 else { return text }
+        return "\(text.prefix(4))...\(text.suffix(4))"
+    }
+
+    @ViewBuilder
+    private func solanaPayDetails(_ pay: SolanaPayTransferContext) -> some View {
+        if let label = pay.label, !label.isEmpty {
+            DetailRow("Payment label", value: label)
+        }
+        if let message = pay.message, !message.isEmpty {
+            DetailRow("Payment message", value: message)
+        }
+        if let memo = pay.memo, !memo.isEmpty {
+            DetailRow("Memo", value: memo)
+        }
+        if !pay.references.isEmpty {
+            DetailRow("References", value: "\(pay.references.count)")
+        }
+    }
+
+    private var instructionList: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Instructions")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(Array(self.quote.reviewDetails.instructions.enumerated()), id: \.offset) { _, item in
+                DetailRow(item.name, value: self.shortAddress(item.program))
+            }
+        }
     }
 
     private func formattedAmount(of asset: SendAsset) -> String {

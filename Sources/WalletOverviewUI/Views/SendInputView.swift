@@ -21,8 +21,27 @@ struct SendInputView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        PanelScaffold {
             self.header
+        } content: {
+            self.contentBody
+        } footer: {
+            self.footer
+        }
+        .disabled(self.isQuoting)
+        .onPreferenceChange(RecipientFieldHeightKey.self) { newValue in
+            if newValue > 0 { self.recipientFieldHeight = newValue }
+        }
+        .task {
+            await self.viewModel.loadRecents()
+        }
+        .onAppear {
+            self.focused = .recipient
+        }
+    }
+
+    private var contentBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
             self.assetHeaderCard
 
             RecipientField(viewModel: self.viewModel, focused: self.$focused)
@@ -61,21 +80,6 @@ struct SendInputView: View {
             if let legacy = self.viewModel.validationError {
                 ValidationStripView(text: legacy, style: .error)
             }
-
-            Spacer(minLength: 0)
-
-            self.footer
-        }
-        .padding(16)
-        .disabled(self.isQuoting)
-        .onPreferenceChange(RecipientFieldHeightKey.self) { newValue in
-            if newValue > 0 { self.recipientFieldHeight = newValue }
-        }
-        .task {
-            await self.viewModel.loadRecents()
-        }
-        .onAppear {
-            self.focused = .recipient
         }
     }
 
@@ -340,8 +344,8 @@ private actor PreviewNoopSendInputService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId: UUID) async -> [Signature: SendOutcome] {
-        [:]
+    func resync(walletId: UUID) async -> [PendingSendResolution] {
+        []
     }
 }
 

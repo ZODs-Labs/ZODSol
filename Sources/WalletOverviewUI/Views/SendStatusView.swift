@@ -10,38 +10,53 @@ struct SendStatusView: View {
     @State private var didRecordRecipient = false
 
     var body: some View {
-        VStack(spacing: 16) {
-            Spacer(minLength: 0)
-
-            StateRing(state: self.viewModel.state, reduceMotion: self.reduceMotion)
-                .frame(width: 80, height: 80)
-
-            VStack(spacing: 4) {
-                Text(self.statusTitle)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text(self.statusSubtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 12)
-            }
-
-            if let signature = self.currentSignature {
-                SignatureCard(signature: signature, network: self.viewModel.cluster)
-            }
-
-            Spacer(minLength: 0)
-
+        PanelScaffold {
+            self.header
+        } content: {
+            self.contentBody
+        } footer: {
             self.actionBar
         }
-        .padding(16)
         .onAppear {
             self.recordIfConfirmed(self.viewModel.state)
         }
         .onChange(of: self.viewModel.state) { _, newState in
             self.recordIfConfirmed(newState)
         }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(self.statusTitle)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
+            Spacer()
+            ClusterBadge(network: self.viewModel.cluster)
+        }
+    }
+
+    private var contentBody: some View {
+        VStack(spacing: 16) {
+            Spacer(minLength: 0)
+
+            StateRing(state: self.viewModel.state, reduceMotion: self.reduceMotion)
+                .frame(width: 80, height: 80)
+
+            Text(self.statusSubtitle)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 8)
+
+            if let signature = self.currentSignature {
+                SignatureCard(signature: signature, network: self.viewModel.cluster)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .containerRelativeFrame(.vertical, alignment: .center)
     }
 
     @ViewBuilder
@@ -70,7 +85,7 @@ struct SendStatusView: View {
     private var currentSignature: Signature? {
         switch self.viewModel.state {
         case let .broadcasting(sig), let .confirming(sig), let .confirmed(sig, _),
-             let .expired(sig):
+             let .expired(sig), let .stillPending(sig):
             sig
         default:
             nil
@@ -84,6 +99,7 @@ struct SendStatusView: View {
         case .confirming: "Confirming\u{2026}"
         case .confirmed: "Send confirmed"
         case .expired: "Transaction expired"
+        case .stillPending: "Still confirming"
         case .failed: "Send failed"
         default: ""
         }
@@ -101,6 +117,8 @@ struct SendStatusView: View {
             "Reached confirmed commitment in slot \(slot)."
         case .expired:
             "The blockhash window closed before confirmation. Try again."
+        case .stillPending:
+            "The cluster has not resolved this yet. Hide this panel and ZODSol will check again when it reopens."
         case let .failed(error):
             self.errorMessage(error)
         default:
@@ -144,12 +162,20 @@ struct SendStatusView: View {
             return reason
         case .mintNotFound:
             return "Could not find this token's mint on the cluster."
+        case .tokenAccountNotFound:
+            return "This wallet does not have a token account for that mint."
+        case let .tokenAccountInvalid(reason):
+            return reason
+        case let .mintDecimalsMismatch(expected, actual):
+            return "Token decimals changed from \(expected) to \(actual). Refresh the wallet and try again."
         case let .mintOwnedByUnknownProgram(owner):
             return "This token's program (\(owner)) is not supported."
         case let .simulationFailed(_, errorText):
             return "Simulation failed: \(errorText)"
         case let .transactionTooLarge(bytes):
             return "Transaction is too large (\(bytes) bytes)."
+        case let .quoteExpired(changedField):
+            return "\(changedField.capitalized) changed. Review again before signing."
         case .canceled:
             return "Cancelled."
         case .walletAddressMismatch:
@@ -245,7 +271,7 @@ private struct StateRing: View {
                     .foregroundStyle(self.terminalColor)
             }
         }
-        .onAppear {
+        .task(id: self.isInFlight) {
             guard self.isInFlight, !self.reduceMotion else { return }
             withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
                 self.rotation = 360
@@ -274,6 +300,7 @@ private struct StateRing: View {
         switch self.state {
         case .confirmed: "checkmark.circle.fill"
         case .expired: "clock.badge.exclamationmark.fill"
+        case .stillPending: "clock.badge"
         case .failed: "xmark.circle.fill"
         default: "circle"
         }
@@ -283,6 +310,7 @@ private struct StateRing: View {
         switch self.state {
         case .confirmed: .green
         case .expired: .orange
+        case .stillPending: .secondary
         case .failed: .red
         default: .secondary
         }
@@ -344,8 +372,8 @@ private actor PreviewNoopSendStatusService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId: UUID) async -> [Signature: SendOutcome] {
-        [:]
+    func resync(walletId: UUID) async -> [PendingSendResolution] {
+        []
     }
 }
 
