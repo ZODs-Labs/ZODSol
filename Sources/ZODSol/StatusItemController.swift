@@ -36,14 +36,18 @@ final class StatusItemController: NSObject {
         let session = WalletSession(policy: .default)
         let apiKeyStore = HeliusAPIKeyStore(secureStore: secureStore)
         let walletStore = WalletStore(secureStore: secureStore, session: session)
-        let providerHolder = LazyProvider(apiKeyStore: apiKeyStore)
+        let sharedHTTPSession = URLSession(configuration: .makeDefault())
+        let providerHolder = LazyProvider(apiKeyStore: apiKeyStore, session: sharedHTTPSession)
         let overviewCache: TimedCache<UUID, WalletOverview> = TimedCache(ttl: .seconds(15))
         let service = DefaultWalletOverviewService(
             provider: providerHolder,
             walletStore: walletStore,
             network: .mainnet,
             overviewCache: overviewCache)
-        let lazyTransport = LazyRPCTransport(apiKeyStore: apiKeyStore, network: .mainnet)
+        let lazyTransport = LazyRPCTransport(
+            apiKeyStore: apiKeyStore,
+            network: .mainnet,
+            session: sharedHTTPSession)
         let pendingSendStore = PendingSendStore()
         let sendService = DefaultSendAssetsService(
             transport: lazyTransport,
