@@ -99,14 +99,17 @@ extension HeliusSolanaProvider {
             usdValue = nil
         }
 
-        let imageURL = self.pickLogoURL(content?.files)
+        let candidates = self.candidateLogoURLs(content: content)
+        let primary = candidates.first
+        let alternates = candidates.count > 1 ? Array(candidates.dropFirst()) : []
 
         return AssetSummary(
             id: mint,
             kind: kind,
             symbol: symbol,
             name: name,
-            imageURL: imageURL,
+            imageURL: primary,
+            imageURLAlternates: alternates,
             amount: amount,
             usdValue: usdValue,
             pricePerToken: pricePerToken,
@@ -114,22 +117,29 @@ extension HeliusSolanaProvider {
             tokenProgram: tokenInfo?.token_program)
     }
 
-    private static func pickLogoURL(_ files: [HeliusAssetsByOwnerResult.HeliusFile]?) -> URL? {
-        guard let first = files?.first else { return nil }
-        if let cdn = first.cdn_uri, let url = URL(string: cdn), ImageURLPolicy.isPermitted(url) {
-            return url
+    static func candidateLogoURLs(
+        content: HeliusAssetsByOwnerResult.HeliusContent?) -> [URL]
+    {
+        guard let content else { return [] }
+        var seen: Set<String> = []
+        var out: [URL] = []
+
+        let first = content.files?.first
+        let strings: [String?] = [
+            first?.cdn_uri,
+            first?.uri,
+            content.links?.image,
+            first?.cdn_uri.flatMap(self.dewrapCDN),
+        ]
+        for raw in strings {
+            guard let raw, let url = URL(string: raw) else { continue }
+            guard ImageURLPolicy.isPermitted(url) else { continue }
+            let key = url.absoluteString
+            if seen.insert(key).inserted {
+                out.append(url)
+            }
         }
-        if let uri = first.uri, let url = URL(string: uri), ImageURLPolicy.isPermitted(url) {
-            return url
-        }
-        if let cdn = first.cdn_uri,
-           let underlying = dewrapCDN(cdn),
-           let url = URL(string: underlying),
-           ImageURLPolicy.isPermitted(url)
-        {
-            return url
-        }
-        return nil
+        return out
     }
 
     private static func dewrapCDN(_ s: String) -> String? {

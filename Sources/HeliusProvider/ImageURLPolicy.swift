@@ -13,6 +13,18 @@ enum ImageURLPolicy {
         "img.fotofolio.xyz",
         "i.imgur.com",
         "imgur.com",
+        "gateway.irys.xyz",
+        "node1.irys.xyz",
+        "node2.irys.xyz",
+        "i.ibb.co",
+        "ibb.co",
+        "cf-ipfs.com",
+        "dweb.link",
+        "w3s.link",
+        "4everland.io",
+        "4everland.ipfs.io",
+        "ipfs.fleek.co",
+        "raw.githubusercontent.com",
     ]
 
     static let trustedSuffixes: [String] = [
@@ -23,6 +35,11 @@ enum ImageURLPolicy {
         ".metaplex.com",
         ".helius-rpc.com",
         ".helius.dev",
+        ".ipfs.dweb.link",
+        ".ipfs.nftstorage.link",
+        ".ipfs.w3s.link",
+        ".ipfs.4everland.io",
+        ".irys.xyz",
     ]
 
     static let blockedHostSubstrings: [String] = [
@@ -54,7 +71,7 @@ enum ImageURLPolicy {
         guard let first = parts.first else { return true }
         let firstString = String(first)
         if firstString.allSatisfy(\.isNumber) { return true }
-        let nonNumericCount = firstString.filter { !$0.isNumber }.count
+        let nonNumericCount = firstString.count(where: { !$0.isNumber })
         if firstString.count >= 8, nonNumericCount <= 2 { return true }
         return false
     }
