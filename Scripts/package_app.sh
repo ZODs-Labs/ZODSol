@@ -117,12 +117,13 @@ if command -v codesign >/dev/null 2>&1; then
 
     CODESIGN_ARGS=(--force --options runtime "${CODESIGN_KEYCHAIN_ARGS[@]}" --sign "$SIGNING_IDENTITY")
 
-    # Homebrew/local builds do not have a Developer ID provisioning profile, so
-    # do not sandbox by default. Sandboxed Keychain access needs matching
-    # signing entitlements that ad-hoc/Homebrew builds cannot reliably provide.
-    if [[ "${ZODSOL_ENABLE_SANDBOX:-0}" == "1" ]]; then
-        CODESIGN_ARGS+=(--entitlements "$ROOT/Sources/ZODSol/ZODSol.entitlements")
-    fi
+    # Entitlements are always applied. The file declares `network.client`
+    # (Helius + Jupiter) and `keychain-access-groups` (required by the
+    # data-protection keychain even for single-app, non-shared items - without
+    # this the first `SecItemAdd` returns errSecMissingEntitlement -34018 on
+    # ad-hoc-signed builds). No sandbox entitlement is set, matching the
+    # Homebrew/ad-hoc distribution stance documented in CLAUDE.md.
+    CODESIGN_ARGS+=(--entitlements "$ROOT/Sources/ZODSol/ZODSol.entitlements")
 
     codesign "${CODESIGN_ARGS[@]}" "$APP" >/dev/null
     if [[ "$SIGNING_IDENTITY" == "-" ]]; then
