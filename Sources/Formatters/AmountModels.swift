@@ -39,6 +39,7 @@ public enum SendAmountIntent: Sendable, Equatable {
 public struct SendAmountResult: Sendable, Equatable {
     public let baseUnits: UInt64
     public let displayToken: String
+    public let inputTokenText: String
     public let displayFiat: String?
     public let exceedsBalance: Bool
     public let isZero: Bool
@@ -48,6 +49,7 @@ public struct SendAmountResult: Sendable, Equatable {
     public init(
         baseUnits: UInt64,
         displayToken: String,
+        inputTokenText: String,
         displayFiat: String?,
         exceedsBalance: Bool,
         isZero: Bool,
@@ -56,6 +58,7 @@ public struct SendAmountResult: Sendable, Equatable {
     {
         self.baseUnits = baseUnits
         self.displayToken = displayToken
+        self.inputTokenText = inputTokenText
         self.displayFiat = displayFiat
         self.exceedsBalance = exceedsBalance
         self.isZero = isZero

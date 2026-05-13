@@ -164,6 +164,7 @@ extension SendAmountCalculator {
         return SendAmountResult(
             baseUnits: baseUnits,
             displayToken: displayToken,
+            inputTokenText: Self.inputTokenText(baseUnits: baseUnits, decimals: input.decimals),
             displayFiat: displayFiat,
             exceedsBalance: baseUnits > input.balanceBaseUnits,
             isZero: baseUnits == 0,
@@ -192,6 +193,23 @@ extension SendAmountCalculator {
         }
         let normalized = fractionPart.isEmpty ? wholePart : "\(wholePart).\(fractionPart)"
         return Decimal(string: normalized, locale: Locale(identifier: "en_US_POSIX"))
+    }
+
+    fileprivate static func inputTokenText(baseUnits: UInt64, decimals: UInt8) -> String {
+        let decimals = Int(decimals)
+        guard decimals > 0 else { return "\(baseUnits)" }
+        var scale: UInt64 = 1
+        for _ in 0..<decimals {
+            let next = scale.multipliedReportingOverflow(by: 10)
+            if next.overflow { return "\(baseUnits)" }
+            scale = next.partialValue
+        }
+        let whole = baseUnits / scale
+        let fraction = baseUnits % scale
+        guard fraction > 0 else { return "\(whole)" }
+        let padded = String(fraction).padding(toLength: decimals, withPad: "0", startingAt: 0)
+        let trimmed = padded.reversed().drop(while: { $0 == "0" }).reversed()
+        return "\(whole).\(String(trimmed))"
     }
 
     fileprivate static func power10(_ exponent: Int) -> Decimal {

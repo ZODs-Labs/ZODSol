@@ -64,6 +64,15 @@ final class SendAmountCalculatorTests: XCTestCase {
         XCTAssertEqual(result.baseUnits, 5_000_000)
     }
 
+    func test_percentage_inputTokenTextUsesDotDecimalAndNoGrouping() {
+        let calc = SendAmountCalculator()
+        let result = calc.compute(.percentage(0.5), input: self.splInput(balance: 2_469_135_780_000))
+
+        XCTAssertEqual(result.baseUnits, 1_234_567_890_000)
+        XCTAssertEqual(result.inputTokenText, "1234567.89")
+        XCTAssertFalse(result.inputTokenText.contains(","))
+    }
+
     func test_percentage_above1Clamps() {
         let calc = SendAmountCalculator()
         let result = calc.compute(.percentage(1.5), input: self.solInput(balance: 1_000_000_000))
