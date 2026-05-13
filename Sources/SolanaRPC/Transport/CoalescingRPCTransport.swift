@@ -3,7 +3,7 @@ import Foundation
 public actor CoalescingRPCTransport: RPCTransport {
     private let inner: any RPCTransport
     private let dedupKey: @Sendable (String, Data) -> String?
-    private var inflight: [String: Task<Data, Error>] = [:]
+    private var inflight: [String: Task<Data, any Error>] = [:]
 
     public init(
         inner: any RPCTransport,
@@ -39,11 +39,11 @@ public actor CoalescingRPCTransport: RPCTransport {
 
     private func acquireTask(
         forKey key: String,
-        request: JSONRPCRequest<some Encodable & Sendable>) -> Task<Data, Error>
+        request: JSONRPCRequest<some Encodable & Sendable>) -> Task<Data, any Error>
     {
         if let existing = inflight[key] { return existing }
         let inner = self.inner
-        let task = Task<Data, Error> {
+        let task = Task<Data, any Error> {
             let envelope = try await inner.send(request, responseType: JSONRPCEnvelope.self)
             return try JSONEncoder().encode(envelope)
         }
