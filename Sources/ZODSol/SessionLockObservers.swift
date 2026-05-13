@@ -22,6 +22,8 @@ final class SessionLockObservers {
         let distributed = DistributedNotificationCenter.default()
         let session = self.session
 
+        // System sleep (lid close, Sleep menu, idle-to-sleep). The whole
+        // machine is going down so locking is the obvious posture.
         self.observers.append(workspace.addObserver(
             forName: NSWorkspace.willSleepNotification,
             object: nil,
@@ -29,22 +31,22 @@ final class SessionLockObservers {
         { _ in
             Task { await session.handleSystemSleep() }
         })
-        self.observers.append(workspace.addObserver(
-            forName: NSWorkspace.screensDidSleepNotification,
-            object: nil,
-            queue: .main)
-        { _ in
-            Task { await session.handleScreensaver() }
-        })
-        // Lock-screen engagement is delivered via a distributed notification;
-        // the workspace center does not forward it.
+        // Real screen-lock engagement (Lock Screen menu, hot-corner lock,
+        // login-window-on-wake). Distributed-only - the workspace center does
+        // not forward it.
+        //
+        // Display sleep (`NSWorkspace.screensDidSleepNotification`) is
+        // intentionally NOT observed. Display dimming on idle is a power
+        // event, not a security event, and wiring it to `lockAll` forces a
+        // re-prompt every couple minutes on battery. Users who want tighter
+        // locking can pick `.afterIdle(minutes:)` or `.untilPanelClose`.
         let screensLocked = Notification.Name("com.apple.screenIsLocked")
         self.observers.append(distributed.addObserver(
             forName: screensLocked,
             object: nil,
             queue: .main)
         { _ in
-            Task { await session.handleScreensaver() }
+            Task { await session.handleScreenLock() }
         })
     }
 
