@@ -47,6 +47,24 @@ mkdir -p "$MACOS" "$RESOURCES"
 
 cp "$BIN_DIR/${APP_NAME}" "$MACOS/${APP_NAME}"
 
+# SwiftPM emits a `<Target>_<Name>.bundle/` per library target that declares
+# resources. The standard macOS .app layout requires everything to live inside
+# Contents/, so we flatten each bundle's payload into Contents/Resources/.
+# `BundledAssetLogos` looks there via `Bundle.main` when its `Bundle.module`
+# fast path returns nil (which happens in packaged builds because the
+# generated accessor expects the bundle at the .app root - a location
+# codesign rejects as "unsealed contents present in the bundle root").
+# The per-bundle Info.plist is dropped to avoid colliding with the .app's
+# own metadata files.
+shopt -s nullglob
+for resource_bundle in "$BIN_DIR"/*.bundle; do
+    [[ -d "$resource_bundle" ]] || continue
+    find "$resource_bundle" -mindepth 1 -maxdepth 1 \
+        ! -name 'Info.plist' \
+        -exec cp -R {} "$RESOURCES/" \;
+done
+shopt -u nullglob
+
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
