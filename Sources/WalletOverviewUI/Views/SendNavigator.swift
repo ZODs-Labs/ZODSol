@@ -63,6 +63,7 @@ struct SendNavigator: View {
             sendVM.assetBalanceBaseUnits = row.amount.amount
             sendVM.assetPriceUSD = row.pricePerToken
         }
+        sendVM.directoryWallets = parent.wallets.filter { $0.id != intent.walletId }
         if let signature = parent.preloadConfirmingSignature {
             sendVM.preloadConfirming(signature: signature)
             parent.preloadConfirmingSignature = nil

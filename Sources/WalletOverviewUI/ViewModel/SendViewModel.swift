@@ -89,6 +89,10 @@ public final class SendViewModel {
     /// change). The confirm view shows a non-blocking indicator and disables
     /// Send so the user never signs against a stale fee.
     public private(set) var isRequoting: Bool = false
+    /// All ZODSol wallets, excluding the sender, surfaced inline as recipient
+    /// suggestions when the user focuses the address field. Populated by the
+    /// navigator from `WalletOverviewViewModel.wallets`.
+    public var directoryWallets: [WalletIdentity] = []
 
     public let intent: SendIntent
     public let cluster: SolanaNetwork
@@ -412,6 +416,27 @@ extension SendViewModel {
         switch self.fiatMode {
         case .token: return result.displayFiat
         case .fiat: return result.displayToken
+        }
+    }
+
+    /// Wallets from the user's own ZODSol directory that match the current
+    /// recipient text. The sender is filtered out by `directoryWallets` itself
+    /// so it never appears as a self-send shortcut. Empty input shows the full
+    /// list; non-empty input matches case-insensitive prefixes on the label or
+    /// the base58 address. An exact-match recipient is hidden so the dropdown
+    /// disappears once the user has committed to a choice.
+    public var walletSuggestions: [WalletIdentity] {
+        let trimmed = self.recipientText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return self.directoryWallets
+        }
+        let needle = trimmed.lowercased()
+        if self.directoryWallets.contains(where: { $0.address.base58 == trimmed }) {
+            return []
+        }
+        return self.directoryWallets.filter { wallet in
+            wallet.label.lowercased().contains(needle) ||
+                wallet.address.base58.lowercased().hasPrefix(needle)
         }
     }
 

@@ -12,6 +12,7 @@ import WalletOverviewDomain
 struct SendInputView: View {
     @Bindable var viewModel: SendViewModel
     @FocusState private var focused: Field?
+    @State private var recipientFieldHeight: CGFloat = 40
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum Field: Hashable {
@@ -25,6 +26,23 @@ struct SendInputView: View {
             self.assetHeaderCard
 
             RecipientField(viewModel: self.viewModel, focused: self.$focused)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: RecipientFieldHeightKey.self,
+                            value: proxy.size.height)
+                    })
+                .overlay(alignment: .topLeading) {
+                    WalletPickerDropdown(
+                        isOpen: self.showWalletPicker,
+                        wallets: self.viewModel.walletSuggestions,
+                        onSelect: self.handleWalletPick)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity)
+                        .offset(y: self.recipientFieldHeight + 6)
+                        .allowsHitTesting(self.showWalletPicker)
+                }
+                .zIndex(self.showWalletPicker ? 100 : 0)
 
             if let pill = self.viewModel.solanaPayPill {
                 SolanaPayPillView(pill: pill)
@@ -50,6 +68,9 @@ struct SendInputView: View {
         }
         .padding(16)
         .disabled(self.isQuoting)
+        .onPreferenceChange(RecipientFieldHeightKey.self) { newValue in
+            if newValue > 0 { self.recipientFieldHeight = newValue }
+        }
         .task {
             await self.viewModel.loadRecents()
         }
@@ -61,6 +82,23 @@ struct SendInputView: View {
     private var isQuoting: Bool {
         if case .quoting = self.viewModel.state { return true }
         return false
+    }
+
+    /// Show the wallet dropdown only while the recipient field has focus and
+    /// the directory has at least one match for the current text. The picker
+    /// hides as soon as the user starts editing into an obviously unrelated
+    /// address - `walletSuggestions` filters by label or base58 prefix.
+    private var showWalletPicker: Bool {
+        guard self.focused == .recipient else { return false }
+        return !self.viewModel.walletSuggestions.isEmpty
+    }
+
+    /// Fill the recipient field with the picked wallet's address and advance
+    /// focus to the amount field, mirroring the keyboard-driven flow Apple
+    /// uses in Mail's recipient picker.
+    private func handleWalletPick(_ wallet: WalletIdentity) {
+        self.viewModel.consumeRecipientText(wallet.address.base58)
+        self.focused = .amount
     }
 
     // MARK: - Subviews
@@ -148,6 +186,16 @@ struct SendInputView: View {
         }
         if validation == .ok { return nil }
         return ValidationStripView(text: validation.userMessage, style: validation.stripStyle)
+    }
+}
+
+/// Carries the measured height of `RecipientField` up to `SendInputView` so
+/// the floating wallet dropdown anchors a few points below the field without
+/// hardcoding a constant that would break under accessibility font scaling.
+private struct RecipientFieldHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
