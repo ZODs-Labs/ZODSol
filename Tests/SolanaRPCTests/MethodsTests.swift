@@ -38,18 +38,18 @@ final class MethodsTests: XCTestCase {
         let json = try jsonString(of: request.params)
         XCTAssertTrue(json.hasPrefix(#"["AQID",{"#))
         XCTAssertTrue(json.contains(#""encoding":"base64""#))
-        // Client simulates twice before send, so server-side preflight is skipped.
-        XCTAssertTrue(json.contains(#""skipPreflight":true"#))
+        XCTAssertTrue(json.contains(#""skipPreflight":false"#))
         XCTAssertTrue(json.contains(#""preflightCommitment":"confirmed""#))
         // maxRetries is omitted (nil) so the RPC node uses its default rebroadcast budget.
         XCTAssertFalse(json.contains(#""maxRetries""#))
-        XCTAssertTrue(json.contains(#""maxSupportedTransactionVersion":0"#))
+        XCTAssertFalse(json.contains(#""maxSupportedTransactionVersion""#))
     }
 
     func testSendTransactionParamsEncoding_explicitMaxRetriesIsEmitted() throws {
-        let request = SendTransactionRPC.request(base64Transaction: "AQID", maxRetries: 0)
+        let request = SendTransactionRPC.request(base64Transaction: "AQID", maxRetries: 0, minContextSlot: 42)
         let json = try jsonString(of: request.params)
         XCTAssertTrue(json.contains(#""maxRetries":0"#))
+        XCTAssertTrue(json.contains(#""minContextSlot":42"#))
     }
 
     func testSendTransactionResultDecoding() throws {
@@ -70,6 +70,12 @@ final class MethodsTests: XCTestCase {
         XCTAssertTrue(json.contains(#""sigVerify":false"#))
         XCTAssertTrue(json.contains(#""replaceRecentBlockhash":true"#))
         XCTAssertTrue(json.contains(#""commitment":"processed""#))
+    }
+
+    func testSimulateTransactionParamsEncoding_minContextSlot() throws {
+        let request = SimulateTransactionRPC.request(base64Transaction: "ZZZ", minContextSlot: 42)
+        let json = try jsonString(of: request.params)
+        XCTAssertTrue(json.contains(#""minContextSlot":42"#))
     }
 
     func testSimulateTransactionResultDecoding_success() throws {
@@ -180,11 +186,12 @@ final class MethodsTests: XCTestCase {
     // MARK: - AccountInfo
 
     func testAccountInfoParamsEncoding() throws {
-        let request = AccountInfoRPC.request(address: "11111111111111111111111111111111")
+        let request = AccountInfoRPC.request(address: "11111111111111111111111111111111", minContextSlot: 42)
         let json = try jsonString(of: request.params)
         XCTAssertTrue(json.hasPrefix(#"["11111111111111111111111111111111",{"#))
         XCTAssertTrue(json.contains(#""encoding":"base64""#))
         XCTAssertTrue(json.contains(#""commitment":"confirmed""#))
+        XCTAssertTrue(json.contains(#""minContextSlot":42"#))
     }
 
     func testAccountInfoResultDecoding_present() throws {
@@ -209,6 +216,34 @@ final class MethodsTests: XCTestCase {
         XCTAssertEqual(result.value?.lamports, 1_000_000)
         XCTAssertEqual(result.value?.owner, "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
         XCTAssertEqual(result.value?.base64Data, "AAA=")
+        XCTAssertEqual(
+            try result.value?.validatedBase64Bytes(
+                expectedOwner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                minimumLength: 1),
+            Data([0, 0]))
+    }
+
+    func testAccountInfoResultDecoding_unsupportedEncodingFailsValidation() throws {
+        let payload = """
+        {
+          "jsonrpc": "2.0",
+          "id": "x",
+          "result": {
+            "context": {"slot": 1},
+            "value": {
+              "lamports": 1,
+              "owner": "11111111111111111111111111111111",
+              "executable": false,
+              "rentEpoch": 0,
+              "data": ["{}", "jsonParsed"]
+            }
+          }
+        }
+        """.data(using: .utf8)!
+        let resp = try JSONDecoder().decode(JSONRPCResponse<AccountInfoRPC.Result>.self, from: payload)
+        let result = try resp.unwrap()
+        XCTAssertNil(result.value?.base64Data)
+        XCTAssertThrowsError(try result.value?.validatedBase64Bytes())
     }
 
     func testAccountInfoResultDecoding_missing() throws {

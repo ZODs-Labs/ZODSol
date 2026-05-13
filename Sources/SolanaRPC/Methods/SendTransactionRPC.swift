@@ -8,20 +8,20 @@ public enum SendTransactionRPC {
         public let skipPreflight: Bool
         public let preflightCommitment: String
         public let maxRetries: UInt32?
-        public let maxSupportedTransactionVersion: UInt8
+        public let minContextSlot: UInt64?
 
         public init(
             base64Transaction: String,
-            skipPreflight: Bool = true,
+            skipPreflight: Bool = false,
             preflightCommitment: String = "confirmed",
             maxRetries: UInt32? = nil,
-            maxSupportedTransactionVersion: UInt8 = 0)
+            minContextSlot: UInt64? = nil)
         {
             self.base64Transaction = base64Transaction
             self.skipPreflight = skipPreflight
             self.preflightCommitment = preflightCommitment
             self.maxRetries = maxRetries
-            self.maxSupportedTransactionVersion = maxSupportedTransactionVersion
+            self.minContextSlot = minContextSlot
         }
 
         public func encode(to encoder: any Encoder) throws {
@@ -32,7 +32,7 @@ public enum SendTransactionRPC {
                 skipPreflight: self.skipPreflight,
                 preflightCommitment: self.preflightCommitment,
                 maxRetries: self.maxRetries,
-                maxSupportedTransactionVersion: self.maxSupportedTransactionVersion))
+                minContextSlot: self.minContextSlot))
         }
 
         private struct ConfigPayload: Encodable {
@@ -40,14 +40,14 @@ public enum SendTransactionRPC {
             let skipPreflight: Bool
             let preflightCommitment: String
             let maxRetries: UInt32?
-            let maxSupportedTransactionVersion: UInt8
+            let minContextSlot: UInt64?
 
             enum CodingKeys: String, CodingKey {
                 case encoding
                 case skipPreflight
                 case preflightCommitment
                 case maxRetries
-                case maxSupportedTransactionVersion
+                case minContextSlot
             }
 
             func encode(to encoder: any Encoder) throws {
@@ -56,9 +56,7 @@ public enum SendTransactionRPC {
                 try c.encode(self.skipPreflight, forKey: .skipPreflight)
                 try c.encode(self.preflightCommitment, forKey: .preflightCommitment)
                 if let maxRetries { try c.encode(maxRetries, forKey: .maxRetries) }
-                try c.encode(
-                    self.maxSupportedTransactionVersion,
-                    forKey: .maxSupportedTransactionVersion)
+                if let minContextSlot { try c.encode(minContextSlot, forKey: .minContextSlot) }
             }
         }
     }
@@ -66,9 +64,10 @@ public enum SendTransactionRPC {
     /// `result` is the base58-encoded transaction signature.
     public static func request(
         base64Transaction: String,
-        skipPreflight: Bool = true,
+        skipPreflight: Bool = false,
         preflightCommitment: String = "confirmed",
-        maxRetries: UInt32? = nil) -> JSONRPCRequest<Params>
+        maxRetries: UInt32? = nil,
+        minContextSlot: UInt64? = nil) -> JSONRPCRequest<Params>
     {
         JSONRPCRequest(
             method: "sendTransaction",
@@ -76,6 +75,7 @@ public enum SendTransactionRPC {
                 base64Transaction: base64Transaction,
                 skipPreflight: skipPreflight,
                 preflightCommitment: preflightCommitment,
-                maxRetries: maxRetries))
+                maxRetries: maxRetries,
+                minContextSlot: minContextSlot))
     }
 }

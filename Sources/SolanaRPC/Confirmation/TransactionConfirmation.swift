@@ -58,9 +58,7 @@ public enum TransactionConfirmation {
                     clock: clock,
                     config: config)
             }
-            group.addTask {
-                try await TimeoutStrategy.run(clock: clock, timeout: config.timeout)
-            }
+            group.addTask { try await TimeoutStrategy.run(clock: clock, timeout: config.timeout) }
 
             defer { group.cancelAll() }
             while let resolved = try await group.next() {
@@ -172,6 +170,6 @@ enum BlockHeightExceedanceStrategy {
 enum TimeoutStrategy {
     static func run(clock: any Clock<Duration>, timeout: Duration) async throws -> TransactionConfirmation.Status? {
         try await clock.sleep(for: timeout)
-        return .expired
+        return nil
     }
 }

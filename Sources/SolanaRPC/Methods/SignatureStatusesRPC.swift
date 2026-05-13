@@ -32,6 +32,7 @@ public enum SignatureStatusesRPC {
     }
 
     public struct Result: Decodable, Sendable {
+        public let context: RPCContext
         public let value: [Status?]
     }
 

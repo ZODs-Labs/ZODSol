@@ -14,17 +14,20 @@ public enum SimulateTransactionRPC {
         public let sigVerify: Bool
         public let replaceRecentBlockhash: Bool
         public let commitment: String
+        public let minContextSlot: UInt64?
 
         public init(
             base64Transaction: String,
             sigVerify: Bool = false,
             replaceRecentBlockhash: Bool = true,
-            commitment: String = "processed")
+            commitment: String = "processed",
+            minContextSlot: UInt64? = nil)
         {
             self.base64Transaction = base64Transaction
             self.sigVerify = sigVerify
             self.replaceRecentBlockhash = replaceRecentBlockhash
             self.commitment = commitment
+            self.minContextSlot = minContextSlot
         }
 
         public func encode(to encoder: any Encoder) throws {
@@ -35,12 +38,31 @@ public enum SimulateTransactionRPC {
                 let sigVerify: Bool
                 let replaceRecentBlockhash: Bool
                 let commitment: String
+                let minContextSlot: UInt64?
+
+                enum CodingKeys: String, CodingKey {
+                    case encoding
+                    case sigVerify
+                    case replaceRecentBlockhash
+                    case commitment
+                    case minContextSlot
+                }
+
+                func encode(to encoder: any Encoder) throws {
+                    var c = encoder.container(keyedBy: CodingKeys.self)
+                    try c.encode(self.encoding, forKey: .encoding)
+                    try c.encode(self.sigVerify, forKey: .sigVerify)
+                    try c.encode(self.replaceRecentBlockhash, forKey: .replaceRecentBlockhash)
+                    try c.encode(self.commitment, forKey: .commitment)
+                    if let minContextSlot { try c.encode(minContextSlot, forKey: .minContextSlot) }
+                }
             }
             try container.encode(Config(
                 encoding: "base64",
                 sigVerify: self.sigVerify,
                 replaceRecentBlockhash: self.replaceRecentBlockhash,
-                commitment: self.commitment))
+                commitment: self.commitment,
+                minContextSlot: self.minContextSlot))
         }
     }
 
@@ -54,6 +76,7 @@ public enum SimulateTransactionRPC {
     }
 
     public struct Result: Decodable, Sendable {
+        public let context: RPCContext
         public let value: Value
     }
 
@@ -61,7 +84,8 @@ public enum SimulateTransactionRPC {
         base64Transaction: String,
         sigVerify: Bool = false,
         replaceRecentBlockhash: Bool = true,
-        commitment: String = "processed") -> JSONRPCRequest<Params>
+        commitment: String = "processed",
+        minContextSlot: UInt64? = nil) -> JSONRPCRequest<Params>
     {
         JSONRPCRequest(
             method: "simulateTransaction",
@@ -69,6 +93,7 @@ public enum SimulateTransactionRPC {
                 base64Transaction: base64Transaction,
                 sigVerify: sigVerify,
                 replaceRecentBlockhash: replaceRecentBlockhash,
-                commitment: commitment))
+                commitment: commitment,
+                minContextSlot: minContextSlot))
     }
 }

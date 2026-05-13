@@ -48,21 +48,32 @@ final class TransactionConfirmationTests: XCTestCase {
         XCTAssertEqual(outcome.status, .expired)
     }
 
-    func test_returnsExpired_whenTimeoutElapsesFirst() async throws {
-        let transport = MockTransport(handlers: [
-            "getSignatureStatuses": .json(Self.nullSignatureStatusJSON()),
-            "getEpochInfo": .json(Self.epochInfoJSON(slot: 100, blockHeight: 100)),
-        ])
+    func test_timeoutAloneDoesNotExpireBeforeBlockHeightWindow() async throws {
+        let counter = MutableCounter()
+        let transport = MockTransport(dynamicHandler: { method in
+            switch method {
+            case "getSignatureStatuses":
+                return .json(Self.nullSignatureStatusJSON())
+            case "getEpochInfo":
+                let nth = counter.incrementAndGet()
+                return .json(Self.epochInfoJSON(
+                    slot: nth == 1 ? 100 : 1010,
+                    blockHeight: nth == 1 ? 100 : 1010))
+            default:
+                return .error(RPCError.transport(.unknown))
+            }
+        })
         let outcome = try await TransactionConfirmation.waitForRecentTransaction(
             signatureBase58: "sig",
-            lastValidBlockHeight: 100_000,
+            lastValidBlockHeight: 1000,
             transport: transport,
             config: .init(
                 commitment: .confirmed,
-                pollInterval: .seconds(10),
-                timeout: .milliseconds(50),
-                blockHeightRefreshTicks: 100))
+                pollInterval: .milliseconds(10),
+                timeout: .milliseconds(1),
+                blockHeightRefreshTicks: 1))
         XCTAssertEqual(outcome.status, .expired)
+        XCTAssertGreaterThanOrEqual(counter.value, 2)
     }
 
     func test_signatureStatusBelowRequestedCommitment_keepsPolling() async throws {
