@@ -264,10 +264,13 @@ public actor DefaultSendAssetsService: SendAssetsService {
         do {
             try await broadcastTask.value
         } catch let rpcError as RPCError {
-            // The broadcast itself failed (network drop, RPC -32xxx). The
-            // signature was persisted but the cluster never saw it; drop it.
-            await pendingStore.remove(signatureBase58: signature.base58)
-            throw SendError.rpc(Self.mapRPCError(rpcError))
+            if Self.shouldRetainPending(after: rpcError) {
+                self.logger.debug(
+                    "broadcast threw \(String(describing: rpcError), privacy: .public); falling through to confirmation polling")
+            } else {
+                await self.pendingStore.remove(signatureBase58: signature.base58)
+                throw SendError.rpc(Self.mapRPCError(rpcError))
+            }
         } catch {
             await self.pendingStore.remove(signatureBase58: signature.base58)
             throw SendError.broadcastFailed(reason: String(describing: error))
@@ -633,47 +636,31 @@ extension DefaultSendAssetsService {
         lastValidBlockHeight: UInt64,
         walletId: UUID) async throws -> SendOutcome
     {
-        let deadline = Date().addingTimeInterval(TimeInterval(self.config.confirmationTimeoutSeconds))
-        var ticksSinceEpochCheck = 0
-
-        while Date() < deadline {
-            try Task.checkCancellation()
-
-            // Status check.
-            let statusReq = SignatureStatusesRPC.request(signatures: [signature.base58])
-            let resp: JSONRPCResponse<SignatureStatusesRPC.Result> = try await transport.send(
-                statusReq, responseType: JSONRPCResponse<SignatureStatusesRPC.Result>.self)
-            let result = try resp.unwrap()
-            if let status = result.value.first ?? nil {
-                if status.err != nil {
-                    await self.pendingStore.remove(signatureBase58: signature.base58)
-                    return .failed(signature, error: Self.stringify(status.err))
-                }
-                if Self.isFinalEnough(status.confirmationStatus) {
-                    await self.pendingStore.remove(signatureBase58: signature.base58)
-                    return .confirmed(signature, slot: status.slot)
-                }
+        let confirmationConfig = TransactionConfirmation.Config(
+            commitment: .confirmed,
+            pollInterval: self.config.pollInterval,
+            timeout: .seconds(self.config.confirmationTimeoutSeconds))
+        do {
+            let outcome = try await TransactionConfirmation.waitForRecentTransaction(
+                signatureBase58: signature.base58,
+                lastValidBlockHeight: lastValidBlockHeight,
+                transport: self.transport,
+                clock: self.clock,
+                config: confirmationConfig)
+            await self.pendingStore.remove(signatureBase58: signature.base58)
+            switch outcome.status {
+            case let .confirmed(slot):
+                return .confirmed(signature, slot: slot)
+            case let .failed(error):
+                return .failed(signature, error: error)
+            case .expired:
+                return .expired(signature)
             }
-
-            // Every ~3 ticks check block height for blockhash expiry.
-            ticksSinceEpochCheck += 1
-            if ticksSinceEpochCheck >= 3 {
-                ticksSinceEpochCheck = 0
-                let epochReq = EpochInfoRPC.request()
-                let epochResp: JSONRPCResponse<EpochInfoRPC.Result> = try await transport.send(
-                    epochReq, responseType: JSONRPCResponse<EpochInfoRPC.Result>.self)
-                let epoch = try epochResp.unwrap()
-                if epoch.blockHeight > lastValidBlockHeight {
-                    await self.pendingStore.remove(signatureBase58: signature.base58)
-                    return .expired(signature)
-                }
-            }
-
-            try await self.clock.sleep(for: self.config.pollInterval)
+        } catch is CancellationError {
+            throw SendError.canceled
+        } catch let error as RPCError {
+            throw SendError.rpc(Self.mapRPCError(error))
         }
-        // Timed out without confirmation.
-        await self.pendingStore.remove(signatureBase58: signature.base58)
-        return .expired(signature)
     }
 
     // MARK: - Private: utilities
@@ -716,6 +703,26 @@ extension DefaultSendAssetsService {
         switch lifetime {
         case let .blockhash(blockhash, lastValidBlockHeight):
             (blockhash, lastValidBlockHeight)
+        }
+    }
+
+    static func shouldRetainPending(after error: RPCError) -> Bool {
+        switch error {
+        case .canceled:
+            return false
+        case let .http(status, _):
+            return (500..<600).contains(status)
+        case let .transport(code):
+            switch code {
+            case .userAuthenticationRequired, .userCancelledAuthentication:
+                return false
+            default:
+                return true
+            }
+        case .decoding:
+            return true
+        case .rpc:
+            return false
         }
     }
 }
