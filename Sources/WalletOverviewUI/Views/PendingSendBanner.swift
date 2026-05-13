@@ -25,12 +25,14 @@ struct PendingSendBannerViewModel: Equatable {
             self.iconName = "xmark.circle.fill"
             self.title = "Send failed"
             self.subtitle = shortSig
+        case .stillPending:
+            self.iconName = "clock.badge"
+            self.title = "Still confirming"
+            self.subtitle = shortSig
         }
     }
 
-    /// Pending preview model: used when a non-terminal outcome appears here in
-    /// a future revision of `SendOutcome`. Kept as a separate factory so the
-    /// view code stays the same when that case is added.
+    /// Preview helper for the non-terminal pending outcome.
     static func pendingPreview(signature: Signature) -> PendingSendBannerViewModel {
         PendingSendBannerViewModel(
             iconName: "clock.badge",
@@ -91,7 +93,7 @@ struct PendingSendBanner: View {
         switch self.info.outcome {
         case .confirmed: .green
         case .failed: .red
-        case .expired: .secondary
+        case .expired, .stillPending: .secondary
         }
     }
 }

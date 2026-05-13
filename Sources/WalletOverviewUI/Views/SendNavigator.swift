@@ -32,7 +32,7 @@ struct SendNavigator: View {
             case let .readyToConfirm(quote):
                 SendConfirmView(viewModel: viewModel, quote: quote)
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
-            case .signing, .broadcasting, .confirming, .confirmed, .expired, .failed:
+            case .signing, .broadcasting, .confirming, .confirmed, .expired, .stillPending, .failed:
                 SendStatusView(viewModel: viewModel)
                     .transition(.opacity)
             }
@@ -127,8 +127,8 @@ private actor PreviewNoopNavigatorService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId: UUID) async -> [Signature: SendOutcome] {
-        [:]
+    func resync(walletId: UUID) async -> [PendingSendResolution] {
+        []
     }
 }
 

@@ -71,8 +71,8 @@ private actor PreviewNoopAmountChipService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId: UUID) async -> [Signature: SendOutcome] {
-        [:]
+    func resync(walletId: UUID) async -> [PendingSendResolution] {
+        []
     }
 }
 
