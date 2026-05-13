@@ -12,7 +12,7 @@ public actor URLSessionRPCTransport: RPCTransport {
         endpoint: URL,
         headers: [String: String] = [:],
         queryItems: [URLQueryItem] = [],
-        configuration: URLSessionConfiguration = .makeDefault(),
+        session: URLSession,
         retryPolicy: RetryPolicy = .default,
         logger: Logger = Logger(subsystem: "dev.zods.zodsol", category: "rpc"))
     {
@@ -22,26 +22,46 @@ public actor URLSessionRPCTransport: RPCTransport {
         components.queryItems = combined.isEmpty ? nil : combined
         self.endpoint = components.url ?? endpoint
         self.headers = headers
-        self.session = URLSession(configuration: configuration)
+        self.session = session
         self.retryPolicy = retryPolicy
         self.logger = logger
+    }
+
+    public init(
+        endpoint: URL,
+        headers: [String: String] = [:],
+        queryItems: [URLQueryItem] = [],
+        configuration: URLSessionConfiguration = .makeDefault(),
+        retryPolicy: RetryPolicy = .default,
+        logger: Logger = Logger(subsystem: "dev.zods.zodsol", category: "rpc"))
+    {
+        self.init(
+            endpoint: endpoint,
+            headers: headers,
+            queryItems: queryItems,
+            session: URLSession(configuration: configuration),
+            retryPolicy: retryPolicy,
+            logger: logger)
     }
 
     public func send<R: Decodable & Sendable>(
         _ request: JSONRPCRequest<some Encodable & Sendable>,
         responseType: R.Type) async throws -> R
     {
-        try await self.sendUsing(retryPolicy: self.retryPolicy, request: request, responseType: responseType)
+        try await self.sendUsing(
+            retryPolicy: self.retryPolicy,
+            request: request,
+            responseType: responseType)
     }
 
-    /// Override of the `RPCTransport` default: bypass the configured retry
-    /// loop. Used for `sendTransaction` to avoid resubmitting after a 5xx,
-    /// where the server may have actually accepted the transaction.
     public func sendOnce<R: Decodable & Sendable>(
         _ request: JSONRPCRequest<some Encodable & Sendable>,
         responseType: R.Type) async throws -> R
     {
-        try await self.sendUsing(retryPolicy: .none, request: request, responseType: responseType)
+        try await self.sendUsing(
+            retryPolicy: .none,
+            request: request,
+            responseType: responseType)
     }
 
     private func sendUsing<R: Decodable & Sendable>(
@@ -49,56 +69,29 @@ public actor URLSessionRPCTransport: RPCTransport {
         request: JSONRPCRequest<some Encodable & Sendable>,
         responseType: R.Type) async throws -> R
     {
-        var urlRequest = URLRequest(url: endpoint)
-        urlRequest.httpMethod = "POST"
-        for (k, v) in self.headers {
-            urlRequest.setValue(v, forHTTPHeaderField: k)
-        }
-        urlRequest.httpBody = try JSONEncoder().encode(request)
-
+        let urlRequest = try self.buildURLRequest(request: request)
         var lastError: RPCError = .transport(.unknown)
         for attempt in 1...retryPolicy.maxAttempts {
             do {
                 try Task.checkCancellation()
-                let (data, response) = try await session.data(for: urlRequest)
-                guard let http = response as? HTTPURLResponse else {
-                    throw RPCError.transport(.badServerResponse)
-                }
-                self.logger
-                    .debug("rpc \(request.method, privacy: .public) attempt=\(attempt) status=\(http.statusCode)")
-                switch http.statusCode {
-                case 200..<300:
-                    do {
-                        return try JSONDecoder().decode(R.self, from: data)
-                    } catch {
-                        throw RPCError.decoding(String(describing: error))
-                    }
-                case 401, 403:
-                    throw RPCError.http(status: http.statusCode, retryAfter: nil)
-                case 429:
-                    let ra = Self.parseRetryAfter(http)
-                    lastError = .http(status: 429, retryAfter: ra)
+                let (data, http) = try await self.performHTTPExchange(
+                    urlRequest: urlRequest,
+                    method: request.method,
+                    attempt: attempt)
+                switch try Self.classifyStatus(http) {
+                case .ok:
+                    return try Self.decodeOrThrow(data: data, as: R.self)
+                case let .retryable(error, retryAfter):
+                    lastError = error
                     if attempt == retryPolicy.maxAttempts { throw lastError }
-                    try await Task.sleep(for: retryPolicy.delay(for: attempt, retryAfter: ra))
-                case 500..<600:
-                    lastError = .http(status: http.statusCode, retryAfter: nil)
-                    if attempt == retryPolicy.maxAttempts { throw lastError }
-                    try await Task.sleep(for: retryPolicy.delay(for: attempt, retryAfter: nil))
-                default:
-                    throw RPCError.http(status: http.statusCode, retryAfter: nil)
+                    try await Task.sleep(for: retryPolicy.delay(for: attempt, retryAfter: retryAfter))
                 }
             } catch is CancellationError {
                 throw RPCError.canceled
-            } catch let e as RPCError
-                where e == .canceled
-                || e == .http(status: 401, retryAfter: nil)
-                || e == .http(status: 403, retryAfter: nil)
-            {
+            } catch let e as RPCError where Self.isTerminal(e) {
                 throw e
-            } catch let urlErr as URLError where urlErr.code == .cancelled {
-                throw RPCError.canceled
-            } catch let urlErr as URLError {
-                lastError = .transport(urlErr.code)
+            } catch let e as RPCError {
+                lastError = e
                 if attempt == retryPolicy.maxAttempts { throw lastError }
                 try await Task.sleep(for: retryPolicy.delay(for: attempt, retryAfter: nil))
             } catch {
@@ -106,6 +99,90 @@ public actor URLSessionRPCTransport: RPCTransport {
             }
         }
         throw lastError
+    }
+
+    private func buildURLRequest(
+        request: JSONRPCRequest<some Encodable & Sendable>) throws -> URLRequest
+    {
+        var urlRequest = URLRequest(url: self.endpoint)
+        urlRequest.httpMethod = "POST"
+        for (key, value) in self.headers {
+            urlRequest.setValue(value, forHTTPHeaderField: key)
+        }
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+        return urlRequest
+    }
+
+    private enum StatusClass {
+        case ok
+        case retryable(RPCError, retryAfter: Duration?)
+    }
+
+    private static func classifyStatus(_ http: HTTPURLResponse) throws -> StatusClass {
+        switch http.statusCode {
+        case 200..<300:
+            return .ok
+        case 401, 403:
+            throw RPCError.http(status: http.statusCode, retryAfter: nil)
+        case 429:
+            let retryAfter = self.parseRetryAfter(http)
+            return .retryable(.http(status: 429, retryAfter: retryAfter), retryAfter: retryAfter)
+        case 500..<600:
+            return .retryable(.http(status: http.statusCode, retryAfter: nil), retryAfter: nil)
+        default:
+            throw RPCError.http(status: http.statusCode, retryAfter: nil)
+        }
+    }
+
+    private static func decodeOrThrow<R: Decodable>(data: Data, as: R.Type) throws -> R {
+        do {
+            return try JSONDecoder().decode(R.self, from: data)
+        } catch {
+            throw RPCError.decoding(String(describing: error))
+        }
+    }
+
+    private static func isTerminal(_ error: RPCError) -> Bool {
+        if error == .canceled { return true }
+        if error == .http(status: 401, retryAfter: nil) { return true }
+        if error == .http(status: 403, retryAfter: nil) { return true }
+        return false
+    }
+
+    private func performHTTPExchange(
+        urlRequest: URLRequest,
+        method: String,
+        attempt: Int) async throws -> (Data, HTTPURLResponse)
+    {
+        var didRetryStaleConnection = false
+        while true {
+            do {
+                let (data, response) = try await self.session.data(for: urlRequest)
+                guard let http = response as? HTTPURLResponse else {
+                    throw RPCError.transport(.badServerResponse)
+                }
+                self.logger.debug("rpc \(method, privacy: .public) attempt=\(attempt) status=\(http.statusCode)")
+                return (data, http)
+            } catch let urlErr as URLError where urlErr.code == .cancelled {
+                throw RPCError.canceled
+            } catch let urlErr as URLError {
+                if Self.isTransientConnectionLoss(urlErr.code), !didRetryStaleConnection {
+                    didRetryStaleConnection = true
+                    try await Task.sleep(for: .milliseconds(200))
+                    continue
+                }
+                throw RPCError.transport(urlErr.code)
+            }
+        }
+    }
+
+    private static func isTransientConnectionLoss(_ code: URLError.Code) -> Bool {
+        switch code {
+        case .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed:
+            true
+        default:
+            false
+        }
     }
 
     private static func parseRetryAfter(_ http: HTTPURLResponse) -> Duration? {

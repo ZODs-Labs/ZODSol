@@ -292,6 +292,111 @@ final class URLSessionTransportTests: XCTestCase {
 
     // MARK: - 6. auth_error
 
+    // MARK: - Stale keep-alive (URLError.networkConnectionLost / .networkConnectionWasReset)
+
+    /// Stale-keep-alive `-1005` is a connection-pool race, not a server-level
+    /// failure. The transport retries once on a fresh socket so `sendOnce`
+    /// callers (sendTransaction) never see spurious `Connection dropped`
+    /// failures. Solana's cluster dedupes by signature, so even a duplicate
+    /// in-flight request is safe.
+    func test_sendOnce_recoversFromSingleStaleKeepAlive() async throws {
+        let counter = Counter()
+        let successBody = #"{"jsonrpc":"2.0","id":"x","result":"sig"}"#.data(using: .utf8)!
+        let endpoint = self.endpoint
+        MockURLProtocol.requestHandler = { request in
+            counter.increment()
+            if counter.value == 1 {
+                throw URLError(.networkConnectionLost)
+            }
+            let resp = HTTPURLResponse(
+                url: request.url ?? endpoint,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!
+            return (resp, successBody)
+        }
+
+        let transport = self.makeTransport(maxAttempts: 1)
+        let req = JSONRPCRequest(method: "sendTransaction", params: [String](), id: "x")
+        let response = try await transport.sendOnce(req, responseType: JSONRPCResponse<String>.self)
+        XCTAssertEqual(response.result, "sig")
+        XCTAssertEqual(counter.value, 2, "expected exactly one stale-keep-alive retry")
+    }
+
+    /// Two consecutive stale-keep-alive failures surface the underlying
+    /// transport error; the one-shot retry runs OUTSIDE the policy budget so
+    /// `sendOnce` (maxAttempts=1) still benefits from the single retry.
+    func test_sendOnce_twoStaleKeepAlivesInARow_throwsTransport() async throws {
+        let counter = Counter()
+        MockURLProtocol.requestHandler = { _ in
+            counter.increment()
+            throw URLError(.networkConnectionLost)
+        }
+
+        let transport = self.makeTransport(maxAttempts: 1)
+        let req = JSONRPCRequest(method: "sendTransaction", params: [String](), id: "x")
+        do {
+            _ = try await transport.sendOnce(req, responseType: JSONRPCResponse<String>.self)
+            XCTFail("expected throw after two consecutive stale-keep-alive failures")
+        } catch let error as RPCError {
+            XCTAssertEqual(error, .transport(.networkConnectionLost))
+            XCTAssertEqual(counter.value, 2, "one initial + exactly one stale-keep-alive retry")
+        } catch {
+            XCTFail("expected RPCError, got \(error)")
+        }
+    }
+
+    func test_send_recoversFromSingleStaleKeepAlive_withoutConsumingPolicyAttempt() async throws {
+        let counter = Counter()
+        let successBody = #"{"jsonrpc":"2.0","id":"x","result":1}"#.data(using: .utf8)!
+        let endpoint = self.endpoint
+        MockURLProtocol.requestHandler = { request in
+            counter.increment()
+            if counter.value == 1 {
+                throw URLError(.networkConnectionLost)
+            }
+            let resp = HTTPURLResponse(
+                url: request.url ?? endpoint,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!
+            return (resp, successBody)
+        }
+
+        // maxAttempts=1 proves the stale retry runs OUTSIDE the policy budget.
+        let transport = self.makeTransport(maxAttempts: 1)
+        let req = JSONRPCRequest(method: "getBalance", params: ["w"], id: "x")
+        let response = try await transport.send(req, responseType: JSONRPCResponse<Int>.self)
+        XCTAssertEqual(response.result, 1)
+        XCTAssertEqual(counter.value, 2)
+    }
+
+
+    /// Non-stale URLErrors are NOT consumed by the stale retry — they fall
+    /// straight to policy handling (and for sendOnce, that means immediate
+    /// failure on the first attempt).
+    func test_sendOnce_onTimedOut_throwsImmediately_noStaleRetry() async throws {
+        let counter = Counter()
+        MockURLProtocol.requestHandler = { _ in
+            counter.increment()
+            throw URLError(.timedOut)
+        }
+
+        let transport = self.makeTransport(maxAttempts: 1)
+        let req = JSONRPCRequest(method: "sendTransaction", params: [String](), id: "x")
+        do {
+            _ = try await transport.sendOnce(req, responseType: JSONRPCResponse<String>.self)
+            XCTFail("expected throw")
+        } catch let error as RPCError {
+            XCTAssertEqual(error, .transport(.timedOut))
+            XCTAssertEqual(counter.value, 1, ".timedOut must NOT trigger the stale-keep-alive retry")
+        } catch {
+            XCTFail("expected RPCError, got \(error)")
+        }
+    }
+
+    // MARK: - 6. auth_error
+
     func test_auth401_throwsHTTPImmediatelyWithoutRetry() async throws {
         let counter = Counter()
         let endpoint = self.endpoint
