@@ -35,13 +35,12 @@ struct PanelScaffold<Header: View, Content: View, Footer: View>: View {
 
             Divider().opacity(0.4)
 
-            ScrollView {
+            MinimalScrollView {
                 self.content
                     .padding(.horizontal, PanelLayout.horizontalInset)
                     .padding(.vertical, PanelLayout.contentVerticalInset)
                     .frame(maxWidth: .infinity)
             }
-            .scrollBounceBehavior(.basedOnSize)
 
             Divider().opacity(0.4)
 

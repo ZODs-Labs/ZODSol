@@ -21,7 +21,7 @@ struct AssetPickerView: View {
             Divider()
                 .padding(.vertical, 8)
 
-            ScrollView {
+            MinimalScrollView {
                 LazyVStack(spacing: 2) {
                     switch self.loadingState {
                     case .loading:

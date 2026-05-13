@@ -52,7 +52,7 @@ struct WalletSwitcherView: View {
     // MARK: - List
 
     private var list: some View {
-        ScrollView {
+        MinimalScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(self.viewModel.wallets) { wallet in
                     self.row(for: wallet)

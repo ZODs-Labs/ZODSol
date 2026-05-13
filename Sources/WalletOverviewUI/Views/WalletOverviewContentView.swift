@@ -19,7 +19,7 @@ struct WalletOverviewContentView: View {
     private let displayCap = 12
 
     var body: some View {
-        ScrollView {
+        MinimalScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 self.headerRow
                     .padding(.bottom, 12)

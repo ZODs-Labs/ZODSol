@@ -66,7 +66,7 @@ struct ManageWalletsView: View {
         if self.viewModel.wallets.isEmpty {
             self.emptyState
         } else {
-            ScrollView {
+            MinimalScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(self.viewModel.wallets) { wallet in
                         self.row(for: wallet)

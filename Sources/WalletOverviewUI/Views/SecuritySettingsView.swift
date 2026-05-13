@@ -11,7 +11,7 @@ struct SecuritySettingsView: View {
         VStack(spacing: 0) {
             self.navBar
             Divider().opacity(0.4)
-            ScrollView {
+            MinimalScrollView {
                 VStack(spacing: 18) {
                     self.lockWhenSection
                     self.systemEventsSection
