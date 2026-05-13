@@ -9,6 +9,10 @@ public struct JupiterPriceProvider: PriceProvider, Sendable {
         self.client = JupiterClient()
     }
 
+    public init(session: URLSession) {
+        self.client = JupiterClient(session: session)
+    }
+
     init(client: JupiterClient) {
         self.client = client
     }

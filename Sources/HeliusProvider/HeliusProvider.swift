@@ -8,16 +8,31 @@ public struct HeliusSolanaProvider: SolanaProvider {
     private let pricer: JupiterPriceProvider
     private let logger = Logger(subsystem: "dev.zods.zodsol", category: "helius")
 
-    public init(network: SolanaNetwork, apiKey: String) {
+    public init(network: SolanaNetwork, apiKey: String, session: URLSession) {
+        self.init(
+            network: network,
+            apiKey: apiKey,
+            session: session,
+            wrapTransport: { CoalescingRPCTransport(inner: $0) })
+    }
+
+    public init(
+        network: SolanaNetwork,
+        apiKey: String,
+        session: URLSession,
+        wrapTransport: (any RPCTransport) -> any RPCTransport)
+    {
         let endpoint = HeliusEndpoint(network: network, apiKey: apiKey)
         var c = URLComponents(url: endpoint.rpcURL, resolvingAgainstBaseURL: false)!
         c.queryItems = nil
         let baseURL = c.url!
         let queryItems = [URLQueryItem(name: "api-key", value: apiKey)]
-        self.transport = URLSessionRPCTransport(
+        let raw = URLSessionRPCTransport(
             endpoint: baseURL,
-            queryItems: queryItems)
-        self.pricer = JupiterPriceProvider()
+            queryItems: queryItems,
+            session: session)
+        self.transport = wrapTransport(raw)
+        self.pricer = JupiterPriceProvider(session: session)
     }
 
     public init(network: SolanaNetwork, apiKey: String, transport: any RPCTransport, priceTransport: any RPCTransport) {
