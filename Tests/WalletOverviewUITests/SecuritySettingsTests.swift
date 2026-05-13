@@ -67,7 +67,7 @@ final class SecuritySettingsTests: XCTestCase {
         let newPolicy = WalletSession.Policy(
             trigger: .afterIdle(minutes: 5),
             lockOnSystemSleep: false,
-            lockOnScreensaver: true)
+            lockOnScreenLock: true)
         await viewModel.updateSessionPolicy(newPolicy)
 
         XCTAssertEqual(viewModel.sessionPolicy, newPolicy)
@@ -82,7 +82,7 @@ final class SecuritySettingsTests: XCTestCase {
     @MainActor
     func test_lockNow_clearsCachedSeeds() async {
         let session = WalletSession(policy: .init(
-            trigger: .untilAppQuit, lockOnSystemSleep: true, lockOnScreensaver: true))
+            trigger: .untilAppQuit, lockOnSystemSleep: true, lockOnScreenLock: true))
         let viewModel = self.makeViewModel(session: session)
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 0x77, count: 32))
@@ -102,7 +102,7 @@ final class SecuritySettingsTests: XCTestCase {
     @MainActor
     func test_panelDidDisappear_locksWhenPolicyIsUntilPanelClose() async {
         let session = WalletSession(policy: .init(
-            trigger: .untilPanelClose, lockOnSystemSleep: true, lockOnScreensaver: true))
+            trigger: .untilPanelClose, lockOnSystemSleep: true, lockOnScreenLock: true))
         let viewModel = self.makeViewModel(session: session)
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 0x88, count: 32))
@@ -121,7 +121,7 @@ final class SecuritySettingsTests: XCTestCase {
     @MainActor
     func test_panelDidDisappear_doesNotLockWhenPolicyIsUntilAppQuit() async {
         let session = WalletSession(policy: .init(
-            trigger: .untilAppQuit, lockOnSystemSleep: true, lockOnScreensaver: true))
+            trigger: .untilAppQuit, lockOnSystemSleep: true, lockOnScreenLock: true))
         let viewModel = self.makeViewModel(session: session)
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 0x99, count: 32))
@@ -141,7 +141,7 @@ final class SecuritySettingsTests: XCTestCase {
         let persisted = WalletSession.Policy(
             trigger: .afterIdle(minutes: 60),
             lockOnSystemSleep: false,
-            lockOnScreensaver: false)
+            lockOnScreenLock: false)
         await policyStore.save(persisted)
 
         let session = WalletSession(policy: .default)

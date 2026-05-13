@@ -21,7 +21,7 @@ private func makeFixture(
     policy: WalletSession.Policy = .init(
         trigger: .untilAppQuit,
         lockOnSystemSleep: true,
-        lockOnScreensaver: true),
+        lockOnScreenLock: true),
     nowProvider: @Sendable @escaping () -> Date = { Date() }) -> Fixture
 {
     let unique = UUID().uuidString
@@ -80,7 +80,7 @@ final class WalletStoreSessionIntegrationTests: XCTestCase {
             policy: .init(
                 trigger: .afterIdle(minutes: 1),
                 lockOnSystemSleep: true,
-                lockOnScreensaver: true),
+                lockOnScreenLock: true),
             nowProvider: { clock.now() })
 
         let walletId = UUID()

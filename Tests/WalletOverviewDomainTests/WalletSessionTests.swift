@@ -31,7 +31,7 @@ final class WalletSessionTests: XCTestCase {
             policy: .init(
                 trigger: .afterIdle(minutes: 15),
                 lockOnSystemSleep: true,
-                lockOnScreensaver: true),
+                lockOnScreenLock: true),
             nowProvider: { clock.now() })
         let walletId = UUID()
         let seed = Data(repeating: 0x42, count: 32)
@@ -72,7 +72,7 @@ final class WalletSessionTests: XCTestCase {
             policy: .init(
                 trigger: .afterIdle(minutes: 5),
                 lockOnSystemSleep: true,
-                lockOnScreensaver: true),
+                lockOnScreenLock: true),
             nowProvider: { clock.now() })
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 7, count: 32))
@@ -96,7 +96,7 @@ final class WalletSessionTests: XCTestCase {
             policy: .init(
                 trigger: .afterIdle(minutes: 5),
                 lockOnSystemSleep: true,
-                lockOnScreensaver: true),
+                lockOnScreenLock: true),
             nowProvider: { clock.now() })
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 9, count: 32))
@@ -117,7 +117,7 @@ final class WalletSessionTests: XCTestCase {
             policy: .init(
                 trigger: .immediately,
                 lockOnSystemSleep: true,
-                lockOnScreensaver: true))
+                lockOnScreenLock: true))
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 5, count: 32))
         let count = await session.unlockedWalletCount()
@@ -132,7 +132,7 @@ final class WalletSessionTests: XCTestCase {
             policy: .init(
                 trigger: .untilPanelClose,
                 lockOnSystemSleep: true,
-                lockOnScreensaver: true),
+                lockOnScreenLock: true),
             nowProvider: { clock.now() })
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 3, count: 32))
@@ -147,7 +147,7 @@ final class WalletSessionTests: XCTestCase {
             policy: .init(
                 trigger: .untilPanelClose,
                 lockOnSystemSleep: true,
-                lockOnScreensaver: true))
+                lockOnScreenLock: true))
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 3, count: 32))
 
@@ -161,7 +161,7 @@ final class WalletSessionTests: XCTestCase {
             policy: .init(
                 trigger: .untilAppQuit,
                 lockOnSystemSleep: true,
-                lockOnScreensaver: true))
+                lockOnScreenLock: true))
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 3, count: 32))
 
@@ -174,7 +174,7 @@ final class WalletSessionTests: XCTestCase {
 
     func test_systemSleep_locksWhenEnabled() async {
         let session = WalletSession(policy: .init(
-            trigger: .untilAppQuit, lockOnSystemSleep: true, lockOnScreensaver: false))
+            trigger: .untilAppQuit, lockOnSystemSleep: true, lockOnScreenLock: false))
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 1, count: 32))
         await session.handleSystemSleep()
@@ -184,7 +184,7 @@ final class WalletSessionTests: XCTestCase {
 
     func test_systemSleep_isNoOpWhenDisabled() async {
         let session = WalletSession(policy: .init(
-            trigger: .untilAppQuit, lockOnSystemSleep: false, lockOnScreensaver: false))
+            trigger: .untilAppQuit, lockOnSystemSleep: false, lockOnScreenLock: false))
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 1, count: 32))
         await session.handleSystemSleep()
@@ -192,22 +192,22 @@ final class WalletSessionTests: XCTestCase {
         XCTAssertTrue(result)
     }
 
-    func test_screensaver_locksWhenEnabled() async {
+    func test_screenLock_locksWhenEnabled() async {
         let session = WalletSession(policy: .init(
-            trigger: .untilAppQuit, lockOnSystemSleep: false, lockOnScreensaver: true))
+            trigger: .untilAppQuit, lockOnSystemSleep: false, lockOnScreenLock: true))
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 1, count: 32))
-        await session.handleScreensaver()
+        await session.handleScreenLock()
         let result = await session.isUnlocked(walletId: walletId)
         XCTAssertFalse(result)
     }
 
-    func test_screensaver_isNoOpWhenDisabled() async {
+    func test_screenLock_isNoOpWhenDisabled() async {
         let session = WalletSession(policy: .init(
-            trigger: .untilAppQuit, lockOnSystemSleep: false, lockOnScreensaver: false))
+            trigger: .untilAppQuit, lockOnSystemSleep: false, lockOnScreenLock: false))
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 1, count: 32))
-        await session.handleScreensaver()
+        await session.handleScreenLock()
         let result = await session.isUnlocked(walletId: walletId)
         XCTAssertTrue(result)
     }
@@ -245,7 +245,7 @@ final class WalletSessionTests: XCTestCase {
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 1, count: 32))
         await session.setPolicy(.init(
-            trigger: .immediately, lockOnSystemSleep: true, lockOnScreensaver: true))
+            trigger: .immediately, lockOnSystemSleep: true, lockOnScreenLock: true))
         let result = await session.isUnlocked(walletId: walletId)
         XCTAssertFalse(result)
     }
@@ -256,7 +256,7 @@ final class WalletSessionTests: XCTestCase {
             policy: .init(
                 trigger: .afterIdle(minutes: 60),
                 lockOnSystemSleep: true,
-                lockOnScreensaver: true),
+                lockOnScreenLock: true),
             nowProvider: { clock.now() })
         let walletId = UUID()
         await session.cache(walletId: walletId, seed: Data(repeating: 7, count: 32))
@@ -267,7 +267,7 @@ final class WalletSessionTests: XCTestCase {
         await session.setPolicy(.init(
             trigger: .afterIdle(minutes: 5),
             lockOnSystemSleep: true,
-            lockOnScreensaver: true))
+            lockOnScreenLock: true))
         let expiredAfterTighten = await session.isUnlocked(walletId: walletId)
         XCTAssertFalse(expiredAfterTighten)
     }

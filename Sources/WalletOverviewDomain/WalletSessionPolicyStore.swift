@@ -1,7 +1,8 @@
 import Foundation
 
 /// UserDefaults-backed persistence for `WalletSession.Policy`. Defaults to
-/// `.default` (15-minute idle, lock on sleep + screensaver) on first launch.
+/// `.default` (15-minute idle, lock on system sleep + screen lock) on first
+/// launch.
 public actor WalletSessionPolicyStore {
     public static let defaultsKey = "dev.zods.zodsol.session.policy"
 

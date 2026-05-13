@@ -13,8 +13,15 @@ import OSLog
 ///   - Explicit `lock(walletId:)` / `lockAll()` from the UI ("Lock now").
 ///   - Idle expiry: each access updates `lastUsedAt` and any call that lands
 ///     after `lastUsedAt + idle` finds the entry already purged.
-///   - System events (sleep, screensaver) - the app layer calls `lockAll()`.
+///   - System sleep - the app layer calls `handleSystemSleep()`.
+///   - Real screen lock (user invoked Lock Screen) - `handleScreenLock()`.
 ///   - Panel close when policy is `.untilPanelClose`.
+///
+/// Display sleep (energy-saver dimming the panel after a couple minutes idle)
+/// is deliberately not a lock trigger. It is a power event, not a security
+/// event - the user is still sitting in front of the Mac and forcing a
+/// re-prompt every time the screen dims defeats the cache.
+///
 /// Top-level so the type lives at nesting depth 0 (SwiftLint's nesting rule
 /// rejects `WalletSession.Policy.Trigger` at depth 2). Aliased back into
 /// `WalletSession.Policy` below for ergonomic call sites.
@@ -26,24 +33,24 @@ public enum WalletSessionLockTrigger: Sendable, Codable, Equatable {
 }
 
 public actor WalletSession {
-    public struct Policy: Sendable, Codable, Equatable {
+    public struct Policy: Sendable, Equatable {
         public var trigger: WalletSessionLockTrigger
         public var lockOnSystemSleep: Bool
-        public var lockOnScreensaver: Bool
+        public var lockOnScreenLock: Bool
 
         public static let `default` = Policy(
             trigger: .afterIdle(minutes: 15),
             lockOnSystemSleep: true,
-            lockOnScreensaver: true)
+            lockOnScreenLock: true)
 
         public init(
             trigger: WalletSessionLockTrigger,
             lockOnSystemSleep: Bool,
-            lockOnScreensaver: Bool)
+            lockOnScreenLock: Bool)
         {
             self.trigger = trigger
             self.lockOnSystemSleep = lockOnSystemSleep
-            self.lockOnScreensaver = lockOnScreensaver
+            self.lockOnScreenLock = lockOnScreenLock
         }
     }
 
@@ -90,7 +97,8 @@ public actor WalletSession {
     /// independent copy in actor memory.
     public func cache(walletId: UUID, seed: Data) {
         guard self.cachingEnabled else {
-            self.logger.debug("policy=immediately; skipping cache for \(walletId.uuidString, privacy: .public)")
+            self.logger.notice(
+                "session unlock skipped (policy=.immediately) wallet=\(walletId.uuidString, privacy: .public)")
             return
         }
         let now = self.nowProvider()
@@ -101,6 +109,7 @@ public actor WalletSession {
         }
         let copy = Data(seed)
         self.entries[walletId] = Entry(seed: copy, unlockedAt: now, lastUsedAt: now)
+        self.logger.notice("session unlocked wallet=\(walletId.uuidString, privacy: .public)")
     }
 
     /// `true` iff a seed is cached AND the policy still considers it valid.
@@ -123,13 +132,19 @@ public actor WalletSession {
         walletId: UUID,
         _ body: @Sendable (inout Data) async throws -> R) async throws -> R?
     {
-        guard self.isUnlocked(walletId: walletId) else { return nil }
+        guard self.isUnlocked(walletId: walletId) else {
+            self.logger.notice(
+                "session cache MISS wallet=\(walletId.uuidString, privacy: .public) - falling back to Keychain")
+            return nil
+        }
         guard var entry = entries[walletId] else { return nil }
         entry.lastUsedAt = self.nowProvider()
         self.entries[walletId] = entry
 
         var working = Data(entry.seed)
         defer { working.resetBytes(in: 0..<working.count) }
+        self.logger.notice(
+            "session cache HIT wallet=\(walletId.uuidString, privacy: .public) - skipping Keychain")
         return try await body(&working)
     }
 
@@ -158,9 +173,11 @@ public actor WalletSession {
         }
     }
 
-    /// Called by the app on `NSWorkspace.screensDidLockNotification`.
-    public func handleScreensaver() {
-        if self.policy.lockOnScreensaver {
+    /// Called by the app when the user actively locks the screen
+    /// (`com.apple.screenIsLocked` distributed notification). Distinct from
+    /// display sleep, which is intentionally not wired to anything.
+    public func handleScreenLock() {
+        if self.policy.lockOnScreenLock {
             self.lockAllLocked()
         }
     }
@@ -193,8 +210,12 @@ public actor WalletSession {
     }
 
     private func lockAllLocked() {
+        let count = self.entries.count
         for id in self.entries.keys {
             self.zeroize(walletId: id)
+        }
+        if count > 0 {
+            self.logger.notice("session locked - cleared \(count, privacy: .public) wallet(s)")
         }
     }
 
@@ -212,5 +233,37 @@ public actor WalletSession {
         guard var entry = entries.removeValue(forKey: walletId) else { return }
         entry.seed.resetBytes(in: 0..<entry.seed.count)
         _ = entry
+    }
+}
+
+extension WalletSession.Policy: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case trigger
+        case lockOnSystemSleep
+        case lockOnScreenLock
+        // Pre-rename key. Read-only fallback so any policy persisted under
+        // the old name keeps the user's choice on the next launch. New writes
+        // use `lockOnScreenLock`.
+        case lockOnScreensaver
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let trigger = try container.decode(WalletSessionLockTrigger.self, forKey: .trigger)
+        let systemSleep = try container.decode(Bool.self, forKey: .lockOnSystemSleep)
+        let screenLock = try container.decodeIfPresent(Bool.self, forKey: .lockOnScreenLock)
+            ?? container.decodeIfPresent(Bool.self, forKey: .lockOnScreensaver)
+            ?? true
+        self.init(
+            trigger: trigger,
+            lockOnSystemSleep: systemSleep,
+            lockOnScreenLock: screenLock)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.trigger, forKey: .trigger)
+        try container.encode(self.lockOnSystemSleep, forKey: .lockOnSystemSleep)
+        try container.encode(self.lockOnScreenLock, forKey: .lockOnScreenLock)
     }
 }

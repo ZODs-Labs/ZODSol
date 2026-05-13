@@ -109,7 +109,7 @@ struct SecuritySettingsView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 Divider().padding(.leading, 16).opacity(0.35)
-                Toggle(isOn: self.screensaverBinding) {
+                Toggle(isOn: self.screenLockBinding) {
                     Text("Screen locks")
                         .font(.callout)
                 }
@@ -153,12 +153,12 @@ struct SecuritySettingsView: View {
             })
     }
 
-    private var screensaverBinding: Binding<Bool> {
+    private var screenLockBinding: Binding<Bool> {
         Binding(
-            get: { self.viewModel.sessionPolicy.lockOnScreensaver },
+            get: { self.viewModel.sessionPolicy.lockOnScreenLock },
             set: { newValue in
                 var p = self.viewModel.sessionPolicy
-                p.lockOnScreensaver = newValue
+                p.lockOnScreenLock = newValue
                 Task { await self.viewModel.updateSessionPolicy(p) }
             })
     }

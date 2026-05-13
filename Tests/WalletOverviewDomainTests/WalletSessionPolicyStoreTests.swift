@@ -36,7 +36,7 @@ final class WalletSessionPolicyStoreTests: XCTestCase {
         let policy = WalletSession.Policy(
             trigger: .afterIdle(minutes: 5),
             lockOnSystemSleep: false,
-            lockOnScreensaver: true)
+            lockOnScreenLock: true)
         await store.save(policy)
 
         let loaded = await store.load()
@@ -56,7 +56,7 @@ final class WalletSessionPolicyStoreTests: XCTestCase {
         let fixture = makeFixture(); defer { cleanup(fixture) }
         let store = WalletSessionPolicyStore(defaults: fixture.defaults, key: fixture.key)
         let policy = WalletSession.Policy(
-            trigger: .immediately, lockOnSystemSleep: true, lockOnScreensaver: true)
+            trigger: .immediately, lockOnSystemSleep: true, lockOnScreenLock: true)
         await store.save(policy)
         let loaded = await store.load()
         XCTAssertEqual(loaded.trigger, .immediately)
@@ -66,9 +66,30 @@ final class WalletSessionPolicyStoreTests: XCTestCase {
         let fixture = makeFixture(); defer { cleanup(fixture) }
         let store = WalletSessionPolicyStore(defaults: fixture.defaults, key: fixture.key)
         let policy = WalletSession.Policy(
-            trigger: .untilAppQuit, lockOnSystemSleep: false, lockOnScreensaver: false)
+            trigger: .untilAppQuit, lockOnSystemSleep: false, lockOnScreenLock: false)
         await store.save(policy)
         let loaded = await store.load()
         XCTAssertEqual(loaded, policy)
+    }
+
+    /// Pre-rename builds wrote the screen-lock flag under `lockOnScreensaver`.
+    /// Any policy persisted by those builds must still decode so the user
+    /// does not silently lose their choice on the next launch.
+    func test_legacyScreensaverKey_decodesIntoScreenLock() async {
+        let fixture = makeFixture(); defer { cleanup(fixture) }
+        let legacyJSON = """
+        {
+          "trigger": {"immediately": {}},
+          "lockOnSystemSleep": true,
+          "lockOnScreensaver": false
+        }
+        """
+        fixture.defaults.set(Data(legacyJSON.utf8), forKey: fixture.key)
+
+        let store = WalletSessionPolicyStore(defaults: fixture.defaults, key: fixture.key)
+        let loaded = await store.load()
+        XCTAssertEqual(loaded.trigger, .immediately)
+        XCTAssertTrue(loaded.lockOnSystemSleep)
+        XCTAssertFalse(loaded.lockOnScreenLock)
     }
 }
