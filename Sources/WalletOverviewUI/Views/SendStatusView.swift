@@ -155,7 +155,7 @@ struct SendStatusView: View {
         case .walletAddressMismatch:
             return "Wallet address does not match the selected wallet."
         case let .rpc(inner):
-            return "Network error: \(inner)"
+            return Self.providerErrorMessage(inner)
         case .sendAlreadyInFlight:
             return "A previous send for this wallet is still in flight."
         case let .broadcastFailed(reason):
@@ -169,6 +169,47 @@ struct SendStatusView: View {
     private func formatSol(_ lamports: Lamports) -> String {
         let sol = Double(lamports.rawValue) / 1_000_000_000.0
         return String(format: "%.6f SOL", sol)
+    }
+
+    private static func providerErrorMessage(_ error: SolanaProviderError) -> String {
+        switch error {
+        case .networkUnavailable:
+            return "Network unavailable. Please check your connection and try again."
+        case .unauthorized:
+            return "Provider rejected the request. Verify your Helius API key."
+        case let .rateLimited(retryAfter):
+            if let retryAfter {
+                let seconds = Int(retryAfter.components.seconds)
+                return "Provider is rate-limiting requests. Try again in \(seconds)s."
+            }
+            return "Provider is rate-limiting requests. Try again shortly."
+        case let .providerUnavailable(message):
+            return Self.humanizeTransport(message)
+                ?? "Provider unavailable. Try again in a moment."
+        case let .malformedResponse(message):
+            return "Provider returned a malformed response: \(message)"
+        case let .invalidInput(message):
+            return "Invalid input: \(message)"
+        case .canceled:
+            return "Cancelled."
+        }
+    }
+
+    /// Turn raw `transport: -1005` / `transport: -1001` etc. into a sentence.
+    /// Returns nil for messages we don't recognise so the caller can fall back.
+    private static func humanizeTransport(_ message: String) -> String? {
+        guard message.hasPrefix("transport: "),
+              let code = Int(message.dropFirst("transport: ".count))
+        else { return nil }
+        switch code {
+        case -1001: return "The request timed out. Please try again."
+        case -1004: return "Could not reach the Solana provider."
+        case -1005, -4: return "Connection dropped. Please try again."
+        case -1009: return "You appear to be offline."
+        case -1200, -1201, -1202, -1203, -1204, -1205, -1206:
+            return "Secure connection to the provider failed."
+        default: return "Network connection failed (\(code)). Please try again."
+        }
     }
 }
 

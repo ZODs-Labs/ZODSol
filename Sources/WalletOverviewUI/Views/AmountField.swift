@@ -29,7 +29,7 @@ struct AmountField: View {
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor)))
+                    .fill(.thinMaterial))
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .strokeBorder(self.borderColor, lineWidth: self.borderWidth))
