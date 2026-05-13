@@ -7,7 +7,7 @@ import WalletOverviewDomain
 /// that never produces side effects.
 actor MockSendAssetsService: SendAssetsService {
     private(set) var lastQuoteTier: PriorityTier?
-    private var resyncResults: [Signature: SendOutcome] = [:]
+    private var resyncResults: [PendingSendResolution] = []
 
     func quote(_ request: SendRequest, tier: PriorityTier) async throws -> SendQuote {
         self.lastQuoteTier = tier
@@ -18,11 +18,11 @@ actor MockSendAssetsService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId: UUID) async -> [Signature: SendOutcome] {
+    func resync(walletId: UUID) async -> [PendingSendResolution] {
         self.resyncResults
     }
 
-    func setResyncResults(_ results: [Signature: SendOutcome]) {
+    func setResyncResults(_ results: [PendingSendResolution]) {
         self.resyncResults = results
     }
 }

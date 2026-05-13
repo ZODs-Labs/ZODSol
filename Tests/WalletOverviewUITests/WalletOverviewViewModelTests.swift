@@ -278,13 +278,18 @@ final class WalletOverviewViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testPanelDidAppearClearsPendingSendBannerWhenResyncReturnsOnlyTerminalOutcomes() async throws {
+    func testPanelDidAppearShowsPendingSendBannerWhenResyncReturnsTerminalOutcome() async throws {
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
         let apiKeyStore = MockAPIKeyStore(key: "key")
         let sendService = MockSendAssetsService()
         let signatureBytes = Data(repeating: 7, count: 64)
         let signature = try Signature(bytes: signatureBytes)
-        await sendService.setResyncResults([signature: .confirmed(signature, slot: 100)])
+        await sendService.setResyncResults([
+            PendingSendResolution(
+                signature: signature,
+                outcome: .confirmed(signature, slot: 100),
+                createdAt: Date(timeIntervalSince1970: 10)),
+        ])
 
         let viewModel = self.makeViewModel(
             walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService)
@@ -293,10 +298,35 @@ final class WalletOverviewViewModelTests: XCTestCase {
         await self.waitUntil { viewModel.activeWalletId == identity.id }
         try? await Task.sleep(for: .milliseconds(20))
 
-        // All `SendOutcome` cases the orchestrator returns today are terminal,
-        // so the banner must stay nil to avoid showing dead UX noise for
-        // already-resolved sends.
-        XCTAssertNil(viewModel.pendingSendBanner)
+        XCTAssertEqual(viewModel.pendingSendBanner, PendingSendDisplayInfo(signature: signature, outcome: .confirmed(signature, slot: 100)))
+    }
+
+    @MainActor
+    func testPanelDidAppearPicksOldestPendingSendResolutionDeterministically() async throws {
+        let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
+        let apiKeyStore = MockAPIKeyStore(key: "key")
+        let sendService = MockSendAssetsService()
+        let older = try Signature(bytes: Data(repeating: 8, count: 64))
+        let newer = try Signature(bytes: Data(repeating: 9, count: 64))
+        await sendService.setResyncResults([
+            PendingSendResolution(
+                signature: newer,
+                outcome: .confirmed(newer, slot: 200),
+                createdAt: Date(timeIntervalSince1970: 20)),
+            PendingSendResolution(
+                signature: older,
+                outcome: .confirmed(older, slot: 100),
+                createdAt: Date(timeIntervalSince1970: 10)),
+        ])
+
+        let viewModel = self.makeViewModel(
+            walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService)
+
+        viewModel.panelDidAppear()
+        await self.waitUntil { viewModel.activeWalletId == identity.id }
+        try? await Task.sleep(for: .milliseconds(20))
+
+        XCTAssertEqual(viewModel.pendingSendBanner, PendingSendDisplayInfo(signature: older, outcome: .confirmed(older, slot: 100)))
     }
 
     @MainActor
@@ -338,7 +368,7 @@ final class WalletOverviewViewModelTests: XCTestCase {
         let (walletStore, identity) = try await TestWalletStoreFactory.makeWithWallet()
         let apiKeyStore = MockAPIKeyStore(key: "key")
         let sendService = MockSendAssetsService()
-        await sendService.setResyncResults([:])
+        await sendService.setResyncResults([])
 
         let viewModel = self.makeViewModel(
             walletStore: walletStore, apiKeyStore: apiKeyStore, sendService: sendService)

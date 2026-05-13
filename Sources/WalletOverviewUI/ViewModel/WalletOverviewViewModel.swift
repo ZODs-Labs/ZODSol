@@ -288,24 +288,13 @@ public final class WalletOverviewViewModel {
 
     private func resyncPendingSends(walletId: UUID) async {
         let outcomes = await self.sendService.resync(walletId: walletId)
-        if let (signature, outcome) = outcomes.first(where: { _, outcome in
-            Self.isNonTerminalOutcome(outcome)
-        }) {
-            self.pendingSendBanner = PendingSendDisplayInfo(signature: signature, outcome: outcome)
+            .sorted { $0.createdAt < $1.createdAt }
+        if let resolution = outcomes.first {
+            self.pendingSendBanner = PendingSendDisplayInfo(
+                signature: resolution.signature,
+                outcome: resolution.outcome)
         } else {
             self.pendingSendBanner = nil
-        }
-    }
-
-    /// All `SendOutcome` cases the orchestrator returns today are terminal -
-    /// `resync` only emits an entry once the orchestrator has reached a
-    /// definitive resolution. If a future revision adds a non-terminal case
-    /// (in-flight, pending confirmation) this predicate is where it should be
-    /// recognised so the banner keeps polling instead of disappearing.
-    private static func isNonTerminalOutcome(_ outcome: SendOutcome) -> Bool {
-        switch outcome {
-        case .confirmed, .expired, .failed:
-            false
         }
     }
 }

@@ -39,10 +39,10 @@ public struct SolanaPayPill: Sendable, Equatable {
 
 /// State machine driving the send screens.
 ///
-/// Each transition is one-way except `readyToConfirm → input` and
-/// `failed → input` (user backs out). Once `broadcasting` fires the
-/// signature is already on the cluster; the only remaining states are
-/// terminal.
+    /// Each transition is one-way except `readyToConfirm → input` and
+    /// `failed → input` (user backs out). Once `broadcasting` fires the
+    /// signature is already on the cluster; later states either resolve or keep
+    /// a pending signature for resync.
 @MainActor @Observable
 public final class SendViewModel {
     public enum State: Sendable, Equatable {
@@ -54,6 +54,7 @@ public final class SendViewModel {
         case confirming(Signature)
         case confirmed(Signature, slot: UInt64)
         case expired(Signature)
+        case stillPending(Signature)
         case failed(SendError)
     }
 
@@ -80,6 +81,7 @@ public final class SendViewModel {
     public var detailsExpanded: Bool = true
     public var inputValidation: InputValidation = .ok
     public var solanaPayPill: SolanaPayPill?
+    public private(set) var solanaPayContext: SolanaPayTransferContext?
     public internal(set) var lastQuote: SendQuote?
     public internal(set) var recents: [RecentRecipient] = []
 
@@ -105,6 +107,7 @@ public final class SendViewModel {
     let recentRecipientsStore: RecentRecipientsStore?
     let splTokenLookup: (@MainActor (Mint) -> (decimals: UInt8, symbol: String, name: String)?)?
     var lastChipPercentage: Double?
+    private var unsupportedSolanaPayMint: Mint?
 
     static let priorityTierDefaultsKey = "send.priorityTier"
 
@@ -235,6 +238,8 @@ extension SendViewModel {
             case let .failed(sig, error):
                 self.state = .failed(.simulationFailed(logs: [error], error: error))
                 _ = sig
+            case let .stillPending(sig):
+                self.state = .stillPending(sig)
             }
         } catch let error as SendError {
             self.state = .failed(error)
@@ -283,7 +288,8 @@ extension SendViewModel {
         let calc = SendAmountCalculator()
         let input = self.amountInput()
         let result = calc.compute(.percentage(clamped), input: input)
-        self.amountText = result.displayToken
+        self.fiatMode = .token
+        self.amountText = result.inputTokenText
         self.validateAllLocally()
     }
 
@@ -303,12 +309,16 @@ extension SendViewModel {
             } catch {
                 self.recipientText = trimmed
                 self.solanaPayPill = nil
+                self.solanaPayContext = nil
+                self.unsupportedSolanaPayMint = nil
                 self.inputValidation = .quoteError("Invalid Solana Pay link")
                 return
             }
         }
         self.recipientText = trimmed
         self.solanaPayPill = nil
+        self.solanaPayContext = nil
+        self.unsupportedSolanaPayMint = nil
         self.validateRecipientLocally()
     }
 
@@ -326,12 +336,20 @@ extension SendViewModel {
             if !self.effectiveAsset.matches(mint: splTokenMint) {
                 if let switched = self.resolvedSplAsset(for: splTokenMint) {
                     self.effectiveAsset = switched
+                } else {
+                    self.unsupportedSolanaPayMint = splTokenMint
+                    self.solanaPayPill = SolanaPayPill(label: parsed.label, message: parsed.message)
+                    self.solanaPayContext = Self.solanaPayContext(from: parsed)
+                    self.inputValidation = .quoteError("This payment requests a token that is not in this wallet.")
+                    return
                 }
             }
         } else if !self.effectiveAsset.isNativeSOL {
             self.effectiveAsset = .sol
         }
+        self.unsupportedSolanaPayMint = nil
         self.solanaPayPill = SolanaPayPill(label: parsed.label, message: parsed.message)
+        self.solanaPayContext = Self.solanaPayContext(from: parsed)
         self.validateAllLocally()
     }
 
@@ -477,6 +495,9 @@ extension SendViewModel {
         guard !amountRaw.isEmpty else {
             throw SendInputError.message("Enter an amount to send.")
         }
+        if self.unsupportedSolanaPayMint != nil {
+            throw SendInputError.message("This payment requests a token that is not in this wallet.")
+        }
 
         switch self.effectiveAsset {
         case .sol:
@@ -489,7 +510,8 @@ extension SendViewModel {
                 walletId: self.intent.walletId,
                 from: self.intent.from,
                 recipient: recipient,
-                asset: .sol(amount: Lamports(rawValue: baseUnits)))
+                asset: .sol(amount: Lamports(rawValue: baseUnits)),
+                solanaPay: self.solanaPayContext)
         case let .splToken(mint, decimals, _, _):
             let baseUnits = try Self.parseAmount(amountRaw, decimals: decimals)
             guard baseUnits > 0 else {
@@ -500,7 +522,8 @@ extension SendViewModel {
                 walletId: self.intent.walletId,
                 from: self.intent.from,
                 recipient: recipient,
-                asset: .splToken(mint: mintAddress, amount: baseUnits, decimals: decimals))
+                asset: .splToken(mint: mintAddress, amount: baseUnits, decimals: decimals),
+                solanaPay: self.solanaPayContext)
         }
     }
 
@@ -580,6 +603,10 @@ extension SendViewModel {
             self.inputValidation = .quoteError("")
             return
         }
+        if self.unsupportedSolanaPayMint != nil {
+            self.inputValidation = .quoteError("This payment requests a token that is not in this wallet.")
+            return
+        }
         let address: WalletAddress
         do {
             address = try WalletAddress(base58: text)
@@ -623,6 +650,14 @@ extension SendViewModel {
             if remaining > 0 { base *= base }
         }
         return result
+    }
+
+    static func solanaPayContext(from uri: SolanaPayURI) -> SolanaPayTransferContext {
+        SolanaPayTransferContext(
+            label: uri.label,
+            message: uri.message,
+            memo: uri.memo,
+            references: uri.references)
     }
 }
 

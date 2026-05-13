@@ -150,8 +150,24 @@ final class SendViewModelTests: XCTestCase {
             feeReserveLamports: Lamports(rawValue: 5200),
             rentReserveLamports: Lamports(rawValue: 890_880),
             isNativeSOL: true)
-        let expected = calc.compute(.percentage(0.5), input: input).displayToken
+        let expected = calc.compute(.percentage(0.5), input: input).inputTokenText
         XCTAssertEqual(vm.amountText, expected)
+    }
+
+    func test_selectChip_setsParserSafeDotDecimalText() throws {
+        let usdc = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+        let vm = try makeViewModel(
+            asset: .splToken(mint: usdc, decimals: 6, symbol: "USDC", name: nil),
+            service: MockSendAssetsService())
+        vm.assetBalanceBaseUnits = 2_469_135_780_000
+        vm.assetPriceUSD = Decimal(string: "1")
+        vm.toggleFiatMode()
+
+        vm.selectChip(0.5)
+
+        XCTAssertEqual(vm.fiatMode, .token)
+        XCTAssertEqual(vm.amountText, "1234567.89")
+        XCTAssertFalse(vm.amountText.contains(","))
     }
 
     func test_selectChip_max_withInsufficientSOL_produces0() throws {
@@ -314,6 +330,45 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertEqual(vm.assetDecimals, 9)
     }
 
+    func test_consumeSolanaPayURI_carriesMemoAndReferencesIntoRequest() throws {
+        let vm = try makeViewModel(asset: .sol)
+        vm.assetBalanceBaseUnits = 2_000_000_000
+        let recipient = "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le"
+        let reference = "So11111111111111111111111111111111111111112"
+
+        vm.consumeRecipientText("solana:\(recipient)?amount=0.5&reference=\(reference)&label=Shop&message=Order&memo=abc123")
+        let request = try vm.parseRequest()
+
+        XCTAssertEqual(request.recipient.base58, recipient)
+        XCTAssertEqual(request.solanaPay?.label, "Shop")
+        XCTAssertEqual(request.solanaPay?.message, "Order")
+        XCTAssertEqual(request.solanaPay?.memo, "abc123")
+        XCTAssertEqual(request.solanaPay?.references.map(\.base58), [reference])
+    }
+
+    func test_consumeSolanaPayURI_withUnknownSplTokenBlocksReview() throws {
+        let usdc = try Mint(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+        let unknown = try Mint(base58: "So11111111111111111111111111111111111111112")
+        let from = try WalletAddress(base58: "5sCJg3eAUaW8MgJrAJzQfYDgvT2gQg65Q5UEEa8sb1Le")
+        let intent = SendIntent(
+            walletId: UUID(),
+            from: from,
+            asset: .splToken(mint: usdc, decimals: 6, symbol: "USDC", name: "USD Coin"))
+        let vm = SendViewModel(
+            intent: intent,
+            cluster: .devnet,
+            service: MockSendAssetsService(),
+            onDismiss: {},
+            recentRecipientsStore: nil,
+            splTokenLookup: { _ in nil })
+
+        vm.consumeRecipientText("solana:\(from.base58)?amount=1&spl-token=\(unknown.base58)")
+
+        XCTAssertFalse(vm.canReview)
+        XCTAssertEqual(vm.inputValidation, .quoteError("This payment requests a token that is not in this wallet."))
+        XCTAssertThrowsError(try vm.parseRequest())
+    }
+
     func test_loadRecents_populatesFromStore() async throws {
         let key = "send-viewmodel-tests-recents-\(UUID().uuidString)"
         let store = RecentRecipientsStore(defaults: .standard, key: key)
@@ -344,8 +399,8 @@ private actor AlwaysFailService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId _: UUID) async -> [Signature: SendOutcome] {
-        [:]
+    func resync(walletId _: UUID) async -> [PendingSendResolution] {
+        []
     }
 }
 
@@ -367,8 +422,8 @@ private actor CountingSendService: SendAssetsService {
         throw SendError.canceled
     }
 
-    func resync(walletId _: UUID) async -> [Signature: SendOutcome] {
-        [:]
+    func resync(walletId _: UUID) async -> [PendingSendResolution] {
+        []
     }
 }
 
@@ -381,12 +436,28 @@ private actor CountingSendServiceWithQuote: SendAssetsService {
     func quote(_ request: SendRequest, tier: PriorityTier) async throws -> SendQuote {
         self.quoteCallCount += 1
         self.lastTier = tier
-        let bh = try Blockhash(bytes: Data((0..<32).map { UInt8($0) }))
         let recipientReceives: SendAsset = switch request.asset {
         case let .sol(amount): .sol(amount: amount)
         case let .splToken(mint, amount, decimals):
             .splToken(mint: mint, amount: amount, decimals: decimals)
         }
+        let details = TransactionReviewDetails(
+            feePayer: request.from,
+            cluster: .devnet,
+            recipient: request.recipient,
+            tokenMint: nil,
+            tokenProgram: nil,
+            instructions: [],
+            computeUnitLimit: 5000,
+            priorityFeeMicroLamports: 0,
+            priorityFeeCapMicroLamports: 250_000,
+            priorityFeeWasCapped: false,
+            priorityFeeLamports: Lamports(rawValue: 0),
+            baseFeeLamports: Lamports(rawValue: 5000),
+            lastValidBlockHeight: 0,
+            simulationStatus: "Simulation passed",
+            sanitizedLogs: [],
+            solanaPay: request.solanaPay)
         return SendQuote(
             request: request,
             networkFeeLamports: Lamports(rawValue: 5000),
@@ -398,15 +469,25 @@ private actor CountingSendServiceWithQuote: SendAssetsService {
             recipientReceives: recipientReceives,
             cluster: .devnet,
             simulationLogs: [],
-            signableMessage: Data(),
-            lifetime: .blockhash(bh, lastValidBlockHeight: 0))
+            priorityTier: tier,
+            reviewDetails: details,
+            shapeDigest: QuoteShapeDigest(
+                recipient: request.recipient,
+                asset: request.asset,
+                solanaPayMemo: request.solanaPay?.memo,
+                solanaPayReferences: request.solanaPay?.references ?? [],
+                tokenProgram: nil,
+                recipientAtaWillBeCreated: false,
+                rentForRecipientAta: Lamports(rawValue: 0),
+                recipientReceives: recipientReceives,
+                instructions: []))
     }
 
     func send(quote _: SendQuote) async throws -> SendOutcome {
         throw SendError.canceled
     }
 
-    func resync(walletId _: UUID) async -> [Signature: SendOutcome] {
-        [:]
+    func resync(walletId _: UUID) async -> [PendingSendResolution] {
+        []
     }
 }
