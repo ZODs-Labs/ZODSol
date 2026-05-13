@@ -20,6 +20,7 @@ final class StatusItemController: NSObject {
     private let viewModel: WalletOverviewViewModel
     private let session: WalletSession
     private let lockObservers: SessionLockObservers
+    private let imageLoader: ImageLoader
 
     init(displayModel: ZODSolDisplayModel) {
         self.displayModel = displayModel
@@ -72,6 +73,7 @@ final class StatusItemController: NSObject {
             })
 
         self.lockObservers = SessionLockObservers(session: session)
+        self.imageLoader = ImageLoader()
         super.init()
         self.statusItem.behavior = .removalAllowed
         self.statusItem.autosaveName = "dev.zods.zodsol.StatusItem"
@@ -103,6 +105,7 @@ final class StatusItemController: NSObject {
 
     private func makePanel() -> NSPanel {
         let panelView = WalletPanelView(viewModel: self.viewModel)
+            .environment(\.imageLoader, self.imageLoader)
         let initialHeight = WalletPanelMetrics.clampedHeight(screen: NSScreen.main)
         let contentSize = NSSize(width: WalletPanelMetrics.width, height: initialHeight)
         let panel = WalletPanel(
@@ -249,4 +252,3 @@ final class WalletPanel: NSPanel {
         false
     }
 }
-
