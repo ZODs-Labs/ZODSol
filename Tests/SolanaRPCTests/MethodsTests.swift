@@ -33,16 +33,23 @@ final class MethodsTests: XCTestCase {
 
     // MARK: - SendTransaction
 
-    func testSendTransactionParamsEncoding() throws {
+    func testSendTransactionParamsEncoding_defaultsMatchBestPractice() throws {
         let request = SendTransactionRPC.request(base64Transaction: "AQID")
         let json = try jsonString(of: request.params)
-        // Key order isn't guaranteed by JSONEncoder; assert structure piecewise.
         XCTAssertTrue(json.hasPrefix(#"["AQID",{"#))
         XCTAssertTrue(json.contains(#""encoding":"base64""#))
-        XCTAssertTrue(json.contains(#""skipPreflight":false"#))
+        // Client simulates twice before send, so server-side preflight is skipped.
+        XCTAssertTrue(json.contains(#""skipPreflight":true"#))
         XCTAssertTrue(json.contains(#""preflightCommitment":"confirmed""#))
-        XCTAssertTrue(json.contains(#""maxRetries":0"#))
+        // maxRetries is omitted (nil) so the RPC node uses its default rebroadcast budget.
+        XCTAssertFalse(json.contains(#""maxRetries""#))
         XCTAssertTrue(json.contains(#""maxSupportedTransactionVersion":0"#))
+    }
+
+    func testSendTransactionParamsEncoding_explicitMaxRetriesIsEmitted() throws {
+        let request = SendTransactionRPC.request(base64Transaction: "AQID", maxRetries: 0)
+        let json = try jsonString(of: request.params)
+        XCTAssertTrue(json.contains(#""maxRetries":0"#))
     }
 
     func testSendTransactionResultDecoding() throws {
