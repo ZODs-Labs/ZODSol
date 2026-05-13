@@ -145,7 +145,9 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
             }()
             return AssetSummary(
                 id: item.id, kind: item.kind, symbol: item.symbol, name: item.name,
-                imageURL: item.imageURL, amount: item.amount,
+                imageURL: item.imageURL,
+                imageURLAlternates: item.imageURLAlternates,
+                amount: item.amount,
                 usdValue: usdValue, pricePerToken: pricePerToken,
                 priceChange24h: quote.change24h, tokenProgram: item.tokenProgram)
         }
@@ -162,9 +164,13 @@ public actor DefaultWalletOverviewService: WalletOverviewService {
             }
 
         let nfts = merged.filter { $0.kind == .nft || $0.kind == .compressedNft }
+        let previews: [NFTSummary.Preview] = nfts.compactMap { nft in
+            guard let primary = nft.imageURL else { return nil }
+            return NFTSummary.Preview(imageURL: primary, alternates: nft.imageURLAlternates)
+        }
         let nftSummary = NFTSummary(
             count: nfts.count,
-            collectionPreviews: Array(nfts.compactMap(\.imageURL).prefix(6)))
+            collectionPreviews: Array(previews.prefix(6)))
 
         let solBalance: Lamports = page.nativeSol?.lamports ?? Lamports(rawValue: 0)
         let solPriceUSD: Decimal? = page.nativeSol?.pricePerSol
