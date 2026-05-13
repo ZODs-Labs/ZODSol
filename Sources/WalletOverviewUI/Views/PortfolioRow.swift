@@ -9,6 +9,7 @@ struct PortfolioRow: Identifiable, Equatable {
     let symbol: String
     let name: String?
     let imageURL: URL?
+    let imageURLAlternates: [URL]
     let amount: TokenAmount
     let pricePerToken: Decimal?
     let usdValue: Decimal?
@@ -17,6 +18,32 @@ struct PortfolioRow: Identifiable, Equatable {
     /// Discriminator for the token's owning program (used to derive the
     /// recipient ATA). `nil` for native SOL.
     let tokenProgram: String?
+
+    init(
+        id: String,
+        symbol: String,
+        name: String?,
+        imageURL: URL?,
+        imageURLAlternates: [URL] = [],
+        amount: TokenAmount,
+        pricePerToken: Decimal?,
+        usdValue: Decimal?,
+        priceChange24h: Double?,
+        isNative: Bool,
+        tokenProgram: String?)
+    {
+        self.id = id
+        self.symbol = symbol
+        self.name = name
+        self.imageURL = imageURL
+        self.imageURLAlternates = imageURLAlternates
+        self.amount = amount
+        self.pricePerToken = pricePerToken
+        self.usdValue = usdValue
+        self.priceChange24h = priceChange24h
+        self.isNative = isNative
+        self.tokenProgram = tokenProgram
+    }
 }
 
 extension PortfolioRow {
@@ -26,6 +53,7 @@ extension PortfolioRow {
             symbol: asset.symbol ?? "—",
             name: asset.name,
             imageURL: asset.imageURL,
+            imageURLAlternates: asset.imageURLAlternates,
             amount: asset.amount,
             pricePerToken: asset.pricePerToken,
             usdValue: asset.usdValue,

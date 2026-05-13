@@ -143,29 +143,16 @@ struct AssetRowView: View {
     @ViewBuilder
     private var icon: some View {
         if self.row.isNative {
-            ZStack {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(.secondary.opacity(0.18))
-                Text("◎")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-        } else if let url = row.imageURL {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case let .success(image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                case .empty, .failure:
-                    self.placeholder
-                @unknown default:
-                    self.placeholder
-                }
+            SOLLogo()
+        } else {
+            AssetImage(
+                url: self.row.imageURL,
+                fallbacks: self.row.imageURLAlternates,
+                pixelWidth: 64)
+            {
+                self.placeholder
             }
             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-        } else {
-            self.placeholder
         }
     }
 

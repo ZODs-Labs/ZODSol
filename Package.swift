@@ -186,6 +186,9 @@ let package = Package(
             name: "WalletOverviewUI",
             dependencies: ["WalletOverviewDomain", "SolanaKit", "Formatters"],
             path: "Sources/WalletOverviewUI",
+            resources: [
+                .process("Resources"),
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),

@@ -22,8 +22,8 @@ struct NFTSummaryCard: View {
         } else {
             HStack(spacing: 6) {
                 let previews = Array(summary.collectionPreviews.prefix(self.maxTiles))
-                ForEach(Array(previews.enumerated()), id: \.offset) { _, url in
-                    self.tile(url: url)
+                ForEach(Array(previews.enumerated()), id: \.offset) { _, preview in
+                    self.tile(preview: preview)
                 }
                 let remaining = self.summary.count - previews.count
                 if remaining > 0 {
@@ -34,18 +34,13 @@ struct NFTSummaryCard: View {
         }
     }
 
-    private func tile(url: URL) -> some View {
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case let .success(image):
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            case .empty, .failure:
-                Rectangle().fill(.secondary.opacity(0.12))
-            @unknown default:
-                Rectangle().fill(.secondary.opacity(0.12))
-            }
+    private func tile(preview: NFTSummary.Preview) -> some View {
+        AssetImage(
+            url: preview.imageURL,
+            fallbacks: preview.alternates,
+            pixelWidth: 80)
+        {
+            Rectangle().fill(.secondary.opacity(0.12))
         }
         .frame(width: self.tileSize, height: self.tileSize)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
