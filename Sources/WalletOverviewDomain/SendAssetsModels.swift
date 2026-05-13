@@ -34,12 +34,158 @@ public struct SendRequest: Sendable, Equatable {
     public let from: WalletAddress
     public let recipient: WalletAddress
     public let asset: SendAsset
+    public let solanaPay: SolanaPayTransferContext?
 
-    public init(walletId: UUID, from: WalletAddress, recipient: WalletAddress, asset: SendAsset) {
+    public init(
+        walletId: UUID,
+        from: WalletAddress,
+        recipient: WalletAddress,
+        asset: SendAsset,
+        solanaPay: SolanaPayTransferContext? = nil)
+    {
         self.walletId = walletId
         self.from = from
         self.recipient = recipient
         self.asset = asset
+        self.solanaPay = solanaPay
+    }
+}
+
+public struct SolanaPayTransferContext: Sendable, Equatable {
+    public let label: String?
+    public let message: String?
+    public let memo: String?
+    public let references: [WalletAddress]
+
+    public init(label: String?, message: String?, memo: String?, references: [WalletAddress]) {
+        self.label = label
+        self.message = message
+        self.memo = memo
+        self.references = references
+    }
+}
+
+public struct TransactionReviewDetails: Sendable, Equatable {
+    public struct InstructionSummary: Sendable, Equatable {
+        public let program: WalletAddress
+        public let name: String
+
+        public init(program: WalletAddress, name: String) {
+            self.program = program
+            self.name = name
+        }
+    }
+
+    public let feePayer: WalletAddress
+    public let cluster: SolanaNetwork
+    public let recipient: WalletAddress
+    public let tokenMint: WalletAddress?
+    public let tokenProgram: WalletAddress?
+    public let instructions: [InstructionSummary]
+    public let computeUnitLimit: UInt32
+    public let priorityFeeMicroLamports: UInt64
+    public let priorityFeeCapMicroLamports: UInt64
+    public let priorityFeeWasCapped: Bool
+    public let priorityFeeLamports: Lamports
+    public let baseFeeLamports: Lamports
+    public let lastValidBlockHeight: UInt64
+    public let simulationStatus: String
+    public let sanitizedLogs: [String]
+    public let solanaPay: SolanaPayTransferContext?
+
+    public init(
+        feePayer: WalletAddress,
+        cluster: SolanaNetwork,
+        recipient: WalletAddress,
+        tokenMint: WalletAddress?,
+        tokenProgram: WalletAddress?,
+        instructions: [InstructionSummary],
+        computeUnitLimit: UInt32,
+        priorityFeeMicroLamports: UInt64,
+        priorityFeeCapMicroLamports: UInt64,
+        priorityFeeWasCapped: Bool,
+        priorityFeeLamports: Lamports,
+        baseFeeLamports: Lamports,
+        lastValidBlockHeight: UInt64,
+        simulationStatus: String,
+        sanitizedLogs: [String],
+        solanaPay: SolanaPayTransferContext?)
+    {
+        self.feePayer = feePayer
+        self.cluster = cluster
+        self.recipient = recipient
+        self.tokenMint = tokenMint
+        self.tokenProgram = tokenProgram
+        self.instructions = instructions
+        self.computeUnitLimit = computeUnitLimit
+        self.priorityFeeMicroLamports = priorityFeeMicroLamports
+        self.priorityFeeCapMicroLamports = priorityFeeCapMicroLamports
+        self.priorityFeeWasCapped = priorityFeeWasCapped
+        self.priorityFeeLamports = priorityFeeLamports
+        self.baseFeeLamports = baseFeeLamports
+        self.lastValidBlockHeight = lastValidBlockHeight
+        self.simulationStatus = simulationStatus
+        self.sanitizedLogs = sanitizedLogs
+        self.solanaPay = solanaPay
+    }
+}
+
+public struct QuoteShapeDigest: Sendable, Equatable {
+    public struct InstructionShape: Sendable, Equatable {
+        public let programAddress: WalletAddress
+        public let accountCount: Int
+
+        public init(programAddress: WalletAddress, accountCount: Int) {
+            self.programAddress = programAddress
+            self.accountCount = accountCount
+        }
+    }
+
+    public let recipient: WalletAddress
+    public let asset: SendAsset
+    public let solanaPayMemo: String?
+    public let solanaPayReferences: [WalletAddress]
+    public let tokenProgram: WalletAddress?
+    public let recipientAtaWillBeCreated: Bool
+    public let rentForRecipientAta: Lamports
+    public let recipientReceives: SendAsset
+    public let instructions: [InstructionShape]
+
+    public init(
+        recipient: WalletAddress,
+        asset: SendAsset,
+        solanaPayMemo: String?,
+        solanaPayReferences: [WalletAddress],
+        tokenProgram: WalletAddress?,
+        recipientAtaWillBeCreated: Bool,
+        rentForRecipientAta: Lamports,
+        recipientReceives: SendAsset,
+        instructions: [InstructionShape])
+    {
+        self.recipient = recipient
+        self.asset = asset
+        self.solanaPayMemo = solanaPayMemo
+        self.solanaPayReferences = solanaPayReferences
+        self.tokenProgram = tokenProgram
+        self.recipientAtaWillBeCreated = recipientAtaWillBeCreated
+        self.rentForRecipientAta = rentForRecipientAta
+        self.recipientReceives = recipientReceives
+        self.instructions = instructions
+    }
+
+    public func firstDifference(from other: QuoteShapeDigest) -> String? {
+        if self.recipient != other.recipient { return "recipient" }
+        if self.asset != other.asset { return "asset" }
+        if self.solanaPayMemo != other.solanaPayMemo { return "Solana Pay memo" }
+        if self.solanaPayReferences != other.solanaPayReferences { return "Solana Pay references" }
+        if self.tokenProgram != other.tokenProgram { return "token program" }
+        if self.recipientAtaWillBeCreated != other.recipientAtaWillBeCreated {
+            return "recipient token account"
+        }
+        if self.rentForRecipientAta != other.rentForRecipientAta { return "recipient token account rent" }
+        if self.recipientReceives != other.recipientReceives { return "recipient receive amount" }
+        if self.instructions != other.instructions { return "instruction list" }
+        return nil
     }
 }
 
@@ -78,13 +224,9 @@ public struct SendQuote: Sendable, Equatable {
     /// Logs from the (sigVerify=false) simulation that the UI surfaces so the
     /// user can audit what the transaction will do.
     public let simulationLogs: [String]
-
-    /// The canonical V0 message bytes the user is being asked to sign. Stable
-    /// between `quote` and `send` for the same SendRequest.
-    public let signableMessage: Data
-
-    /// Blockhash + last valid block height used to bound this transaction.
-    public let lifetime: Lifetime
+    public let priorityTier: PriorityTier
+    public let reviewDetails: TransactionReviewDetails
+    public let shapeDigest: QuoteShapeDigest
 
     public init(
         request: SendRequest,
@@ -97,8 +239,9 @@ public struct SendQuote: Sendable, Equatable {
         recipientReceives: SendAsset,
         cluster: SolanaNetwork,
         simulationLogs: [String],
-        signableMessage: Data,
-        lifetime: Lifetime)
+        priorityTier: PriorityTier,
+        reviewDetails: TransactionReviewDetails,
+        shapeDigest: QuoteShapeDigest)
     {
         self.request = request
         self.networkFeeLamports = networkFeeLamports
@@ -110,8 +253,9 @@ public struct SendQuote: Sendable, Equatable {
         self.recipientReceives = recipientReceives
         self.cluster = cluster
         self.simulationLogs = simulationLogs
-        self.signableMessage = signableMessage
-        self.lifetime = lifetime
+        self.priorityTier = priorityTier
+        self.reviewDetails = reviewDetails
+        self.shapeDigest = shapeDigest
     }
 }
 
@@ -137,9 +281,13 @@ public enum SendError: Error, Sendable, Equatable {
     case insufficientSolForRent(required: Lamports, available: Lamports)
     case unsupportedToken2022Extension(reason: String)
     case mintNotFound
+    case tokenAccountNotFound
+    case tokenAccountInvalid(reason: String)
+    case mintDecimalsMismatch(expected: UInt8, actual: UInt8)
     case mintOwnedByUnknownProgram(owner: String)
     case simulationFailed(logs: [String], error: String)
     case transactionTooLarge(bytes: Int)
+    case quoteExpired(changedField: String)
     case canceled
     case walletAddressMismatch
     case rpc(SolanaProviderError)
@@ -172,4 +320,18 @@ public enum SendOutcome: Sendable, Equatable {
     /// On-chain failure (e.g. preflight passed but runtime err). Signature is
     /// dropped from the pending store.
     case failed(Signature, error: String)
+    /// The UI patience budget elapsed, but the blockhash window has not closed.
+    case stillPending(Signature)
+}
+
+public struct PendingSendResolution: Sendable, Equatable {
+    public let signature: Signature
+    public let outcome: SendOutcome
+    public let createdAt: Date
+
+    public init(signature: Signature, outcome: SendOutcome, createdAt: Date) {
+        self.signature = signature
+        self.outcome = outcome
+        self.createdAt = createdAt
+    }
 }
