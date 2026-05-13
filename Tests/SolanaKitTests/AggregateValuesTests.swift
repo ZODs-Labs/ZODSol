@@ -55,12 +55,25 @@ final class AggregateValuesTests: XCTestCase {
         let summary = try NFTSummary(
             count: 7,
             collectionPreviews: [
-                XCTUnwrap(URL(string: "https://example.com/a.png")),
-                XCTUnwrap(URL(string: "https://example.com/b.png")),
+                NFTSummary.Preview(imageURL: XCTUnwrap(URL(string: "https://example.com/a.png"))),
+                NFTSummary.Preview(
+                    imageURL: XCTUnwrap(URL(string: "https://example.com/b.png")),
+                    alternates: [XCTUnwrap(URL(string: "https://fallback.example.com/b.png"))]),
             ])
         let data = try JSONEncoder().encode(summary)
         let decoded = try JSONDecoder().decode(NFTSummary.self, from: data)
         XCTAssertEqual(summary, decoded)
+    }
+
+    func testNFTSummaryDecodesLegacyURLArray() throws {
+        let legacyJSON = """
+        {"count": 3, "collectionPreviews": ["https://example.com/a.png"]}
+        """
+        let data = Data(legacyJSON.utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(NFTSummary.self, from: data)) { _ in
+            // Decoding legacy shape is intentionally rejected; tightening this
+            // tells callers to invalidate caches that hold the old encoding.
+        }
     }
 
     func testNFTSummaryEmpty() throws {
