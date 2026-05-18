@@ -1,6 +1,17 @@
 import Foundation
 
 public actor CoalescingRPCTransport: RPCTransport {
+    private static let methodsToCoalesce: Set<String> = [
+        "getAssetsByOwner",
+        "getBalance",
+        "getTokenAccountsByOwner",
+        "getAccountInfo",
+        "getEpochInfo",
+        "getRecentPrioritizationFees",
+        "getSignatureStatuses",
+        "getLatestBlockhash",
+    ]
+
     private let inner: any RPCTransport
     private let dedupKey: @Sendable (String, Data) -> String?
     private var inflight: [String: Task<Data, any Error>] = [:]
@@ -17,8 +28,12 @@ public actor CoalescingRPCTransport: RPCTransport {
         _ request: JSONRPCRequest<some Encodable & Sendable>,
         responseType: R.Type) async throws -> R
     {
-        let bodyData = try JSONEncoder().encode(request)
-        guard let key = self.dedupKey(request.method, bodyData) else {
+        guard Self.methodsToCoalesce.contains(request.method) else {
+            return try await self.inner.send(request, responseType: responseType)
+        }
+        let bodyData = try request.encodedBodyData()
+        let requestKey = try request.deduplicationKey() ?? self.dedupKey(request.method, bodyData)
+        guard let key = requestKey else {
             return try await self.inner.send(request, responseType: responseType)
         }
         let task = self.acquireTask(forKey: key, request: request)
@@ -60,16 +75,6 @@ public actor CoalescingRPCTransport: RPCTransport {
     }
 
     public static let defaultDedupKey: @Sendable (String, Data) -> String? = { method, body in
-        let methodsToCoalesce: Set = [
-            "getAssetsByOwner",
-            "getBalance",
-            "getTokenAccountsByOwner",
-            "getAccountInfo",
-            "getEpochInfo",
-            "getRecentPrioritizationFees",
-            "getSignatureStatuses",
-            "getLatestBlockhash",
-        ]
         guard methodsToCoalesce.contains(method) else { return nil }
         return "\(method):\(body.hashValue)"
     }

@@ -109,7 +109,7 @@ public actor URLSessionRPCTransport: RPCTransport {
         for (key, value) in self.headers {
             urlRequest.setValue(value, forHTTPHeaderField: key)
         }
-        urlRequest.httpBody = try JSONEncoder().encode(request)
+        urlRequest.httpBody = try request.encodedBodyData()
         return urlRequest
     }
 
