@@ -42,7 +42,7 @@ public struct AssetSummary: Hashable, Sendable, Codable, Identifiable {
         self.tokenProgram = tokenProgram
     }
 
-    public init(from decoder: any Decoder) throws {
+    public init(from decoder: any Swift.Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try c.decode(Mint.self, forKey: .id)
         self.kind = try c.decode(AssetKind.self, forKey: .kind)

@@ -1,4 +1,5 @@
 import Foundation
+import Kit
 
 /// Builders for the Associated Token Account program.
 ///
@@ -11,27 +12,31 @@ public enum AssociatedTokenProgram {
     /// Derive the canonical ATA address for `(owner, mint, tokenProgram)`.
     /// The `tokenProgram` argument MUST match the mint's owner program
     /// (`TOKEN_PROGRAM` for legacy SPL mints, `TOKEN_2022_PROGRAM` for
-    /// Token-2022 mints) — passing the wrong one yields an invalid address.
+    /// Token-2022 mints), passing the wrong one yields an invalid address.
     public static func findAssociatedTokenAddress(
         owner: WalletAddress,
         mint: WalletAddress,
         tokenProgram: WalletAddress) throws -> WalletAddress
     {
-        let seeds: [Data] = try [
-            Base58.decode(owner.base58),
-            Base58.decode(tokenProgram.base58),
-            Base58.decode(mint.base58),
+        let seeds: [Kit.ProgramDerivedAddressSeed] = try [
+            .bytes(Base58.decode(owner.base58)),
+            .bytes(Base58.decode(tokenProgram.base58)),
+            .bytes(Base58.decode(mint.base58)),
         ]
-        guard let (address, _) = Ed25519Curve.findProgramAddress(seeds: seeds, programId: id) else {
+        guard let derived = try? Kit.getProgramDerivedAddress(
+            programAddress: self.id.address,
+            seeds: seeds,
+            using: ZODSolCryptoBackend())
+        else {
             throw SolanaProviderError.invalidInput(
                 "associated token address derivation failed")
         }
-        return address
+        return WalletAddress(address: derived.address)
     }
 
     /// Create the ATA if it does not already exist; succeeds silently if it
     /// does. Always use this over the non-idempotent variant: a non-idempotent
-    /// create fails when the recipient races us by creating their own ATA, and
+    /// create fails when the recipient races us by creating their own ATA and
     /// the cost of the no-op is zero CU when the account already exists.
     ///
     /// Wire data: a single byte `1` (CreateIdempotent discriminator).

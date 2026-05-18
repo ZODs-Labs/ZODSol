@@ -1,0 +1,15 @@
+{
+  "originHash" : "f953185360373d5c9c7fdbf8d531940373b99f6ceedc0ab20e2f51ba358ff192",
+  "pins" : [
+    {
+      "identity" : "swift-solana-kit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ZODs-Labs/swift-solana-kit.git",
+      "state" : {
+        "revision" : "1eb7273034a83f61e3cffe77a09260f447401fe9",
+        "version" : "0.9.0-rc.1"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -1,15 +1,32 @@
 import Foundation
+import Kit
 
 public struct WalletAddress: Hashable, Sendable, Codable, CustomStringConvertible {
-    public let base58: String
+    public let address: Kit.Address
+
+    public var base58: String {
+        self.address.rawValue
+    }
 
     public init(base58: String) throws {
-        let decoded = try Base58.decode(base58)
-        guard decoded.count == 32 else {
-            throw SolanaProviderError.invalidInput(
-                "base58 address must decode to exactly 32 bytes")
+        do {
+            self.address = try Kit.address(base58)
+        } catch {
+            throw SolanaProviderError.invalidInput("base58 address must decode to exactly 32 bytes")
         }
-        self.base58 = base58
+    }
+
+    public init(address: Kit.Address) {
+        self.address = address
+    }
+
+    public static func derivedFromPrivateKeySeed(_ seed: Data) throws -> WalletAddress {
+        do {
+            let publicKey = try ZODSolCryptoBackend().publicKey(privateKeyBytes: seed)
+            return try WalletAddress(base58: Base58.encode(publicKey))
+        } catch {
+            throw SolanaProviderError.invalidInput("invalid private-key seed")
+        }
     }
 
     public var description: String {
@@ -20,13 +37,13 @@ public struct WalletAddress: Hashable, Sendable, Codable, CustomStringConvertibl
         "\(self.base58.prefix(prefix))…\(self.base58.suffix(suffix))"
     }
 
-    public init(from decoder: any Decoder) throws {
+    public init(from decoder: any Swift.Decoder) throws {
         let container = try decoder.singleValueContainer()
         let raw = try container.decode(String.self)
         try self.init(base58: raw)
     }
 
-    public func encode(to encoder: any Encoder) throws {
+    public func encode(to encoder: any Swift.Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(self.base58)
     }

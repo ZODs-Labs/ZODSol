@@ -92,7 +92,7 @@ final class Token2022MintTests: XCTestCase {
     }
 
     func testUninitializedMintThrows() {
-        var data = Data(repeating: 0, count: 82)
+        let data = Data(repeating: 0, count: 82)
         // data[45] = 0 stays uninitialized.
         XCTAssertThrowsError(try Token2022Mint.parse(data, currentEpoch: 0)) { error in
             XCTAssertEqual(error as? Token2022Mint.ParseError, .mintUninitialized)

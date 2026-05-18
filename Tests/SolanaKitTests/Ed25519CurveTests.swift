@@ -20,6 +20,13 @@ final class Ed25519CurveTests: XCTestCase {
         XCTAssertTrue(Ed25519Curve.isOnCurve(Data(bytes)))
     }
 
+    func testIdentityPointWithSetSignBitIsOffCurve() {
+        var bytes = Data(count: 32)
+        bytes[0] = 1
+        bytes[31] = 0x80
+        XCTAssertFalse(Ed25519Curve.isOnCurve(bytes))
+    }
+
     func testRfc8032TestVectorPublicKeyIsOnCurve() {
         // RFC 8032 §7.1 Test 1 public key, little-endian:
         // d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a

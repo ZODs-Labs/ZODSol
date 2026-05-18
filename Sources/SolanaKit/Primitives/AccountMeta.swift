@@ -1,4 +1,5 @@
 import Foundation
+import Kit
 
 /// One account reference in a Solana instruction.
 ///
@@ -9,14 +10,28 @@ import Foundation
 /// strongest claim (any-signer wins, any-writable wins); the message compiler
 /// must replicate that semantic before encoding the wire format.
 public struct AccountMeta: Hashable, Sendable {
-    public let pubkey: WalletAddress
-    public let isSigner: Bool
-    public let isWritable: Bool
+    public let kitMeta: Kit.AccountMeta
+
+    public var pubkey: WalletAddress {
+        WalletAddress(address: self.kitMeta.address)
+    }
+
+    public var isSigner: Bool {
+        Kit.isSignerRole(self.kitMeta.role)
+    }
+
+    public var isWritable: Bool {
+        Kit.isWritableRole(self.kitMeta.role)
+    }
 
     public init(pubkey: WalletAddress, isSigner: Bool, isWritable: Bool) {
-        self.pubkey = pubkey
-        self.isSigner = isSigner
-        self.isWritable = isWritable
+        self.kitMeta = Kit.AccountMeta(
+            address: pubkey.address,
+            role: Self.kitRole(isSigner: isSigner, isWritable: isWritable))
+    }
+
+    public init(kitMeta: Kit.AccountMeta) {
+        self.kitMeta = kitMeta
     }
 
     public static func signer(_ pubkey: WalletAddress, writable: Bool = true) -> AccountMeta {
@@ -34,9 +49,29 @@ public struct AccountMeta: Hashable, Sendable {
     /// Merge two metas referring to the same `pubkey`, taking the strongest
     /// signer/writable flags. Callers must check `pubkey` equality first.
     public func mergingPrivileges(with other: AccountMeta) -> AccountMeta {
-        AccountMeta(
-            pubkey: self.pubkey,
-            isSigner: self.isSigner || other.isSigner,
-            isWritable: self.isWritable || other.isWritable)
+        AccountMeta(kitMeta: Kit.AccountMeta(
+            address: self.kitMeta.address,
+            role: Kit.mergeRoles(self.kitMeta.role, other.kitMeta.role)))
+    }
+
+    public var kitRole: Kit.AccountRole {
+        self.kitMeta.role
+    }
+
+    private static func kitRole(isSigner: Bool, isWritable: Bool) -> Kit.AccountRole {
+        switch (isSigner, isWritable) {
+        case (true, true):
+            .writableSigner
+        case (true, false):
+            .readonlySigner
+        case (false, true):
+            .writable
+        case (false, false):
+            .readonly
+        }
+    }
+
+    public var kitAccount: Kit.InstructionAccount {
+        .account(self.kitMeta)
     }
 }

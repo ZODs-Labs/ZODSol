@@ -3,7 +3,7 @@ import XCTest
 
 /// Byte-level tests for the V0 message compiler. Targets the cases most
 /// likely to drift: account dedup with mixed privileges, signer ordering,
-/// fee-payer-at-index-0, and the exact wire-format byte layout.
+/// fee-payer-at-index-0 and the exact wire-format byte layout.
 final class MessageCompilerTests: XCTestCase {
     private let usdc = try! WalletAddress(base58: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
     private let wsol = try! WalletAddress(base58: "So11111111111111111111111111111111111111112")
@@ -58,6 +58,11 @@ final class MessageCompilerTests: XCTestCase {
             "Compiled message bytes differ from hand-computed canonical form")
         XCTAssertEqual(compiled.signerAddresses, [sender])
         XCTAssertEqual(compiled.accountKeys, [sender, recipient, self.systemProgram])
+        guard case let .blockhash(lifetime)? = compiled.lifetimeConstraint else {
+            return XCTFail("expected blockhash lifetime")
+        }
+        XCTAssertEqual(lifetime.blockhash, self.testBlockhash.base58)
+        XCTAssertEqual(lifetime.lastValidBlockHeight, 200)
     }
 
     // MARK: - Privilege merge and ordering
@@ -139,6 +144,7 @@ final class MessageCompilerTests: XCTestCase {
         XCTAssertEqual(wire.count, 1 + 64 + message.messageBytes.count)
         XCTAssertEqual(wire.dropFirst(1).prefix(64), Data(count: 64))
         XCTAssertEqual(wire.dropFirst(1 + 64), message.messageBytes)
+        XCTAssertEqual(placeholder.base64EncodedWireTransaction, wire.base64EncodedString())
     }
 
     func testCompiledTransactionRejectsWrongSignatureCount() throws {

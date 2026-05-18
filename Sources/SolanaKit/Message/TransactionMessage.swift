@@ -1,4 +1,5 @@
 import Foundation
+import Kit
 
 /// A versioned-V0 transaction message: the unit that gets compiled, signed,
 /// and submitted to the cluster.
@@ -16,5 +17,21 @@ public struct TransactionMessage: Hashable, Sendable {
         self.feePayer = feePayer
         self.instructions = instructions
         self.lifetime = lifetime
+    }
+
+    public var kitMessage: Kit.TransactionMessage {
+        var message = Kit.createTransactionMessage(version: .v0)
+        message = Kit.setTransactionMessageFeePayer(self.feePayer.address, message)
+        switch self.lifetime {
+        case let .blockhash(blockhash, lastValidBlockHeight):
+            message = Kit.setTransactionMessageLifetimeUsingBlockhash(
+                Kit.BlockhashLifetimeConstraint(
+                    blockhash: blockhash.base58,
+                    lastValidBlockHeight: lastValidBlockHeight),
+                message)
+        }
+        return Kit.appendTransactionMessageInstructions(
+            self.instructions.map(\.kitInstruction),
+            message)
     }
 }

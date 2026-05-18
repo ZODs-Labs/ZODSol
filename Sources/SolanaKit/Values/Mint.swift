@@ -1,24 +1,32 @@
 import Foundation
+import Kit
 
 public struct Mint: Hashable, Sendable, Codable {
-    public let base58: String
+    public let address: Kit.Address
 
-    public init(base58: String) throws {
-        let decoded = try Base58.decode(base58)
-        guard decoded.count == 32 else {
-            throw SolanaProviderError.invalidInput(
-                "base58 address must decode to exactly 32 bytes")
-        }
-        self.base58 = base58
+    public var base58: String {
+        self.address.rawValue
     }
 
-    public init(from decoder: any Decoder) throws {
+    public init(base58: String) throws {
+        do {
+            self.address = try Kit.address(base58)
+        } catch {
+            throw SolanaProviderError.invalidInput("base58 address must decode to exactly 32 bytes")
+        }
+    }
+
+    public init(address: Kit.Address) {
+        self.address = address
+    }
+
+    public init(from decoder: any Swift.Decoder) throws {
         let container = try decoder.singleValueContainer()
         let raw = try container.decode(String.self)
         try self.init(base58: raw)
     }
 
-    public func encode(to encoder: any Encoder) throws {
+    public func encode(to encoder: any Swift.Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(self.base58)
     }

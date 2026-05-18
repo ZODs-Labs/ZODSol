@@ -18,6 +18,9 @@ let package = Package(
         .library(name: "WalletOverviewDomain", targets: ["WalletOverviewDomain"]),
         .library(name: "WalletOverviewUI", targets: ["WalletOverviewUI"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/ZODs-Labs/swift-solana-kit.git", exact: "0.9.0-rc.1"),
+    ],
     targets: [
         .executableTarget(
             name: "ZODSol",
@@ -47,6 +50,9 @@ let package = Package(
 
         .target(
             name: "SolanaKit",
+            dependencies: [
+                .product(name: "Kit", package: "swift-solana-kit"),
+            ],
             path: "Sources/SolanaKit",
             swiftSettings: [
                 .swiftLanguageMode(.v6),
@@ -66,6 +72,9 @@ let package = Package(
 
         .target(
             name: "SolanaRPC",
+            dependencies: [
+                .product(name: "Kit", package: "swift-solana-kit"),
+            ],
             path: "Sources/SolanaRPC",
             swiftSettings: [
                 .swiftLanguageMode(.v6),

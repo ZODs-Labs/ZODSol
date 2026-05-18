@@ -24,7 +24,7 @@ public struct NFTSummary: Hashable, Sendable, Codable {
             self.alternates = alternates
         }
 
-        public init(from decoder: any Decoder) throws {
+        public init(from decoder: any Swift.Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             self.imageURL = try c.decode(URL.self, forKey: .imageURL)
             self.alternates = try c.decodeIfPresent([URL].self, forKey: .alternates) ?? []

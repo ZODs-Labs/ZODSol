@@ -1,11 +1,12 @@
 import Foundation
+import Kit
 
 /// A signed (or signature-padded) V0 transaction ready to be base64-encoded
 /// and submitted via `sendTransaction` / `simulateTransaction`.
 public struct CompiledTransaction: Sendable {
     /// Solana enforces a packet size limit of 1232 bytes for the entire
     /// signatures + message blob. The runtime drops anything larger.
-    public static let maxPacketSize = 1232
+    public static let maxPacketSize = Kit.legacyTransactionSizeLimit
 
     /// Signatures in the order returned by `CompiledMessage.signerAddresses`.
     public let signatures: [Signature]
@@ -21,20 +22,40 @@ public struct CompiledTransaction: Sendable {
         self.signatures = signatures
     }
 
-    /// The bytes submitted to the RPC: short_u16(sigCount) || sigs || message.
     public var wireBytes: Data {
-        var data = Data()
-        data.reserveCapacity(3 + 64 * self.signatures.count + self.message.messageBytes.count)
-        data.append(WireFormat.encodeShortU16(UInt16(self.signatures.count)))
-        for signature in self.signatures {
-            data.append(signature.bytes)
+        do {
+            return try Kit.getTransactionEncoder().encode(self.kitTransaction())
+        } catch {
+            preconditionFailure("Invalid compiled transaction")
         }
-        data.append(self.message.messageBytes)
-        return data
+    }
+
+    public var base64EncodedWireTransaction: String {
+        do {
+            return try Kit.getBase64EncodedWireTransaction(self.kitTransaction())
+        } catch {
+            preconditionFailure("Invalid compiled transaction")
+        }
     }
 
     /// `true` if `wireBytes.count` would exceed the packet limit.
     public var exceedsPacketLimit: Bool {
-        self.wireBytes.count > Self.maxPacketSize
+        do {
+            return try !Kit.isTransactionWithinSizeLimit(self.kitTransaction())
+        } catch {
+            return true
+        }
+    }
+
+    public func kitTransaction() throws -> Kit.Transaction {
+        let signatures = try zip(self.message.signerAddresses, self.signatures).map { address, signature in
+            try Kit.TransactionSignature(
+                address: address.address,
+                signature: Kit.signatureBytes(signature.bytes))
+        }
+        return Kit.Transaction(
+            messageBytes: self.message.messageBytes,
+            signatures: Kit.SignaturesMap(entries: signatures),
+            lifetimeConstraint: self.message.lifetimeConstraint)
     }
 }
