@@ -3,7 +3,7 @@ import SwiftUI
 
 /// In-bundle artwork for tokens we never want to depend on the network for.
 /// Resolution walks every bundle layout the app might end up in: SwiftPM's
-/// `Bundle.module`, the host app's main bundle, and the directory containing
+/// `Bundle.module`, the host app's main bundle and the directory containing
 /// the running executable. That covers raw `swift run`, Xcode-built debug
 /// builds and the packaged .app produced by Scripts/package_app.sh.
 enum BundledAssetLogos {
@@ -23,7 +23,7 @@ enum BundledAssetLogos {
             Bundle.main.bundleURL,
             Bundle.main.resourceURL,
             Bundle.main.bundleURL.deletingLastPathComponent(),
-        ].compactMap { $0 }
+        ].compactMap(\.self)
         for directory in directoryCandidates {
             let url = directory.appendingPathComponent(fileName)
             if let image = NSImage(contentsOf: url) {
@@ -56,4 +56,3 @@ struct SOLLogo: View {
         }
     }
 }
-

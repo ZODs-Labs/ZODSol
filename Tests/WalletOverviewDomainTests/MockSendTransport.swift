@@ -36,7 +36,7 @@ actor MockSendTransport: RPCTransport {
         responseType: R.Type) async throws -> R
     {
         self.observedMethods.append(request.method)
-        if let bodyData = try? JSONEncoder().encode(request),
+        if let bodyData = try? request.encodedBodyData(),
            let bodyString = String(data: bodyData, encoding: .utf8)
         {
             self.observedBodies.append(bodyString)

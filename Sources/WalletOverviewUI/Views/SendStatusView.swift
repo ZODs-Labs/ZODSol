@@ -147,11 +147,7 @@ struct SendStatusView: View {
     private func errorMessage(_ error: SendError) -> String {
         switch error {
         case let .invalidRecipient(reason):
-            switch reason {
-            case .offCurveForSol: return "Cannot send SOL to a program-derived address."
-            case .knownProgramAddress: return "Recipient is a known program - refusing."
-            case .malformed: return "Recipient address is not valid."
-            }
+            return Self.invalidRecipientMessage(reason)
         case let .insufficientSolForFee(required, available):
             return "Need \(self.formatSol(required)) for fees; wallet has \(self.formatSol(available))."
         case let .insufficientSolForRent(required, available):
@@ -189,6 +185,17 @@ struct SendStatusView: View {
                 return "Wallet authentication failed. Remove this wallet and re-import it to keep signing."
             }
             return "Broadcast failed: \(reason)"
+        }
+    }
+
+    private static func invalidRecipientMessage(_ reason: InvalidRecipientReason) -> String {
+        switch reason {
+        case .offCurveForSol:
+            "Cannot send SOL to a program-derived address."
+        case .knownProgramAddress:
+            "Recipient is a known program - refusing."
+        case .malformed:
+            "Recipient address is not valid."
         }
     }
 

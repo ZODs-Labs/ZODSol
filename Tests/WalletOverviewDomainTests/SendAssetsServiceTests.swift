@@ -6,7 +6,7 @@ import XCTest
 @testable import WalletOverviewDomain
 
 /// Orchestrator tests for `DefaultSendAssetsService`. Covers the early-exit
-/// safety checks (no RPC), the full SOL happy path, and the per-wallet
+/// safety checks (no RPC), the full SOL happy path and the per-wallet
 /// in-flight guard.
 private struct ServiceFixture: @unchecked Sendable {
     let defaults: UserDefaults
@@ -74,7 +74,9 @@ final class SendAssetsServiceTests: XCTestCase {
         let key = Curve25519.Signing.PrivateKey()
         return try WalletAddress(base58: Base58.encode(key.publicKey.rawRepresentation))
     }
+}
 
+extension SendAssetsServiceTests {
     // MARK: - Recipient validation (no RPC)
 
     func testOffCurveRecipientRefusedForSOLBeforeAnyRPC() async throws {
@@ -183,7 +185,7 @@ final class SendAssetsServiceTests: XCTestCase {
         await transport.enqueue(method: "simulateTransaction", json: """
         {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{"err":null,"logs":[],"unitsConsumed":150}}}
         """)
-        // Sender has only 100 lamports — far below fee.
+        // Sender has only 100 lamports, far below fee.
         await transport.enqueue(method: "getAccountInfo", json: """
         {"jsonrpc":"2.0","id":"x","result":{"context":{"slot":1},"value":{
             "lamports":100,"owner":"11111111111111111111111111111111",

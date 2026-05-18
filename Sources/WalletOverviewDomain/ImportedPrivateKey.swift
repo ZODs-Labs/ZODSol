@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import SolanaKit
 
@@ -16,28 +15,28 @@ public struct ImportedPrivateKey: Sendable {
         let seed = secretKey64.prefix(32)
         let providedPubKey = secretKey64.suffix(32)
 
-        let privateKey: Curve25519.Signing.PrivateKey
+        let derivedAddress: WalletAddress
         do {
-            privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
+            derivedAddress = try WalletAddress.derivedFromPrivateKeySeed(Data(seed))
         } catch {
             secretKey64.resetBytes(in: 0..<secretKey64.count)
             throw WalletOverviewError.malformedResponse("Invalid private-key seed.")
         }
 
-        let derivedPubKey = privateKey.publicKey.rawRepresentation
+        let derivedPubKey: Data
+        do {
+            derivedPubKey = try Base58.decode(derivedAddress.base58)
+        } catch {
+            secretKey64.resetBytes(in: 0..<secretKey64.count)
+            throw WalletOverviewError.malformedResponse("Derived public key is not a valid Solana address.")
+        }
         guard derivedPubKey == Data(providedPubKey) else {
             secretKey64.resetBytes(in: 0..<secretKey64.count)
             throw WalletOverviewError.malformedResponse(
                 "Private key does not match its public key. Re-export from your wallet and paste the 64-byte secret.")
         }
 
-        do {
-            let address = try WalletAddress(base58: Base58.encode(derivedPubKey))
-            return ImportedPrivateKey(publicAddress: address, secretKey64: secretKey64)
-        } catch {
-            secretKey64.resetBytes(in: 0..<secretKey64.count)
-            throw WalletOverviewError.malformedResponse("Derived public key is not a valid Solana address.")
-        }
+        return ImportedPrivateKey(publicAddress: derivedAddress, secretKey64: secretKey64)
     }
 
     private static func decodeBytes(from text: String) throws -> Data {
@@ -128,7 +127,7 @@ public struct ImportedPrivateKey: Sendable {
             decoded = try Base58.decode(text)
         } catch {
             throw WalletOverviewError.malformedResponse(
-                "Could not read the private key. Paste a 64-byte secret as a base58 string, JSON byte array, or hex.")
+                "Could not read the private key. Paste a 64-byte secret as a base58 string, JSON byte array or hex.")
         }
         guard decoded.count == 64 else {
             throw WalletOverviewError.malformedResponse(

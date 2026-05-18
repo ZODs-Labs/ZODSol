@@ -10,11 +10,13 @@ final class WalletPanelMetricsTests: XCTestCase {
         XCTAssertEqual(WalletPanelMetrics.menuBarGap, 6)
     }
 
+    @MainActor
     func testWidthAndHeightMirrorSwiftUIDeclaration() {
-        // SwiftUI's WalletPanelView is the single source of truth for panel
-        // dimensions - AppKit mirrors that declaration.
-        XCTAssertEqual(WalletPanelMetrics.width, WalletPanelView.panelWidth)
-        XCTAssertEqual(WalletPanelMetrics.height, WalletPanelView.panelHeight)
+        let panelWidth = WalletPanelView.panelWidth
+        let panelHeight = WalletPanelView.panelHeight
+
+        XCTAssertEqual(WalletPanelMetrics.width, panelWidth)
+        XCTAssertEqual(WalletPanelMetrics.height, panelHeight)
     }
 
     func testClampedHeightFallsBackToCanonicalWithoutScreen() {

@@ -205,7 +205,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
 
         // 2. Build wire transaction.
         let signed = try CompiledTransaction(message: prepared.compiled, signatures: [signature])
-        let base64Wire = signed.wireBytes.base64EncodedString()
+        let base64Wire = signed.base64EncodedWireTransaction
 
         // 3. Persist the signature BEFORE broadcasting so a crash mid-broadcast
         //    leaves a recoverable record.
@@ -238,7 +238,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
         } catch let rpcError as RPCError {
             if Self.shouldRetainPending(after: rpcError) {
                 self.logger.debug(
-                    "broadcast threw \(String(describing: rpcError), privacy: .public); falling through to confirmation polling")
+                    "broadcast threw \(String(describing: rpcError), privacy: .public); polling confirmation")
             } else {
                 await self.pendingStore.remove(signatureBase58: signature.base58)
                 throw SendError.rpc(Self.mapRPCError(rpcError))
@@ -248,7 +248,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
             throw SendError.broadcastFailed(reason: String(describing: error))
         }
 
-        // If the parent task was cancelled mid-broadcast, surface that now —
+        // If the parent task was cancelled mid-broadcast, surface that now.
         // the detached task already completed so the signature is on its way
         // to the cluster regardless.
         if Task.isCancelled {
@@ -281,7 +281,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
                 let resp: JSONRPCResponse<SignatureStatusesRPC.Result> = try await transport.send(
                     req, responseType: JSONRPCResponse<SignatureStatusesRPC.Result>.self)
                 let result = try resp.unwrap()
-                if let status = result.value.first ?? nil {
+                if case let status?? = result.value.first {
                     if status.err != nil {
                         await self.pendingStore.remove(signatureBase58: entry.signatureBase58)
                         outcomes.append(PendingSendResolution(
@@ -307,7 +307,7 @@ public actor DefaultSendAssetsService: SendAssetsService {
                     }
                 }
             } catch {
-                // Transient error during resync — leave entry for next try.
+                // Transient error during resync. Leave entry for next try.
                 self.logger
                     .debug("resync failed for \(entry.signatureBase58, privacy: .public): \(String(describing: error))")
             }
@@ -849,7 +849,7 @@ extension DefaultSendAssetsService {
 
     private func simulateForCompute(_ compiled: CompiledMessage, minContextSlot: UInt64) async throws -> UInt64 {
         let placeholder = try MessageCompiler.placeholderTransaction(for: compiled)
-        let base64 = placeholder.wireBytes.base64EncodedString()
+        let base64 = placeholder.base64EncodedWireTransaction
         let outcome = try await runSimulation(base64: base64, minContextSlot: minContextSlot)
         if let err = outcome.errorString {
             throw SendError.simulationFailed(logs: outcome.logs, error: err)
@@ -862,7 +862,7 @@ extension DefaultSendAssetsService {
         minContextSlot: UInt64) async throws -> SimulationOutcome
     {
         let placeholder = try MessageCompiler.placeholderTransaction(for: compiled)
-        let base64 = placeholder.wireBytes.base64EncodedString()
+        let base64 = placeholder.base64EncodedWireTransaction
         return try await self.runSimulation(base64: base64, minContextSlot: minContextSlot)
     }
 
@@ -996,12 +996,5 @@ extension DefaultSendAssetsService {
         case .rpc:
             false
         }
-    }
-}
-
-extension UInt64 {
-    fileprivate func saturatingMultiplied(by rhs: UInt64) -> UInt64 {
-        let product = self.multipliedFullWidth(by: rhs)
-        return product.high == 0 ? product.low : UInt64.max
     }
 }
