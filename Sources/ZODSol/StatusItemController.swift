@@ -21,6 +21,7 @@ final class StatusItemController: NSObject {
     private let session: WalletSession
     private let lockObservers: SessionLockObservers
     private let imageLoader: ImageLoader
+    private var tickerController: MenuBarTickerController?
 
     init(displayModel: ZODSolDisplayModel) {
         self.displayModel = displayModel
@@ -67,6 +68,9 @@ final class StatusItemController: NSObject {
             recentRecipientsStore: recentRecipientsStore,
             session: session,
             sessionPolicyStore: policyStore,
+            tickerSettings: TickerSettingsViewModel(
+                store: TickerSettingsStore(),
+                resolver: JupiterTokenResolver(session: URLSession(configuration: .makeCredentialFree()))),
             credentialsDidChange: {
                 await providerHolder.reset()
                 await lazyTransport.reset()
@@ -83,24 +87,78 @@ final class StatusItemController: NSObject {
             let persisted = await policyStore.load()
             await session.setPolicy(persisted)
         }
+        self.installTicker()
+    }
+
+    private func installTicker() {
+        let controller = MenuBarTickerController { [weak self] model in
+            self?.applyTickerRenderModel(model)
+        }
+        self.tickerController = controller
+        self.viewModel.tickerSettings?.onChange = { [weak self] settings in
+            self?.tickerController?.applySettings(settings)
+        }
+        controller.start()
     }
 
     func releaseStatusItem() {
         self.closePanel()
         self.lockObservers.stop()
+        self.tickerController?.stop()
         NSStatusBar.system.removeStatusItem(self.statusItem)
     }
 
     private func configureStatusItem() {
         guard let button = self.statusItem.button else { return }
-        button.title = self.displayModel.statusItemTitle
-        button.font = NSFont.menuBarFont(ofSize: 0)
-        button.imagePosition = .imageLeading
+        if let icon = Self.loadStatusItemIcon() {
+            button.image = icon
+            button.imagePosition = .imageOnly
+            button.title = ""
+        } else {
+            button.title = self.displayModel.statusItemTitle
+            button.font = NSFont.menuBarFont(ofSize: 0)
+            button.imagePosition = .imageLeading
+        }
         button.toolTip = self.displayModel.appName
         button.setAccessibilityLabel(self.displayModel.appName)
         button.target = self
         button.action = #selector(self.togglePanel(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    /// The status bar renders status item images at the menu bar's intrinsic
+    /// height. Sizing the image to 22pt and shipping a 44px asset gives us a
+    /// crisp @2x rendering on Retina without needing a multi-rep asset
+    /// catalog. `isTemplate = false` preserves the logo's neon cyan; setting
+    /// it to true would force the system monochrome tint and lose the brand.
+    private static func loadStatusItemIcon() -> NSImage? {
+        let name = "zods_menubar_icon"
+        let ext = "png"
+        let candidates: [Bundle] = [.module, .main]
+        for bundle in candidates {
+            if let url = bundle.url(forResource: name, withExtension: ext),
+               let image = NSImage(contentsOf: url)
+            {
+                image.size = NSSize(width: 22, height: 22)
+                image.isTemplate = false
+                return image
+            }
+        }
+        let fileName = "\(name).\(ext)"
+        let directories: [URL] = [
+            Bundle.main.resourceURL,
+            Bundle.main.bundleURL,
+            Bundle.main.bundleURL.deletingLastPathComponent(),
+        ].compactMap(\.self)
+        for directory in directories {
+            let url = directory.appendingPathComponent(fileName)
+            if let image = NSImage(contentsOf: url) {
+                image.size = NSSize(width: 22, height: 22)
+                image.isTemplate = false
+                return image
+            }
+        }
+        return nil
     }
 
     private func makePanel() -> NSPanel {
@@ -158,12 +216,14 @@ final class StatusItemController: NSObject {
         panel.makeKey()
         self.startEventMonitoring()
         self.viewModel.panelDidAppear()
+        self.tickerController?.setPanelOpen(true)
     }
 
     private func closePanel() {
         self.viewModel.panelDidDisappear()
         self.panel?.orderOut(nil)
         self.stopEventMonitoring()
+        self.tickerController?.setPanelOpen(false)
     }
 
     private func position(_ panel: NSPanel, below sender: NSStatusBarButton) {
@@ -232,6 +292,21 @@ final class StatusItemController: NSObject {
             NSEvent.removeMonitor(globalEventMonitor)
             self.globalEventMonitor = nil
         }
+    }
+
+    // MARK: - Price ticker
+
+    private func applyTickerRenderModel(_ model: TickerRenderModel) {
+        guard let button = self.statusItem.button else { return }
+        guard let title = StatusItemTickerRenderer.attributedTitle(for: model) else {
+            self.configureStatusItem()
+            return
+        }
+        button.image = nil
+        button.imagePosition = .noImage
+        button.attributedTitle = title
+        button.setAccessibilityLabel(
+            StatusItemTickerRenderer.accessibilityLabel(for: model) ?? self.displayModel.appName)
     }
 }
 

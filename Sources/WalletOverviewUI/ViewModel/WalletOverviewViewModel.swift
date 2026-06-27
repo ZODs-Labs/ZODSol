@@ -13,6 +13,7 @@ public enum PanelRoute: Sendable, Equatable {
     case assetPicker(AssetPickerIntent)
     case receive(ReceiveIntent)
     case security
+    case menuBarWidget
 }
 
 public struct ReceiveIntent: Sendable, Equatable {
@@ -74,6 +75,7 @@ public final class WalletOverviewViewModel {
     public let session: WalletSession?
     public let sessionPolicyStore: WalletSessionPolicyStore?
     public private(set) var sessionPolicy: WalletSession.Policy = .default
+    public let tickerSettings: TickerSettingsViewModel?
     private let credentialsDidChange: (@Sendable () async -> Void)?
     private var refreshTask: Task<Void, Never>?
 
@@ -86,6 +88,7 @@ public final class WalletOverviewViewModel {
         recentRecipientsStore: RecentRecipientsStore = RecentRecipientsStore(),
         session: WalletSession? = nil,
         sessionPolicyStore: WalletSessionPolicyStore? = nil,
+        tickerSettings: TickerSettingsViewModel? = nil,
         credentialsDidChange: (@Sendable () async -> Void)? = nil)
     {
         self.service = service
@@ -96,6 +99,7 @@ public final class WalletOverviewViewModel {
         self.recentRecipientsStore = recentRecipientsStore
         self.session = session
         self.sessionPolicyStore = sessionPolicyStore
+        self.tickerSettings = tickerSettings
         self.credentialsDidChange = credentialsDidChange
     }
 

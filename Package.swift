@@ -29,9 +29,13 @@ let package = Package(
                 "WalletOverviewDomain",
                 "HeliusProvider",
                 "KeychainKit",
+                "Formatters",
             ],
             path: "Sources/ZODSol",
             exclude: ["ZODSol.entitlements"],
+            resources: [
+                .process("Resources"),
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),

@@ -20,6 +20,20 @@ extension URLSessionConfiguration {
         return c
     }
 
+    /// An ephemeral, credential-free configuration for contacting keyless public
+    /// hosts (the price ticker). Carries no cookies or credentials so it can
+    /// never leak an API key, and times out fast so a hung socket cannot wedge a
+    /// short polling tick.
+    public static func makeCredentialFree() -> URLSessionConfiguration {
+        let c = URLSessionConfiguration.ephemeral
+        c.httpCookieStorage = nil
+        c.urlCredentialStorage = nil
+        c.httpShouldSetCookies = false
+        c.timeoutIntervalForRequest = 8
+        c.waitsForConnectivity = false
+        return c
+    }
+
     private static var bundleShortVersion: String {
         let info = Bundle.main.infoDictionary
         if let v = info?["CFBundleShortVersionString"] as? String { return v }

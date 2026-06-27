@@ -163,6 +163,23 @@ struct ManageWalletsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            Divider().padding(.leading, 16).opacity(0.35)
+            Button(action: self.openMenuBarWidget) {
+                HStack(spacing: 8) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                    Text("Menu Bar Widget")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -189,6 +206,12 @@ struct ManageWalletsView: View {
     private func openSecurity() {
         withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
             self.viewModel.route = .security
+        }
+    }
+
+    private func openMenuBarWidget() {
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .menuBarWidget
         }
     }
 }

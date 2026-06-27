@@ -49,7 +49,7 @@ public struct PercentageDeltaFormatter: Sendable {
         return .neutral
     }
 
-    public enum DeltaColor: Sendable {
+    public enum DeltaColor: Sendable, Equatable {
         case up
         case down
         case neutral
