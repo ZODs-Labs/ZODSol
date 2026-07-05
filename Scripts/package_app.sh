@@ -65,6 +65,29 @@ for resource_bundle in "$BIN_DIR"/*.bundle; do
 done
 shopt -u nullglob
 
+# App icon: build AppIcon.icns from the 1024 master so Finder, Spotlight and
+# the Cmd-Tab switcher show the brand mark (the menu-bar PNG is display-only and
+# too small to serve as an app icon). Regenerate the master with
+# `swift Scripts/make_app_icon.swift <mark.png> Design/AppIcon.png`, or drop a
+# hand-designed 1024x1024 PNG at Design/AppIcon.png. Skipped if the master is
+# absent so the build never hard-fails on a missing design asset.
+ICON_MASTER="$ROOT/Design/AppIcon.png"
+if [[ -f "$ICON_MASTER" ]] && command -v iconutil >/dev/null 2>&1; then
+    ICONSET_PARENT=$(mktemp -d)
+    ICONSET="$ICONSET_PARENT/AppIcon.iconset"
+    mkdir -p "$ICONSET"
+    for spec in 16:16x16 32:16x16@2x 32:32x32 64:32x32@2x \
+        128:128x128 256:128x128@2x 256:256x256 512:256x256@2x \
+        512:512x512 1024:512x512@2x; do
+        px="${spec%%:*}"
+        label="${spec##*:}"
+        sips -z "$px" "$px" "$ICON_MASTER" --out "$ICONSET/icon_${label}.png" >/dev/null
+    done
+    iconutil -c icns "$ICONSET" -o "$RESOURCES/AppIcon.icns"
+    rm -rf "$ICONSET_PARENT"
+    printf 'Generated AppIcon.icns from %s\n' "$ICON_MASTER"
+fi
+
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -82,6 +105,8 @@ cat > "$CONTENTS/Info.plist" <<PLIST
     <string>${APP_NAME}</string>
     <key>CFBundleDisplayName</key>
     <string>${APP_NAME}</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
