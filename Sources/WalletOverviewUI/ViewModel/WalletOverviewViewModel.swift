@@ -14,6 +14,7 @@ public enum PanelRoute: Sendable, Equatable {
     case receive(ReceiveIntent)
     case security
     case menuBarWidget
+    case general
 }
 
 public struct ReceiveIntent: Sendable, Equatable {
@@ -76,6 +77,7 @@ public final class WalletOverviewViewModel {
     public let sessionPolicyStore: WalletSessionPolicyStore?
     public private(set) var sessionPolicy: WalletSession.Policy = .default
     public let tickerSettings: TickerSettingsViewModel?
+    public let launchAtLogin: LaunchAtLoginViewModel?
     private let credentialsDidChange: (@Sendable () async -> Void)?
     private var refreshTask: Task<Void, Never>?
 
@@ -89,6 +91,7 @@ public final class WalletOverviewViewModel {
         session: WalletSession? = nil,
         sessionPolicyStore: WalletSessionPolicyStore? = nil,
         tickerSettings: TickerSettingsViewModel? = nil,
+        launchAtLogin: LaunchAtLoginViewModel? = nil,
         credentialsDidChange: (@Sendable () async -> Void)? = nil)
     {
         self.service = service
@@ -100,10 +103,16 @@ public final class WalletOverviewViewModel {
         self.session = session
         self.sessionPolicyStore = sessionPolicyStore
         self.tickerSettings = tickerSettings
+        self.launchAtLogin = launchAtLogin
         self.credentialsDidChange = credentialsDidChange
     }
 
     public func panelDidAppear() {
+        // Re-read the login-item status on every open so a change the user made
+        // in System Settings while the panel was closed is reflected without a
+        // relaunch. There is no notification for this, so polling on the panel
+        // lifecycle is the sanctioned pattern.
+        self.launchAtLogin?.refresh()
         self.refreshTask?.cancel()
         self.refreshTask = Task { [weak self] in
             guard let self else { return }

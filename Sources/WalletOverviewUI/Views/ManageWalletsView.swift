@@ -147,6 +147,23 @@ struct ManageWalletsView: View {
             }
             .buttonStyle(.plain)
             Divider().padding(.leading, 16).opacity(0.35)
+            Button(action: self.openGeneral) {
+                HStack(spacing: 8) {
+                    Image(systemName: "gearshape")
+                    Text("General")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Divider().padding(.leading, 16).opacity(0.35)
             Button(action: self.openSecurity) {
                 HStack(spacing: 8) {
                     Image(systemName: "lock.shield")
@@ -200,6 +217,12 @@ struct ManageWalletsView: View {
     private func openAddWallet() {
         withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
             self.viewModel.route = .addWallet
+        }
+    }
+
+    private func openGeneral() {
+        withAnimation(self.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+            self.viewModel.route = .general
         }
     }
 

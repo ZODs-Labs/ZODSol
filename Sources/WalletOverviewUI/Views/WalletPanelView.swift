@@ -66,6 +66,9 @@ public struct WalletPanelView: View {
                 case .menuBarWidget:
                     self.menuBarWidgetBody
                         .transition(.push)
+                case .general:
+                    self.generalBody
+                        .transition(.push)
                 }
             }
             .animation(self.reduceMotion ? nil : .easeInOut(duration: 0.22), value: self.viewModel.route)
@@ -94,8 +97,13 @@ public struct WalletPanelView: View {
     private var menuBarWidgetBody: some View {
         if let ticker = self.viewModel.tickerSettings {
             TickerSettingsView(parent: self.viewModel, ticker: ticker)
-        } else {
-            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var generalBody: some View {
+        if let launchAtLogin = self.viewModel.launchAtLogin {
+            GeneralSettingsView(parent: self.viewModel, launchAtLogin: launchAtLogin)
         }
     }
 

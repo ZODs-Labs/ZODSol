@@ -77,6 +77,7 @@ final class StatusItemController: NSObject {
             tickerSettings: TickerSettingsViewModel(
                 store: TickerSettingsStore(),
                 pasteResolver: pasteResolver),
+            launchAtLogin: LaunchAtLoginViewModel(item: SMAppServiceLoginItem()),
             credentialsDidChange: {
                 await providerHolder.reset()
                 await lazyTransport.reset()
@@ -94,6 +95,10 @@ final class StatusItemController: NSObject {
             await session.setPolicy(persisted)
         }
         self.installTicker()
+        // Default-on: register at login the first time the app ever runs. This
+        // is a one-shot that records a flag and never re-registers, so a user
+        // who later turns it off is not overridden on the next launch.
+        self.viewModel.launchAtLogin?.activateDefaultOnFirstRun()
     }
 
     private func installTicker() {
