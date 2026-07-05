@@ -136,7 +136,9 @@ public actor PriceTickerEngine {
         self.loopTask = nil
         self.sleeper?.cancel()
         self.sleeper = nil
-        for continuation in self.continuations.values { continuation.finish() }
+        for continuation in self.continuations.values {
+            continuation.finish()
+        }
         self.continuations.removeAll()
     }
 

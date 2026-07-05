@@ -58,6 +58,12 @@ final class StatusItemController: NSObject {
             pendingStore: pendingSendStore,
             network: .mainnet)
         let recentRecipientsStore = RecentRecipientsStore()
+        // One credential-free session shared by both paste resolvers; it never
+        // carries the Helius key, so a paste can never leak it to a market host.
+        let tickerPasteSession = URLSession(configuration: .makeCredentialFree())
+        let pasteResolver = TokenPasteResolver(
+            solana: JupiterTokenResolver(session: tickerPasteSession),
+            evm: EVMDexResolverClient(session: tickerPasteSession))
         self.session = session
         self.viewModel = WalletOverviewViewModel(
             service: service,
@@ -70,7 +76,7 @@ final class StatusItemController: NSObject {
             sessionPolicyStore: policyStore,
             tickerSettings: TickerSettingsViewModel(
                 store: TickerSettingsStore(),
-                resolver: JupiterTokenResolver(session: URLSession(configuration: .makeCredentialFree()))),
+                pasteResolver: pasteResolver),
             credentialsDidChange: {
                 await providerHolder.reset()
                 await lazyTransport.reset()

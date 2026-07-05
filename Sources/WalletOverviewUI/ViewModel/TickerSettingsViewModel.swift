@@ -13,18 +13,20 @@ public final class TickerSettingsViewModel {
     public private(set) var settings: TickerSettings
     public private(set) var isResolving = false
     public private(set) var addError: String?
+    /// Set when a pasted EVM address is live on several chains; drives the picker.
+    public private(set) var chainChoices: [PasteChainCandidate]?
     public var onChange: ((TickerSettings) -> Void)?
 
     private let store: TickerSettingsStore
-    private let resolver: (any TickerTokenResolving)?
+    private let pasteResolver: TokenPasteResolver?
 
     public init(
         store: TickerSettingsStore,
-        resolver: (any TickerTokenResolving)? = nil,
+        pasteResolver: TokenPasteResolver? = nil,
         initial: TickerSettings = .seeded)
     {
         self.store = store
-        self.resolver = resolver
+        self.pasteResolver = pasteResolver
         self.settings = initial
     }
 
@@ -32,15 +34,29 @@ public final class TickerSettingsViewModel {
         self.settings = await self.store.load()
     }
 
-    public var isWidgetEnabled: Bool { self.settings.isWidgetEnabled }
-    public var displayMode: TickerDisplayMode { self.settings.displayMode }
-    public var availableBlueChips: [TickerCatalog.BlueChip] { TickerCatalog.blueChips }
-    public var canAddMore: Bool { self.settings.entries.count < TickerSettingsStore.maxEntries }
-    public var canResolveMints: Bool { self.resolver != nil }
+    public var isWidgetEnabled: Bool {
+        self.settings.isWidgetEnabled
+    }
 
-    /// Custom (pasted) tokens, in selection order.
+    public var displayMode: TickerDisplayMode {
+        self.settings.displayMode
+    }
+
+    public var availableBlueChips: [TickerCatalog.BlueChip] {
+        TickerCatalog.blueChips
+    }
+
+    public var canAddMore: Bool {
+        self.settings.entries.count < TickerSettingsStore.maxEntries
+    }
+
+    public var canResolve: Bool {
+        self.pasteResolver != nil
+    }
+
+    /// Custom (pasted) tokens - Solana mints and EVM tokens - in selection order.
     public var customEntries: [TickerEntry] {
-        self.settings.entries.filter { $0.source == .jupiter }
+        self.settings.entries.filter { $0.source == .jupiter || $0.source == .evmDex }
     }
 
     public func isAdded(_ chip: TickerCatalog.BlueChip) -> Bool {
@@ -72,22 +88,46 @@ public final class TickerSettingsViewModel {
         self.commit()
     }
 
-    /// Validates a pasted mint, resolves its metadata via Jupiter and adds it as
-    /// a `.jupiter` entry. Surfaces a user-facing message in `addError` on any
-    /// failure; never throws.
-    public func addPastedMint(_ raw: String) async {
+    /// Resolves a pasted token address (Solana mint or EVM contract) through the
+    /// facade and adds it, prompts a chain choice when an EVM address is live on
+    /// several chains, or surfaces a user-facing message. Never throws.
+    public func addPasted(_ raw: String) async {
         self.addError = nil
-        let mint = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !mint.isEmpty else { return }
-        guard (try? Mint(base58: mint)) != nil else {
-            self.addError = "That is not a valid mint address."
+        self.chainChoices = nil
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard self.canAddMore else {
+            self.addError = "The ticker is full. Remove a token first."
             return
         }
-        guard mint != TickerCatalog.wrappedSolMint else {
-            self.addError = "SOL is already available in the Tokens list."
-            return
+        guard let pasteResolver = self.pasteResolver else { return }
+
+        self.isResolving = true
+        let resolution = await pasteResolver.resolve(trimmed)
+        self.isResolving = false
+
+        switch resolution {
+        case let .resolved(entry):
+            self.appendIfNew(entry)
+        case let .needsChainChoice(candidates):
+            self.chainChoices = candidates
+        case let .rejected(message):
+            if !message.isEmpty { self.addError = message }
         }
-        guard !self.settings.entries.contains(where: { $0.sourceIdentifier == mint }) else {
+    }
+
+    /// Confirms a chain from the disambiguation prompt and adds that entry.
+    public func chooseChain(_ candidate: PasteChainCandidate) {
+        self.chainChoices = nil
+        self.appendIfNew(candidate.entry)
+    }
+
+    public func cancelChainChoice() {
+        self.chainChoices = nil
+    }
+
+    private func appendIfNew(_ entry: TickerEntry) {
+        guard !self.settings.entries.contains(where: { $0.sourceIdentifier == entry.sourceIdentifier }) else {
             self.addError = "That token is already in the ticker."
             return
         }
@@ -95,22 +135,6 @@ public final class TickerSettingsViewModel {
             self.addError = "The ticker is full. Remove a token first."
             return
         }
-        guard let resolver = self.resolver else { return }
-
-        self.isResolving = true
-        let resolved = await resolver.resolve(mint: mint)
-        self.isResolving = false
-
-        guard let resolved else {
-            self.addError = "Could not find that token."
-            return
-        }
-        let entry = TickerCatalog.jupiterEntry(
-            mint: resolved.mint,
-            symbol: resolved.symbol,
-            displayName: resolved.name,
-            displayDecimals: resolved.decimals,
-            iconURL: resolved.iconURL)
         self.settings.entries.append(entry)
         self.commit()
     }

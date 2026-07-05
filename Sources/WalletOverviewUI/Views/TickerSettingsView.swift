@@ -18,7 +18,7 @@ struct TickerSettingsView: View {
                     self.enableSection
                     self.displaySection
                     self.tokensSection
-                    if self.ticker.canResolveMints {
+                    if self.ticker.canResolve {
                         TickerCustomTokensSection(ticker: self.ticker)
                     }
                     Text(Self.helpText)

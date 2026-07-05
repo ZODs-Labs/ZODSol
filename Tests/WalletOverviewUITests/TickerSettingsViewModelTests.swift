@@ -85,10 +85,10 @@ final class TickerSettingsViewModelTests: XCTestCase {
     func testAddPastedMintResolvesAndAddsJupiterEntry() async {
         let model = TickerSettingsViewModel(
             store: makeStore(),
-            resolver: StubResolver(result: resolvedUSDC()),
+            pasteResolver: TokenPasteResolver(solana: StubResolver(result: resolvedUSDC())),
             initial: empty())
 
-        await model.addPastedMint("  \(usdcMint)  ")
+        await model.addPasted("  \(usdcMint)  ")
 
         XCTAssertNil(model.addError)
         XCTAssertEqual(model.customEntries.count, 1)
@@ -100,10 +100,10 @@ final class TickerSettingsViewModelTests: XCTestCase {
     func testAddPastedInvalidMintSetsError() async {
         let model = TickerSettingsViewModel(
             store: makeStore(),
-            resolver: StubResolver(result: resolvedUSDC()),
+            pasteResolver: TokenPasteResolver(solana: StubResolver(result: resolvedUSDC())),
             initial: empty())
 
-        await model.addPastedMint("not a valid mint!!!")
+        await model.addPasted("not a valid mint!!!")
 
         XCTAssertNotNil(model.addError)
         XCTAssertTrue(model.customEntries.isEmpty)
@@ -112,10 +112,10 @@ final class TickerSettingsViewModelTests: XCTestCase {
     func testAddPastedWrappedSolIsSteeredAway() async {
         let model = TickerSettingsViewModel(
             store: makeStore(),
-            resolver: StubResolver(result: resolvedUSDC()),
+            pasteResolver: TokenPasteResolver(solana: StubResolver(result: resolvedUSDC())),
             initial: empty())
 
-        await model.addPastedMint(TickerCatalog.wrappedSolMint)
+        await model.addPasted(TickerCatalog.wrappedSolMint)
 
         XCTAssertNotNil(model.addError)
         XCTAssertTrue(model.customEntries.isEmpty)
@@ -124,11 +124,11 @@ final class TickerSettingsViewModelTests: XCTestCase {
     func testAddPastedMintRejectsDuplicate() async {
         let model = TickerSettingsViewModel(
             store: makeStore(),
-            resolver: StubResolver(result: resolvedUSDC()),
+            pasteResolver: TokenPasteResolver(solana: StubResolver(result: resolvedUSDC())),
             initial: empty())
 
-        await model.addPastedMint(usdcMint)
-        await model.addPastedMint(usdcMint)
+        await model.addPasted(usdcMint)
+        await model.addPasted(usdcMint)
 
         XCTAssertEqual(model.customEntries.count, 1)
         XCTAssertNotNil(model.addError)
@@ -137,10 +137,10 @@ final class TickerSettingsViewModelTests: XCTestCase {
     func testAddPastedMintUnresolvedSetsError() async {
         let model = TickerSettingsViewModel(
             store: makeStore(),
-            resolver: StubResolver(result: nil),
+            pasteResolver: TokenPasteResolver(solana: StubResolver(result: nil)),
             initial: empty())
 
-        await model.addPastedMint(usdcMint)
+        await model.addPasted(usdcMint)
 
         XCTAssertNil(model.customEntries.first)
         XCTAssertNotNil(model.addError)
@@ -149,9 +149,9 @@ final class TickerSettingsViewModelTests: XCTestCase {
     func testRemoveCustomEntry() async {
         let model = TickerSettingsViewModel(
             store: makeStore(),
-            resolver: StubResolver(result: resolvedUSDC()),
+            pasteResolver: TokenPasteResolver(solana: StubResolver(result: resolvedUSDC())),
             initial: empty())
-        await model.addPastedMint(usdcMint)
+        await model.addPasted(usdcMint)
         let id = try? XCTUnwrap(model.customEntries.first?.id)
 
         if let id { model.removeEntry(id: id) }

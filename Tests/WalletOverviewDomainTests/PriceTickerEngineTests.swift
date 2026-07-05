@@ -56,7 +56,7 @@ private func makeEngine(
     PriceTickerEngine(provider: provider, lastKnownStore: store, configuration: configuration, clock: clock)
 }
 
-// Synchronous so the non-Sendable UserDefaults never crosses an async boundary.
+/// Synchronous so the non-Sendable UserDefaults never crosses an async boundary.
 private func makePricesStore(_ suiteName: String) -> LastKnownPricesStore {
     let defaults = UserDefaults(suiteName: suiteName)!
     defaults.removePersistentDomain(forName: suiteName)
@@ -97,7 +97,9 @@ final class PriceTickerEngineTests: XCTestCase {
         await engine.configure(entries: [btcEntry()])
         _ = await engine.tickOnce()
         mock.set(failure)
-        for _ in 0..<3 { _ = await engine.tickOnce() }
+        for _ in 0..<3 {
+            _ = await engine.tickOnce()
+        }
         let snapshot = await engine.tickOnce()
 
         let segment = snapshot.segments.first
@@ -124,7 +126,9 @@ final class PriceTickerEngineTests: XCTestCase {
 
         clock.advance(by: .seconds(700))
         mock.set(failure)
-        for _ in 0..<3 { _ = await engine.tickOnce() }
+        for _ in 0..<3 {
+            _ = await engine.tickOnce()
+        }
         let snapshot = await engine.tickOnce()
 
         let segment = snapshot.segments.first
