@@ -1,6 +1,6 @@
 import AppKit
 import Caching
-import HeliusProvider
+import DataProviders
 import KeychainKit
 import Observation
 import OSLog

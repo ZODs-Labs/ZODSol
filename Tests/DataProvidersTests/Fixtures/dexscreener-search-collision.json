@@ -1,0 +1,32 @@
+{
+  "pairs": [
+    {
+      "chainId": "pulsechain",
+      "baseToken": { "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "name": "Fake USDC", "symbol": "USDC" },
+      "priceUsd": "0.5",
+      "liquidity": { "usd": 8000000 },
+      "priceChange": { "h24": 1.0 }
+    },
+    {
+      "chainId": "pulsechain",
+      "baseToken": { "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "name": "Fake USDC", "symbol": "USDC" },
+      "priceUsd": "0.5",
+      "liquidity": { "usd": 7000000 },
+      "priceChange": { "h24": 1.0 }
+    },
+    {
+      "chainId": "ethereum",
+      "baseToken": { "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "name": "USD Coin", "symbol": "USDC" },
+      "priceUsd": "1.0",
+      "liquidity": { "usd": 50000000 },
+      "priceChange": { "h24": 0.0 }
+    },
+    {
+      "chainId": "base",
+      "baseToken": { "address": "0xffffffffffffffffffffffffffffffffffffffff", "name": "Unrelated", "symbol": "OTHER" },
+      "priceUsd": "2.0",
+      "liquidity": { "usd": 9999999 },
+      "priceChange": { "h24": 0.0 }
+    }
+  ]
+}

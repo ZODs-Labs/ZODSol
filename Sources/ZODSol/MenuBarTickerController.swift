@@ -1,6 +1,6 @@
 import AppKit
+import DataProviders
 import Foundation
-import HeliusProvider
 import Observation
 import SolanaRPC
 import WalletOverviewDomain

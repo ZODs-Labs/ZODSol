@@ -48,6 +48,20 @@ public enum TickerCatalog {
             displayDecimals: 2)
     }
 
+    /// Builds an EVM-sourced entry for a resolved token. `sourceIdentifier`
+    /// carries the `(chain, address)` identity so the refresh loop routes it
+    /// back to the right chain. `displayDecimals` is unused by the significant
+    /// figures ticker formatter but kept for parity with the other entry kinds.
+    public static func evmEntry(_ token: EVMResolvedToken) -> TickerEntry {
+        TickerEntry(
+            source: .evmDex,
+            sourceIdentifier: token.ref.sourceIdentifier,
+            symbol: token.symbol,
+            displayName: token.name,
+            displayDecimals: 2,
+            iconURL: token.iconURL)
+    }
+
     /// Builds a Jupiter-sourced entry for an arbitrary Solana mint, with
     /// metadata resolved upstream (Jupiter token search or Helius DAS).
     public static func jupiterEntry(

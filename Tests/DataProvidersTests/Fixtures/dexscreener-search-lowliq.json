@@ -1,0 +1,11 @@
+{
+  "pairs": [
+    {
+      "chainId": "base",
+      "baseToken": { "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "name": "Dust", "symbol": "DUST" },
+      "priceUsd": "0.0000012",
+      "liquidity": { "usd": 500 },
+      "priceChange": { "h24": 0.0 }
+    }
+  ]
+}

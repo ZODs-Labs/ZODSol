@@ -14,7 +14,7 @@ let package = Package(
         .library(name: "KeychainKit", targets: ["KeychainKit"]),
         .library(name: "Formatters", targets: ["Formatters"]),
         .library(name: "Caching", targets: ["Caching"]),
-        .library(name: "HeliusProvider", targets: ["HeliusProvider"]),
+        .library(name: "DataProviders", targets: ["DataProviders"]),
         .library(name: "WalletOverviewDomain", targets: ["WalletOverviewDomain"]),
         .library(name: "WalletOverviewUI", targets: ["WalletOverviewUI"]),
     ],
@@ -27,7 +27,7 @@ let package = Package(
             dependencies: [
                 "WalletOverviewUI",
                 "WalletOverviewDomain",
-                "HeliusProvider",
+                "DataProviders",
                 "KeychainKit",
                 "Formatters",
             ],
@@ -152,21 +152,21 @@ let package = Package(
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
 
-        // MARK: - HeliusProvider
+        // MARK: - DataProviders
 
         .target(
-            name: "HeliusProvider",
+            name: "DataProviders",
             dependencies: ["SolanaKit", "SolanaRPC", "KeychainKit"],
-            path: "Sources/HeliusProvider",
+            path: "Sources/DataProviders",
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
                 .enableUpcomingFeature("ExistentialAny"),
             ]),
         .testTarget(
-            name: "HeliusProviderTests",
-            dependencies: ["HeliusProvider"],
-            path: "Tests/HeliusProviderTests",
+            name: "DataProvidersTests",
+            dependencies: ["DataProviders"],
+            path: "Tests/DataProvidersTests",
             exclude: ["Fixtures"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),

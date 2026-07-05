@@ -1,5 +1,5 @@
+import DataProviders
 import Foundation
-import HeliusProvider
 import SolanaKit
 import SolanaRPC
 import WalletOverviewUI

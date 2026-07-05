@@ -1,0 +1,16 @@
+[
+  {
+    "chainId": "base",
+    "baseToken": { "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "name": "USD Coin", "symbol": "USDC" },
+    "priceUsd": "1.0001",
+    "liquidity": { "usd": 5000000 },
+    "priceChange": { "h24": 0.05 }
+  },
+  {
+    "chainId": "base",
+    "baseToken": { "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "name": "USD Coin", "symbol": "USDC" },
+    "priceUsd": "0.9998",
+    "liquidity": { "usd": 1000000 },
+    "priceChange": { "h24": 0.0 }
+  }
+]
