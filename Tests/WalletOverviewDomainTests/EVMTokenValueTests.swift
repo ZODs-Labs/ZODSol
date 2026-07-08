@@ -56,7 +56,26 @@ final class EVMTokenValueTests: XCTestCase {
     func testSupportedLookups() {
         XCTAssertEqual(EVMChain.supported(slug: "bsc"), .bsc)
         XCTAssertEqual(EVMChain.supported(dexScreenerId: "avalanche"), .avalanche)
+        XCTAssertEqual(EVMChain.supported(dexScreenerId: "robinhood"), .robinhood)
         XCTAssertNil(EVMChain.supported(slug: "linea"))
+    }
+
+    func testChainMapCompleteness() {
+        var slugs = Set<String>()
+        for chain in EVMChain.supported {
+            XCTAssertFalse(chain.slug.isEmpty, "empty slug")
+            XCTAssertFalse(chain.displayName.isEmpty, "empty displayName for \(chain.slug)")
+            XCTAssertFalse(chain.dexScreenerId.isEmpty, "empty dexScreenerId for \(chain.slug)")
+            XCTAssertFalse(chain.defiLlamaId.isEmpty, "empty defiLlamaId for \(chain.slug)")
+            XCTAssertFalse(chain.nativeSymbol.isEmpty, "empty nativeSymbol for \(chain.slug)")
+            XCTAssertTrue(slugs.insert(chain.slug).inserted, "duplicate slug \(chain.slug)")
+        }
+    }
+
+    func testRobinhoodRefRoundTrips() throws {
+        let ref = EVMTokenRef(chain: .robinhood, address: "0x79fe86b963255ce884bdcac6388c50a599ba277f")
+        XCTAssertEqual(ref.sourceIdentifier, "evm:robinhood:0x79fe86b963255ce884bdcac6388c50a599ba277f")
+        XCTAssertEqual(EVMTokenRef(sourceIdentifier: ref.sourceIdentifier), ref)
     }
 
     // MARK: - PasteClassifier

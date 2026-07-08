@@ -51,11 +51,17 @@ public struct EVMChain: Sendable, Hashable {
     public static let avalanche = EVMChain(
         slug: "avalanche", displayName: "Avalanche",
         dexScreenerId: "avalanche", defiLlamaId: "avax", nativeSymbol: "AVAX")
+    // Robinhood Chain: an Ethereum L2 (ETH gas, WETH-quoted DEX pairs). DefiLlama
+    // does not index it yet, so the DefiLlama fallback returns nothing for it and
+    // DexScreener carries the price; the placeholder id keeps it forward-safe.
+    public static let robinhood = EVMChain(
+        slug: "robinhood", displayName: "Robinhood",
+        dexScreenerId: "robinhood", defiLlamaId: "robinhood", nativeSymbol: "ETH")
 
-    /// The v1 allow-list, ordered by 2026 liquidity. Expanding it is pure data
-    /// plus a `ChainMapCompletenessTests` row.
+    /// The supported allow-list. Expanding it is pure data plus a completeness
+    /// test row; the DexScreener id must be a chain DexScreener actually indexes.
     public static let supported: [EVMChain] = [
-        .ethereum, .base, .arbitrum, .optimism, .polygon, .bsc, .avalanche,
+        .ethereum, .base, .arbitrum, .optimism, .polygon, .bsc, .avalanche, .robinhood,
     ]
 
     public static func supported(slug: String) -> EVMChain? {

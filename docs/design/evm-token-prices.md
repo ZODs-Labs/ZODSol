@@ -206,8 +206,11 @@ Tier 1, by 2026 liquidity. The per-vendor slug table is the load-bearing data; a
 | Polygon | polygon | polygon | polygon | POL |
 | BNB Chain | bsc | bsc | bsc | BNB |
 | Avalanche | avalanche | avalanche | avax | AVAX |
+| Robinhood | robinhood | robinhood | robinhood | ETH |
 
-A token that resolves only on a chain outside this set is rejected with a named message ("This token is on Linea, which is not supported yet."). Expanding the list is pure data plus a test row, a two-way door.
+Robinhood Chain is an Arbitrum-Orbit Ethereum L2 (chain id 4663, ETH gas) added because DexScreener indexes it. DefiLlama does not price its tokens via the coins API yet, so the DefiLlama fallback returns empty for it and DexScreener carries the price; the DefiLlama id is a forward-safe placeholder. Note: it is an RWA / tokenized-stock chain, and the WETH-quoted DEX tokens on it (HOOD, ROBIN, CASHCAT style) are unofficial community/meme tokens, not Robinhood-issued assets, so the ticker shows their own symbol with no implied legitimacy.
+
+A token that resolves only on a chain outside the set is rejected with a named message ("This token is on Linea, which is not supported yet."). Expanding the list is pure data plus a test row, a two-way door.
 
 ## 8. Data flow
 
